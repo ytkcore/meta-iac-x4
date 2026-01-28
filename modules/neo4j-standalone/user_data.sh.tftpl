@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MARKER="/opt/neo4j/.installed"
+if [ -f "$MARKER" ]; then
+  exit 0
+fi
+
+REGISTRY_HOSTPORT="${harbor_registry_hostport}"
+PROJECT="${harbor_project}"
+TAG="${neo4j_image_tag}"
+IMAGE="${REGISTRY_HOSTPORT}/${PROJECT}/library/neo4j:${TAG}"
+
+NEO4J_AUTH="${neo4j_auth}"
+
+mkdir -p /opt/neo4j /data/neo4j
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: docker is not installed. outbound=0 subnet에서는 docker 포함 AMI(ECS Optimized 등)를 사용하세요."
+  exit 2
+fi
+
+systemctl enable --now docker >/dev/null 2>&1 || true
+
+if [ "${harbor_insecure}" = "true" ]; then
+  mkdir -p /etc/docker
+  cat > /etc/docker/daemon.json <<JSON
+{
+  "insecure-registries": ["${REGISTRY_HOSTPORT}"]
+}
+JSON
+  systemctl restart docker >/dev/null 2>&1 || true
+fi
+
+docker pull "${IMAGE}"
+docker rm -f neo4j >/dev/null 2>&1 || true
+
+docker run -d --name neo4j \
+  --restart unless-stopped \
+  -p 7474:7474 \
+  -p 7687:7687 \
+  -e NEO4J_AUTH="${NEO4J_AUTH}" \
+  -v /data/neo4j:/data \
+  "${IMAGE}"
+
+touch "$MARKER"

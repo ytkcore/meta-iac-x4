@@ -1,0 +1,58 @@
+################################################################################
+# 55-bootstrap Stack - Example Configuration
+#
+# 사용법:
+# 1. 이 파일을 terraform.tfvars로 복사
+# 2. 값을 환경에 맞게 수정
+# 3. terraform init && terraform apply
+################################################################################
+
+# Common (env.tfvars에서 주입되는 값들)
+# env              = "dev"
+# project          = "myproject"
+# region           = "ap-northeast-2"
+# state_bucket     = "my-terraform-state"
+# state_region     = "ap-northeast-2"
+# state_key_prefix = "terraform"
+
+# Domain (선택적)
+domain           = "example.com"
+argocd_subdomain = "argocd"
+
+# ArgoCD Ingress (Public NLB + ACM TLS 종료, ingress-nginx host routing)
+argocd_enable_ingress      = true
+argocd_ingress_class_name  = "nginx"
+
+# Optional: Install Rancher via ArgoCD (set enable_rancher_app=true)
+# NOTE: rancher_bootstrap_password는 반드시 안전한 값으로 설정하세요.
+enable_rancher_app         = false
+rancher_subdomain          = "rancher"
+rancher_namespace          = "cattle-system"
+rancher_repo_url           = "https://releases.rancher.com/server-charts/stable"
+rancher_chart_version      = "2.10.10"
+# rancher_bootstrap_password = "CHANGE_ME_SECURE_PASSWORD"
+rancher_ingress_class_name = "nginx"
+
+# cert-manager
+install_cert_manager = false
+cert_manager_skip_if_present = true
+cert_manager_version = "v1.14.5"
+
+# ArgoCD
+argocd_version         = "5.55.0"
+argocd_namespace       = "argocd"
+argocd_ha_enabled      = false        # Production에서는 true 권장
+argocd_server_replicas = 1
+argocd_nodeport_http   = 31080
+argocd_nodeport_https  = 31443
+argocd_server_insecure = true         # NLB에서 TLS 종료 시 true
+
+# GitOps (App-of-Apps Pattern) - 선택적
+enable_gitops_apps = false
+# gitops_repo_url    = "https://github.com/your-org/your-repo.git"
+# gitops_repo_branch = "main"
+# gitops_apps_path   = "gitops-apps/platform"
+
+# Kubernetes Connection
+kubeconfig_path    = "~/.kube/config"
+# kubeconfig_context = "default"

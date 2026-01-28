@@ -1,0 +1,86 @@
+# =============================================================================
+# Rancher - Kubernetes 관리 플랫폼 (GitOps 설치)
+#
+# 사전 요구사항:
+#   1. cert-manager 설치 완료 (sync-wave: 1)
+#   2. nginx-ingress 설치 완료 (sync-wave: 2)
+#   3. DNS 또는 /etc/hosts에 hostname 설정
+#
+# 외부 접근:
+#   Public NLB DNS → NodePort(30080/30443) → nginx-ingress → Rancher
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rancher
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"  # cert-manager, nginx-ingress 다음에 설치
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://releases.rancher.com/server-charts/latest
+    chart: rancher
+    targetRevision: 2.12.3  # K8s 1.33 지원 버전
+    helm:
+      valuesObject:
+        # =====================================================================
+        # 필수 설정 - 환경에 맞게 수정 필요
+        # =====================================================================
+        hostname: rancher.example.com  # TODO: 실제 도메인으로 변경
+        bootstrapPassword: "admin"     # TODO: 초기 비밀번호 (첫 로그인 후 변경 필수)
+        
+        # =====================================================================
+        # TLS 설정 (self-signed with cert-manager)
+        # =====================================================================
+        ingress:
+          tls:
+            source: rancher  # Rancher 자체 CA 사용
+          ingressClassName: nginx
+          extraAnnotations:
+            nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+            nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
+            nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"
+        
+        # =====================================================================
+        # 리소스 설정
+        # =====================================================================
+        replicas: 1  # HA의 경우 3으로 변경
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        # =====================================================================
+        # cert-manager 연동
+        # =====================================================================
+        certmanager:
+          version: v1.16.2
+        
+        # =====================================================================
+        # 기타 설정
+        # =====================================================================
+        antiAffinity: preferred
+        auditLog:
+          level: 1
+          destination: sidecar
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cattle-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

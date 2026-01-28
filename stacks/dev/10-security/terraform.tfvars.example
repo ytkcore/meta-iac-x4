@@ -1,0 +1,12 @@
+# IMPORTANT: Restrict to your office/VPN egress
+admin_cidrs = ["203.0.113.10/32"]
+
+lb_ingress_cidrs = ["0.0.0.0/0"]
+lb_ports         = [80, 443]
+
+# instance target
+lb_to_worker_tcp_ports = [80, 443]
+enable_nodeport_from_lb = true
+
+db_ports = [5432]
+allow_db_from_bastion = false

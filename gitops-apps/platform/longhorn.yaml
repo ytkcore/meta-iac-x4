@@ -1,0 +1,104 @@
+################################################################################
+# Longhorn Storage Application (ArgoCD)
+#
+# Longhorn: Kubernetes용 분산 블록 스토리지
+# - PersistentVolume 자동 프로비저닝
+# - 복제 및 스냅샷
+# - 백업/복구
+#
+# Prerequisites:
+# - open-iscsi 패키지 (RKE2에 포함)
+# - 각 노드에 /var/lib/longhorn 디렉토리
+################################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: longhorn
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: longhorn
+    app.kubernetes.io/part-of: platform
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # 배포 순서: Rancher 이후 (선택적)
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: default
+  
+  source:
+    repoURL: https://charts.longhorn.io
+    chart: longhorn
+    targetRevision: "1.7.2"
+    helm:
+      releaseName: longhorn
+      valuesObject:
+        # ====================================================================
+        # 기본 설정
+        # ====================================================================
+        persistence:
+          defaultClass: true
+          defaultFsType: ext4
+          defaultClassReplicaCount: 2  # 복제본 수 (HA)
+          reclaimPolicy: Delete
+        
+        # ====================================================================
+        # Ingress (Longhorn UI) - 선택적
+        # ====================================================================
+        ingress:
+          enabled: false
+          # enabled: true
+          # ingressClassName: nginx
+          # host: longhorn.example.com
+          # tls: false
+          # annotations:
+          #   nginx.ingress.kubernetes.io/ssl-redirect: "false"
+        
+        # ====================================================================
+        # 리소스 설정
+        # ====================================================================
+        longhornManager:
+          priorityClass: system-cluster-critical
+        
+        longhornDriver:
+          priorityClass: system-cluster-critical
+        
+        # ====================================================================
+        # 백업 설정 (S3) - 선택적
+        # ====================================================================
+        defaultSettings:
+          backupTarget: ""
+          # backupTarget: "s3://longhorn-backup@ap-northeast-2/"
+          # backupTargetCredentialSecret: "longhorn-backup-secret"
+          
+          # 자동 스냅샷/백업 정책
+          createDefaultDiskLabeledNodes: true
+          defaultDataPath: /var/lib/longhorn/
+          replicaSoftAntiAffinity: false
+          replicaAutoBalance: best-effort
+          
+          # 리소스 예약
+          storageMinimalAvailablePercentage: 15
+          storageOverProvisioningPercentage: 200
+          
+          # Kubernetes 통합
+          kubernetesClusterAutoscalerEnabled: false
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: longhorn-system
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 1m

@@ -1,0 +1,298 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Log to both file and console for fast debugging
+exec > >(tee -a /var/log/rke2-bootstrap.log | logger -t rke2-bootstrap -s 2>/dev/console) 2>&1
+
+echo "[rke2] bootstrap start (server)"
+
+%{ if os_family == "ubuntu2204" }
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y || true
+apt-get install -y curl || true
+%{ else }
+dnf -y update || true
+dnf -y install curl || true
+%{ endif }
+
+echo "[rke2] installing rke2 ${rke2_version}"
+curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION="${rke2_version}" sh -
+
+mkdir -p /etc/rancher/rke2
+
+
+# -----------------------------------------------------------------------------
+# Ingress(NGINX) NodePort(Service) 보장 (NLB health check 대응)
+# - RKE2는 /var/lib/rancher/rke2/server/manifests 내 YAML을 자동 apply 합니다.
+# - rke2-ingress-nginx chart의 controller service가 없을 경우 NLB TargetGroup이 Unhealthy가 됩니다.
+# -----------------------------------------------------------------------------
+%{ if configure_ingress_nodeport }
+mkdir -p /var/lib/rancher/rke2/server/manifests
+cat >/var/lib/rancher/rke2/server/manifests/rke2-ingress-nginx-config.yaml <<'YAML'
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: rke2-ingress-nginx
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    controller:
+      service:
+        enabled: true
+        type: NodePort
+        nodePorts:
+          http: ${ingress_http_nodeport}
+          https: ${ingress_https_nodeport}
+        externalTrafficPolicy: ${ingress_external_traffic_policy}
+YAML
+%{ endif }
+
+cat >/etc/rancher/rke2/config.yaml <<'YAML'
+token: "${token}"
+write-kubeconfig-mode: "0644"
+node-name: "${node_name}"
+%{ if tls_san != null }
+tls-san:
+  - "${tls_san}"
+%{ endif }
+%{ if is_bootstrap }
+cluster-init: true
+%{ else }
+server: "${server_url}"
+%{ endif }
+%{ if disable_default_registry_fallback }
+disable-default-registry-endpoint: true
+%{ endif }
+YAML
+
+# -----------------------------------------------------------------------------
+# Harbor registry mirror (optional)
+# - If harbor_registry_hostport is empty, we don't touch registries.yaml.
+# - All major registries are mirrored through Harbor for caching.
+# -----------------------------------------------------------------------------
+%{ if harbor_registry_hostport != "" }
+
+%{ if harbor_add_hosts_entry && harbor_hostname != "" && harbor_private_ip != "" }
+# Ensure Harbor hostname resolves internally (token realm/redirect 안정화)
+echo "[rke2] Ensuring internal DNS for Harbor: ${harbor_hostname} -> ${harbor_private_ip}"
+if ! grep -q "${harbor_hostname}" /etc/hosts; then
+  echo "${harbor_private_ip} ${harbor_hostname}" >> /etc/hosts
+fi
+%{ endif }
+
+# Wait for Harbor to be ready before starting RKE2
+echo "[rke2] Waiting for Harbor to be ready..."
+HARBOR_URL="${harbor_scheme}://${harbor_registry_hostport}"
+for i in {1..60}; do
+  if curl -fsSk --connect-timeout 5 "$HARBOR_URL/api/v2.0/health" 2>/dev/null | grep -q healthy; then
+    echo "[rke2] Harbor is ready!"
+    break
+  fi
+  echo "[rke2] Waiting for Harbor... ($i/60)"
+  sleep 10
+done
+
+%{ if disable_default_registry_fallback }
+# If Harbor is not ready and fallback is disabled, fail fast.
+if ! curl -fsSk --connect-timeout 5 "$HARBOR_URL/api/v2.0/health" 2>/dev/null | grep -q healthy; then
+  echo "[rke2] ERROR: Harbor not ready after timeout and disable_default_registry_fallback=true. Aborting."
+  exit 1
+fi
+%{ else }
+# If Harbor is still not ready after timeout, continue anyway (fallback enabled)
+if ! curl -fsSk --connect-timeout 5 "$HARBOR_URL/api/v2.0/health" 2>/dev/null | grep -q healthy; then
+  echo "[rke2] WARNING: Harbor not ready after timeout. Continuing (fallback enabled)."
+fi
+%{ endif }
+
+cat >/etc/rancher/rke2/registries.yaml <<'YAML'
+mirrors:
+  # Docker Hub (rancher/* images)
+  "docker.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      # Preserve original path (e.g. rancher/rke2-runtime -> ${harbor_proxy_project}/rancher/rke2-runtime)
+      "^(.*)$": "${harbor_proxy_project}/$1"
+  
+  # Kubernetes official registry (pause, coredns, etc.)
+  "registry.k8s.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "k8s-proxy/$1"
+  
+  # GitHub Container Registry (kube-vip, etc.)
+  "ghcr.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "ghcr-proxy/$1"
+  
+  # Quay.io
+  "quay.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "quay-proxy/$1"
+  
+  # Google Container Registry
+  "gcr.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "gcr-proxy/$1"
+
+  # Rancher registry (RKE2/Rancher hardened images)
+  "registry.rancher.com":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "rancher-proxy/$1"
+  
+  # Direct Harbor access
+  "${harbor_registry_hostport}":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+
+configs:
+  "${harbor_registry_hostport}":
+%{ if harbor_scheme == "https" }
+    tls:
+      insecure_skip_verify: ${harbor_tls_insecure_skip_verify}
+%{ else }
+    # HTTP registry - no TLS config needed
+%{ endif }
+%{ if harbor_auth_enabled }
+    auth:
+      username: "${harbor_username}"
+      password: "${harbor_password}"
+%{ endif }
+YAML
+%{ endif }
+
+systemctl enable rke2-server.service
+systemctl start rke2-server.service
+
+
+# -----------------------------------------------------------------------------
+# [추가] Harbor Proxy Cache warm-up (RKE2 system images pre-pull)
+# - 목적: RKE2 설치 직후 Harbor Proxy Cache에 필요한 이미지가 캐시되도록 보장
+# - 방식: RKE2에 포함된 crictl로 RKE2 이미지 리스트(.txt)를 읽어 순차 pull
+# -----------------------------------------------------------------------------
+%{ if enable_image_prepull }
+if [[ "${is_bootstrap}" == "true" ]]; then
+  echo "[rke2] Harbor cache warm-up enabled (bootstrap only)"
+  PREFETCH_MARKER="/var/lib/rancher/rke2/agent/images/.prefetch_done_${rke2_version}"
+  if [[ -f "$PREFETCH_MARKER" ]]; then
+    echo "[rke2] Prefetch already done - skipping"
+  else
+    mkdir -p /var/lib/rancher/rke2/agent/images
+    ARCH="$(uname -m)"
+    case "$ARCH" in
+      x86_64|amd64) IMGARCH="amd64" ;;
+      aarch64|arm64) IMGARCH="arm64" ;;
+      *) IMGARCH="amd64" ;;
+    esac
+
+    echo "[rke2] Waiting for crictl and containerd socket..."
+    for i in {1..120}; do
+      [[ -x /var/lib/rancher/rke2/bin/crictl ]] && [[ -f /var/lib/rancher/rke2/agent/etc/crictl.yaml ]] && break
+      sleep 2
+    done
+
+    export CRI_CONFIG_FILE=/var/lib/rancher/rke2/agent/etc/crictl.yaml
+
+    LIST_FILE="/var/lib/rancher/rke2/agent/images/00-rke2-system-images-$${IMGARCH}.txt"
+
+    if [[ "${image_prepull_source}" == "prime" ]]; then
+      PRIMARY_URL="https://prime.ribs.rancher.io/rke2/${rke2_version}/rke2-images.linux-$${IMGARCH}.txt"
+      FALLBACK_URL="https://github.com/rancher/rke2/releases/download/${rke2_version}/rke2-images.linux-$${IMGARCH}.txt"
+    else
+      PRIMARY_URL="https://github.com/rancher/rke2/releases/download/${rke2_version}/rke2-images.linux-$${IMGARCH}.txt"
+      FALLBACK_URL="https://prime.ribs.rancher.io/rke2/${rke2_version}/rke2-images.linux-$${IMGARCH}.txt"
+    fi
+
+    echo "[rke2] Downloading image list: $PRIMARY_URL"
+    if ! curl -fsSL "$PRIMARY_URL" -o "$LIST_FILE"; then
+      echo "[WARN] Failed to download from primary, trying fallback: $FALLBACK_URL"
+      curl -fsSL "$FALLBACK_URL" -o "$LIST_FILE" || true
+    fi
+
+    if [[ ! -s "$LIST_FILE" ]]; then
+      echo "[WARN] Image list not available - skipping warm-up"
+      rm -f "$LIST_FILE" || true
+    else
+      sed -i '/^\s*$/d' "$LIST_FILE"
+      sed -i '/^\s*#/d' "$LIST_FILE"
+
+      echo "[rke2] Pulling images (this will populate Harbor proxy cache)..."
+      FAIL=0
+      while read -r IMG; do
+        [[ -z "$IMG" ]] && continue
+        echo "[rke2] pulling: $IMG"
+        /var/lib/rancher/rke2/bin/crictl pull "$IMG" || FAIL=1
+      done < "$LIST_FILE"
+
+      if [[ "$FAIL" == "0" ]]; then
+        echo "[rke2] Prefetch completed"
+        touch "$PREFETCH_MARKER"
+      else
+        echo "[WARN] Prefetch finished with errors (some images may not have been cached)"
+        touch "$PREFETCH_MARKER"
+      fi
+    fi
+  fi
+fi
+%{ endif }
+
+
+
+# -----------------------------------------------------------------------------
+# [추가] Kubectl & Helm 설치 및 설정
+# -----------------------------------------------------------------------------
+echo "Starting Tools Setup..."
+
+# 1. Kubectl 설정 (RKE2 내장 바이너리 활용 or 다운로드)
+# RKE2는 /var/lib/rancher/rke2/bin/kubectl 에 바이너리를 내장하고 있습니다.
+# 이를 시스템 경로로 심볼릭 링크를 걸어주는 것이 가장 깔끔합니다.
+ln -sf /var/lib/rancher/rke2/bin/kubectl /usr/local/bin/kubectl
+
+# (만약 특정 버전을 직접 다운로드하고 싶다면 위 ln 명령 대신 아래 curl 사용)
+# curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+# chmod +x kubectl
+# mv kubectl /usr/local/bin/
+
+# 2. Helm 설치 (RKE2에 미포함이므로 직접 설치)
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod 700 get_helm.sh
+./get_helm.sh
+
+# 3. 환경 변수 설정 (root 및 ssm-user용)
+# RKE2 kubeconfig 위치: /etc/rancher/rke2/rke2.yaml
+# 이 파일은 RKE2 시작 후 생성되므로, 잠시 대기 후 권한 조정이 필요할 수 있으나
+# root 유저는 바로 읽을 수 있습니다.
+
+# 전역 프로파일에 KUBECONFIG 등록 (모든 사용자 적용)
+cat >> /etc/profile.d/rke2.sh <<EOF
+export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+export PATH=\$PATH:/var/lib/rancher/rke2/bin
+EOF
+
+# 즉시 적용을 위해 현재 쉘에도 export (user data 실행 중 유효)
+export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+export PATH=$PATH:/var/lib/rancher/rke2/bin
+
+# 4. 자동완성 (선택 사항)
+echo "source <(kubectl completion bash)" >> /root/.bashrc
+echo "source <(helm completion bash)" >> /root/.bashrc
+
+# ssm-user(AWS Systems Manager 접속 계정)가 있다면 거기도 설정
+if id "ssm-user" &>/dev/null; then
+    echo "source <(kubectl completion bash)" >> /home/ssm-user/.bashrc
+    echo "source <(helm completion bash)" >> /home/ssm-user/.bashrc
+fi
+
+echo "Tools Setup Completed."
+
+echo "[rke2] bootstrap done (server)"

@@ -1,0 +1,11 @@
+**/.terraform/*
+**/*.auto.tfvars
+**/*.tfstate
+**/*.tfstate.backup
+**/*.tfstate.*
+**/crash.log
+**/crash.*.log
+**/.DS_Store
+
+# Generated from templates/versions.tf
+stacks/**/versions.tf

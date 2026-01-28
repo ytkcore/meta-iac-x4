@@ -1,0 +1,245 @@
+#!/bin/bash
+# Harbor bootstrap - cloud-init entrypoint
+set -x
+exec > >(tee -a /var/log/harbor-bootstrap.log) 2>&1
+echo "=== Harbor bootstrap started: $(date) ==="
+
+mkdir -p /opt/harbor /data/harbor /data/cert
+
+cat > /opt/harbor/bootstrap.sh << 'EOFMAIN'
+#!/bin/bash
+set -euo pipefail
+exec > >(tee -a /var/log/harbor-install.log) 2>&1
+echo "=== Harbor Install Started: $(date) ==="
+
+HARBOR_VERSION="__HARBOR_VERSION__"
+HOSTNAME="__HOSTNAME__"
+ENABLE_TLS="__ENABLE_TLS__"
+ADMIN_PASS="__ADMIN_PASSWORD__"
+DB_PASS="__DB_PASSWORD__"
+STORAGE_TYPE="__STORAGE_TYPE__"
+S3_REGION="__S3_REGION__"
+S3_BUCKET="__S3_BUCKET__"
+DATA_VOLUME="__DATA_VOLUME__"
+MARKER="/opt/harbor/.installed"
+
+mkdir -p /opt/harbor "$DATA_VOLUME" /data/cert /var/log/harbor
+
+if [[ -f "$MARKER" ]]; then
+  echo "[INFO] Already installed"
+  systemctl enable --now docker || true
+  [[ -f /opt/harbor/harbor/docker-compose.yml ]] && cd /opt/harbor/harbor && docker compose up -d || true
+  exit 0
+fi
+
+retry() { local n=0 m="$1" d="$2"; shift 2; until "$@"; do n=$((n+1)); ((n>=m)) && return 1; sleep "$d"; done; }
+wait_net() { for i in {1..60}; do ping -c1 -W2 8.8.8.8 &>/dev/null && return 0; sleep 5; done; return 1; }
+
+echo "=== Waiting for network ===" && wait_net
+
+echo "=== Installing packages ==="
+for i in {1..10}; do dnf -y makecache && break; sleep 10; done
+retry 5 15 dnf -y install tar gzip openssl ca-certificates wget
+command -v curl &>/dev/null || dnf -y install curl-minimal 2>/dev/null || dnf -y install curl --allowerasing || true
+
+echo "=== Installing Docker ==="
+if ! command -v docker &>/dev/null; then
+  dnf -y install docker 2>/dev/null || {
+    dnf -y install dnf-plugins-core || true
+    dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo || true
+    retry 3 15 dnf -y install docker-ce docker-ce-cli containerd.io
+  }
+fi
+systemctl enable docker && systemctl start docker
+for i in {1..30}; do docker info &>/dev/null && break; sleep 3; done
+docker info &>/dev/null || { echo "[ERROR] Docker failed"; exit 1; }
+
+echo "=== Installing Docker Compose ==="
+docker compose version &>/dev/null || {
+  dnf -y install docker-compose-plugin 2>/dev/null || {
+    mkdir -p /usr/local/lib/docker/cli-plugins
+    curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose \
+      "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-linux-$(uname -m)"
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+  }
+}
+
+echo "=== Configuring Docker ==="
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json << EOF
+{"insecure-registries":["127.0.0.1","$HOSTNAME","localhost"],"log-driver":"json-file","log-opts":{"max-size":"50m","max-file":"3"}}
+EOF
+systemctl restart docker && sleep 5
+
+echo "=== Downloading Harbor ==="
+cd /opt/harbor
+retry 5 15 curl -fsSL -o harbor.tgz "https://github.com/goharbor/harbor/releases/download/v$HARBOR_VERSION/harbor-online-installer-v$HARBOR_VERSION.tgz"
+tar -xzf harbor.tgz && cd /opt/harbor/harbor
+
+echo "=== Configuring Harbor ==="
+cp harbor.yml.tmpl harbor.yml
+sed -i "s|^hostname:.*|hostname: $HOSTNAME|" harbor.yml
+sed -i "s|^harbor_admin_password:.*|harbor_admin_password: \"$ADMIN_PASS\"|" harbor.yml
+sed -i "s|^data_volume:.*|data_volume: $DATA_VOLUME|" harbor.yml
+sed -i "s|^\(\s*password:\).*|\1 \"$DB_PASS\"|" harbor.yml
+sed -i '/^http:/,/^[a-z]/ { s|^\(\s*port:\).*|\1 80| }' harbor.yml
+[[ "$ENABLE_TLS" != "true" ]] && sed -i '/^https:/,/^[a-z#]/ { s/^/#/ }' harbor.yml
+if [[ "$STORAGE_TYPE" == "s3" && -n "$S3_BUCKET" ]]; then
+  sed -i '/^storage_service:/,/^[a-z]/d' harbor.yml
+  cat >> harbor.yml << EOF
+storage_service:
+  s3:
+    accesskey: ""
+    secretkey: ""
+    region: $S3_REGION
+    bucket: $S3_BUCKET
+    rootdirectory: /harbor
+EOF
+fi
+
+[[ "$ENABLE_TLS" == "true" ]] && openssl req -x509 -nodes -newkey rsa:4096 -keyout /data/cert/server.key -out /data/cert/server.crt -days 3650 -subj "/CN=$HOSTNAME"
+
+echo "=== Starting Harbor ==="
+chmod +x prepare && ./prepare
+mkdir -p /var/log/harbor /data/harbor /data/cert /data/database /data/redis /data/registry /data/secret/keys
+docker compose up -d
+
+SCHEME="http"; [[ "$ENABLE_TLS" == "true" ]] && SCHEME="https"
+echo "=== Waiting for Harbor health ==="
+for i in {1..60}; do curl -fsSk "$SCHEME://127.0.0.1/api/v2.0/health" 2>/dev/null | grep -q healthy && break; sleep 10; done
+
+touch "$MARKER" && rm -f /opt/harbor/harbor.tgz
+echo "=== Harbor Install Completed: $(date) ==="
+echo "URL: $SCHEME://$HOSTNAME"
+
+# Run post-install scripts if they exist
+[[ -x /opt/harbor/setup-proxy-cache.sh ]] && nohup /opt/harbor/setup-proxy-cache.sh >> /var/log/harbor-proxy-cache.log 2>&1 &
+[[ -x /opt/harbor/seed-helm-charts.sh ]] && nohup /opt/harbor/seed-helm-charts.sh >> /var/log/harbor-helm-seed.log 2>&1 &
+EOFMAIN
+
+# Proxy cache setup script
+cat > /opt/harbor/setup-proxy-cache.sh << 'EOFPROXY'
+#!/bin/bash
+set -euo pipefail
+exec > >(tee -a /var/log/harbor-proxy-cache.log) 2>&1
+HOSTNAME="__HOSTNAME__"
+ADMIN_PASS="__ADMIN_PASSWORD__"
+ENABLE_TLS="__ENABLE_TLS__"
+PROXY_CACHE_PROJECT="__PROXY_CACHE_PROJECT__"
+SCHEME="http"; [[ "$ENABLE_TLS" == "true" ]] && SCHEME="https"
+API="$SCHEME://127.0.0.1/api/v2.0"
+AUTH="admin:$ADMIN_PASS"
+
+create_proxy() {
+  local NAME="$1" URL="$2" TYPE="$${3:-docker-hub}"
+  echo "[INFO] Creating: $NAME -> $URL"
+  curl -fsSk -u "$AUTH" "$API/projects/$NAME" 2>/dev/null | grep -q "$NAME" && return 0
+  curl -fsSk -u "$AUTH" -X POST "$API/registries" -H "Content-Type: application/json" \
+    -d "{\"name\":\"$NAME-ep\",\"url\":\"$URL\",\"type\":\"$TYPE\",\"insecure\":false}" 2>/dev/null || true
+  sleep 1
+  local EID=$(curl -fsSk -u "$AUTH" "$API/registries" 2>/dev/null | grep -o "\"id\":[0-9]*,\"name\":\"$NAME-ep\"" | grep -o "\"id\":[0-9]*" | cut -d: -f2 || echo "1")
+  curl -fsSk -u "$AUTH" -X POST "$API/projects" -H "Content-Type: application/json" \
+    -d "{\"project_name\":\"$NAME\",\"public\":true,\"registry_id\":$EID}" 2>/dev/null || true
+}
+
+create_proxy "$PROXY_CACHE_PROJECT" "https://hub.docker.com" "docker-hub"
+create_proxy "k8s-proxy" "https://registry.k8s.io" "docker-registry"
+create_proxy "ghcr-proxy" "https://ghcr.io" "docker-registry"
+create_proxy "quay-proxy" "https://quay.io" "docker-registry"
+create_proxy "gcr-proxy" "https://gcr.io" "docker-registry"
+create_proxy "rancher-proxy" "https://registry.rancher.com" "docker-registry"
+echo "[OK] Proxy cache setup done"
+EOFPROXY
+
+# Helm chart seeding script
+cat > /opt/harbor/seed-helm-charts.sh << 'EOFHELM'
+#!/bin/bash
+set -euo pipefail
+exec > >(tee -a /var/log/harbor-helm-seed.log) 2>&1
+HOSTNAME="__HOSTNAME__"
+ADMIN_PASS="__ADMIN_PASSWORD__"
+ENABLE_TLS="__ENABLE_TLS__"
+ARGOCD_VER="__ARGOCD_VER__"
+CERTMANAGER_VER="__CERTMANAGER_VER__"
+RANCHER_VER="__RANCHER_VER__"
+SCHEME="http"; [[ "$ENABLE_TLS" == "true" ]] && SCHEME="https"
+
+# IMPORTANT:
+# - Harbor 자체는 enable_tls=false(HTTP)로 구동될 수 있으나,
+#   Helm OCI는 기본적으로 HTTPS를 선호합니다.
+# - 이 리포지토리는 Harbor 앞단에 ALB+ACM(HTTPS) 엔드포인트(예: harbor.<base_domain>)가
+#   존재한다는 전제 하에, OCI 푸시는 FQDN(=HOSTNAME)으로 수행합니다.
+#   (127.0.0.1 또는 Private IP로는 HTTPS가 없어 실패할 수 있습니다.)
+OCI_REGISTRY_HOST="$HOSTNAME"
+
+LOGIN_FLAGS=""
+PUSH_FLAGS=""
+if [[ "$ENABLE_TLS" == "true" ]]; then
+  # self-signed/사설 CA 환경에서 편의상 TLS 검증 스킵
+  LOGIN_FLAGS="--insecure"
+  PUSH_FLAGS="--insecure-skip-tls-verify"
+fi
+
+command -v helm &>/dev/null || curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+curl -fsSk -u "admin:$ADMIN_PASS" -X POST "$SCHEME://127.0.0.1/api/v2.0/projects" \
+  -H "Content-Type: application/json" -d '{"project_name":"helm-charts","public":true}' 2>/dev/null || true
+echo "$ADMIN_PASS" | helm registry login "$OCI_REGISTRY_HOST" -u admin --password-stdin $LOGIN_FLAGS 2>/dev/null || true
+
+seed() {
+  local R="$1" U="$2" C="$3" V="$4"
+  cd /tmp && rm -f $${C}*.tgz 2>/dev/null || true
+  helm repo add "$R" "$U" --force-update 2>/dev/null && helm repo update 2>/dev/null || true
+  helm pull "$R/$C" --version "$V" 2>/dev/null && helm push $${C}*.tgz oci://$OCI_REGISTRY_HOST/helm-charts $PUSH_FLAGS 2>/dev/null || true
+  rm -f $${C}*.tgz 2>/dev/null || true
+}
+seed "argo" "https://argoproj.github.io/argo-helm" "argo-cd" "$ARGOCD_VER"
+seed "jetstack" "https://charts.jetstack.io" "cert-manager" "$CERTMANAGER_VER"
+seed "rancher" "https://releases.rancher.com/server-charts/stable" "rancher" "$RANCHER_VER"
+helm repo remove argo jetstack rancher 2>/dev/null || true
+echo "[OK] Helm seeding done"
+EOFHELM
+
+# Replace placeholders
+sed -i "s|__HARBOR_VERSION__|${harbor_version}|g" /opt/harbor/bootstrap.sh
+sed -i "s|__HOSTNAME__|${hostname}|g" /opt/harbor/bootstrap.sh /opt/harbor/setup-proxy-cache.sh /opt/harbor/seed-helm-charts.sh
+sed -i "s|__ENABLE_TLS__|${enable_tls}|g" /opt/harbor/bootstrap.sh /opt/harbor/setup-proxy-cache.sh /opt/harbor/seed-helm-charts.sh
+sed -i "s|__ADMIN_PASSWORD__|${admin_password}|g" /opt/harbor/bootstrap.sh /opt/harbor/setup-proxy-cache.sh /opt/harbor/seed-helm-charts.sh
+sed -i "s|__DB_PASSWORD__|${db_password}|g" /opt/harbor/bootstrap.sh
+sed -i "s|__STORAGE_TYPE__|${storage_type}|g" /opt/harbor/bootstrap.sh
+sed -i "s|__S3_REGION__|${s3_region}|g" /opt/harbor/bootstrap.sh
+sed -i "s|__S3_BUCKET__|${s3_bucket}|g" /opt/harbor/bootstrap.sh
+sed -i "s|__DATA_VOLUME__|${data_volume}|g" /opt/harbor/bootstrap.sh
+sed -i "s|__PROXY_CACHE_PROJECT__|${proxy_cache_project}|g" /opt/harbor/setup-proxy-cache.sh
+sed -i "s|__ARGOCD_VER__|${argocd_chart_version}|g" /opt/harbor/seed-helm-charts.sh
+sed -i "s|__CERTMANAGER_VER__|${certmanager_chart_version}|g" /opt/harbor/seed-helm-charts.sh
+sed -i "s|__RANCHER_VER__|${rancher_chart_version}|g" /opt/harbor/seed-helm-charts.sh
+
+chmod +x /opt/harbor/*.sh
+
+# Conditionally enable scripts
+[[ "${create_proxy_cache}" != "true" ]] && rm -f /opt/harbor/setup-proxy-cache.sh
+[[ "${seed_helm_charts}" != "true" ]] && rm -f /opt/harbor/seed-helm-charts.sh
+
+# Run main bootstrap
+nohup /opt/harbor/bootstrap.sh >> /var/log/harbor-install.log 2>&1 &
+echo "[cloud-init] Bootstrap PID: $!"
+
+# Systemd service
+cat > /etc/systemd/system/harbor.service << 'EOFSVC'
+[Unit]
+Description=Harbor Container Registry
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/harbor/harbor
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=300
+[Install]
+WantedBy=multi-user.target
+EOFSVC
+systemctl daemon-reload && systemctl enable harbor.service
+
+echo "=== Harbor bootstrap setup complete: $(date) ==="

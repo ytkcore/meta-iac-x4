@@ -1,0 +1,209 @@
+################################################################################
+# Monitoring Stack Application (ArgoCD)
+#
+# kube-prometheus-stack 포함:
+# - Prometheus (메트릭 수집)
+# - Grafana (시각화)
+# - Alertmanager (알림)
+# - Node Exporter (노드 메트릭)
+# - kube-state-metrics (K8s 리소스 메트릭)
+################################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: monitoring
+    app.kubernetes.io/part-of: platform
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # 배포 순서: 스토리지(Longhorn) 이후
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  project: default
+  
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "65.1.0"
+    helm:
+      releaseName: monitoring
+      # CRD 설치 스킵 옵션 (ArgoCD 호환성)
+      skipCrds: false
+      valuesObject:
+        # ====================================================================
+        # 전역 설정
+        # ====================================================================
+        fullnameOverride: monitoring
+        
+        # ====================================================================
+        # Prometheus
+        # ====================================================================
+        prometheus:
+          enabled: true
+          prometheusSpec:
+            replicas: 1
+            retention: 15d
+            retentionSize: "10GB"
+            
+            # 리소스
+            resources:
+              requests:
+                cpu: 200m
+                memory: 512Mi
+              limits:
+                cpu: 1000m
+                memory: 2Gi
+            
+            # 스토리지 (Longhorn PVC)
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: longhorn
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 20Gi
+            
+            # ServiceMonitor 선택자
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+        
+        # ====================================================================
+        # Grafana
+        # ====================================================================
+        grafana:
+          enabled: true
+          replicas: 1
+          
+          # 관리자 비밀번호 (변경 필요!)
+          adminPassword: "CHANGE_ME_GRAFANA_PASSWORD"
+          
+          # Ingress - 선택적
+          ingress:
+            enabled: false
+            # enabled: true
+            # ingressClassName: nginx
+            # hosts:
+            #   - grafana.example.com
+            # annotations:
+            #   nginx.ingress.kubernetes.io/ssl-redirect: "false"
+          
+          # 리소스
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          
+          # 영구 스토리지
+          persistence:
+            enabled: true
+            storageClassName: longhorn
+            size: 5Gi
+          
+          # 기본 대시보드
+          defaultDashboardsEnabled: true
+          defaultDashboardsTimezone: Asia/Seoul
+          
+          # 사이드카 (대시보드 자동 로드)
+          sidecar:
+            dashboards:
+              enabled: true
+              searchNamespace: ALL
+            datasources:
+              enabled: true
+        
+        # ====================================================================
+        # Alertmanager
+        # ====================================================================
+        alertmanager:
+          enabled: true
+          alertmanagerSpec:
+            replicas: 1
+            retention: 120h
+            
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+            
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: longhorn
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 5Gi
+        
+        # ====================================================================
+        # Node Exporter (DaemonSet)
+        # ====================================================================
+        nodeExporter:
+          enabled: true
+        
+        # ====================================================================
+        # kube-state-metrics
+        # ====================================================================
+        kubeStateMetrics:
+          enabled: true
+        
+        # ====================================================================
+        # Kubelet / API Server 메트릭
+        # ====================================================================
+        kubelet:
+          enabled: true
+        
+        kubeApiServer:
+          enabled: true
+        
+        kubeControllerManager:
+          enabled: false  # RKE2에서는 접근 어려움
+        
+        kubeScheduler:
+          enabled: false  # RKE2에서는 접근 어려움
+        
+        kubeProxy:
+          enabled: false  # RKE2에서는 접근 어려움
+        
+        kubeEtcd:
+          enabled: false  # RKE2에서는 접근 어려움
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - Replace=true  # CRD 충돌 방지
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+  
+  # CRD 변경 무시 (ArgoCD 호환성)
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle

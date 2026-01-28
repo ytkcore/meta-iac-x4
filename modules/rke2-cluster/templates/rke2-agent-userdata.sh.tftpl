@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Log to both file and console for fast debugging
+exec > >(tee -a /var/log/rke2-bootstrap.log | logger -t rke2-bootstrap -s 2>/dev/console) 2>&1
+
+echo "[rke2] bootstrap start (agent)"
+
+%{ if os_family == "ubuntu2204" }
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y || true
+apt-get install -y curl || true
+%{ else }
+dnf -y update || true
+dnf -y install curl || true
+%{ endif }
+
+echo "[rke2] installing rke2 ${rke2_version} (agent)"
+curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE="agent" INSTALL_RKE2_VERSION="${rke2_version}" sh -
+
+mkdir -p /etc/rancher/rke2
+
+cat >/etc/rancher/rke2/config.yaml <<'YAML'
+token: "${token}"
+server: "${server_url}"
+node-name: "${node_name}"
+%{ if disable_default_registry_fallback }
+disable-default-registry-endpoint: true
+%{ endif }
+YAML
+
+# ----------------------------------------------------------------------------
+# Harbor registry mirror (optional)
+# - If harbor_registry_hostport is empty, we don't touch registries.yaml.
+# - All major registries are mirrored through Harbor for caching.
+# ----------------------------------------------------------------------------
+%{ if harbor_registry_hostport != "" }
+
+%{ if harbor_add_hosts_entry && harbor_hostname != "" && harbor_private_ip != "" }
+# Ensure Harbor hostname resolves internally (token realm/redirect 안정화)
+echo "[rke2] Ensuring internal DNS for Harbor: ${harbor_hostname} -> ${harbor_private_ip}"
+if ! grep -q "${harbor_hostname}" /etc/hosts; then
+  echo "${harbor_private_ip} ${harbor_hostname}" >> /etc/hosts
+fi
+%{ endif }
+
+# Wait for Harbor to be ready before starting RKE2
+echo "[rke2] Waiting for Harbor to be ready..."
+HARBOR_URL="${harbor_scheme}://${harbor_registry_hostport}"
+for i in {1..60}; do
+  if curl -fsSk --connect-timeout 5 "$HARBOR_URL/api/v2.0/health" 2>/dev/null | grep -q healthy; then
+    echo "[rke2] Harbor is ready!"
+    break
+  fi
+  echo "[rke2] Waiting for Harbor... ($i/60)"
+  sleep 10
+done
+
+%{ if disable_default_registry_fallback }
+# If Harbor is not ready and fallback is disabled, fail fast.
+if ! curl -fsSk --connect-timeout 5 "$HARBOR_URL/api/v2.0/health" 2>/dev/null | grep -q healthy; then
+  echo "[rke2] ERROR: Harbor not ready after timeout and disable_default_registry_fallback=true. Aborting."
+  exit 1
+fi
+%{ else }
+# If Harbor is still not ready after timeout, continue anyway (fallback enabled)
+if ! curl -fsSk --connect-timeout 5 "$HARBOR_URL/api/v2.0/health" 2>/dev/null | grep -q healthy; then
+  echo "[rke2] WARNING: Harbor not ready after timeout. Continuing (fallback enabled)."
+fi
+%{ endif }
+
+cat >/etc/rancher/rke2/registries.yaml <<'YAML'
+mirrors:
+  # Docker Hub (rancher/* images)
+  "docker.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      # Preserve original path (e.g. rancher/rke2-runtime -> ${harbor_proxy_project}/rancher/rke2-runtime)
+      "^(.*)$": "${harbor_proxy_project}/$1"
+  
+  # Kubernetes official registry (pause, coredns, etc.)
+  "registry.k8s.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "k8s-proxy/$1"
+  
+  # GitHub Container Registry (kube-vip, etc.)
+  "ghcr.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "ghcr-proxy/$1"
+  
+  # Quay.io
+  "quay.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "quay-proxy/$1"
+  
+  # Google Container Registry
+  "gcr.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "gcr-proxy/$1"
+
+  # Rancher registry (RKE2/Rancher hardened images)
+  "registry.rancher.com":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "rancher-proxy/$1"
+  
+  # Direct Harbor access
+  "${harbor_registry_hostport}":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+
+configs:
+  "${harbor_registry_hostport}":
+%{ if harbor_scheme == "https" }
+    tls:
+      insecure_skip_verify: ${harbor_tls_insecure_skip_verify}
+%{ else }
+    # HTTP registry - no TLS config needed
+%{ endif }
+%{ if harbor_auth_enabled }
+    auth:
+      username: "${harbor_username}"
+      password: "${harbor_password}"
+%{ endif }
+YAML
+%{ endif }
+
+systemctl enable rke2-agent.service
+systemctl start rke2-agent.service
+
+echo "[rke2] bootstrap done (agent)"

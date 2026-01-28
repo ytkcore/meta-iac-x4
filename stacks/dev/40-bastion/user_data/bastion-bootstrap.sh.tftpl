@@ -1,0 +1,249 @@
+#!/bin/bash
+set -euo pipefail
+
+# -----------------------------------------------------------------------------
+# Bastion bootstrap utilities for Argo CD installation via Helm
+# -----------------------------------------------------------------------------
+
+PROJECT="${project}"
+ENV="${env}"
+CLUSTER_NAME="${name}"
+AWS_REGION="${region}"
+ARGOCD_NODEPORT="${argocd_nodeport}"
+
+export AWS_REGION
+
+log() { echo "[bastion-bootstrap] $*"; }
+
+log "Installing base packages"
+dnf -y update || true
+dnf -y install curl ca-certificates tar gzip unzip git bash-completion || true
+
+# -------------------------
+# Install kubectl
+# -------------------------
+if ! command -v kubectl >/dev/null 2>&1; then
+  log "Installing kubectl (stable)"
+  KUBECTL_VERSION=$$(curl -fsSL https://dl.k8s.io/release/stable.txt)
+  curl -fsSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$$KUBECTL_VERSION/bin/linux/amd64/kubectl"
+  chmod +x /usr/local/bin/kubectl
+else
+  log "kubectl already installed"
+fi
+
+# -------------------------
+# Install helm
+# -------------------------
+if ! command -v helm >/dev/null 2>&1; then
+  log "Installing helm"
+  curl -fsSL -o /tmp/get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+  chmod 700 /tmp/get_helm.sh
+  /tmp/get_helm.sh
+else
+  log "helm already installed"
+fi
+
+# -------------------------
+# Install argocd CLI
+# -------------------------
+if ! command -v argocd >/dev/null 2>&1; then
+  log "Installing argocd CLI"
+  curl -fsSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+  chmod +x /usr/local/bin/argocd
+else
+  log "argocd CLI already installed"
+fi
+
+# -----------------------------------------------------------------------------
+# Helper: fetch kubeconfig from RKE2 control-plane via SSM SendCommand
+# -----------------------------------------------------------------------------
+cat >/usr/local/bin/fetch-rke2-kubeconfig <<'FETCH_SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT="PLACEHOLDER_PROJECT"
+ENV="PLACEHOLDER_ENV"
+CLUSTER_NAME="PLACEHOLDER_NAME"
+AWS_REGION="PLACEHOLDER_REGION"
+
+export AWS_REGION
+
+CP_NAME="$PROJECT-$ENV-$CLUSTER_NAME-cp-01"
+
+echo "[fetch-rke2-kubeconfig] Looking for instance: $CP_NAME"
+
+INSTANCE_ID=$(aws ec2 describe-instances --region "$AWS_REGION" \
+  --filters "Name=tag:Name,Values=$CP_NAME" "Name=instance-state-name,Values=running" \
+  --query "Reservations[0].Instances[0].InstanceId" --output text)
+
+if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
+  echo "[fetch-rke2-kubeconfig] Control-plane instance not found: $CP_NAME" >&2
+  exit 1
+fi
+
+echo "[fetch-rke2-kubeconfig] Found instance: $INSTANCE_ID"
+
+LB_NAME=$(echo "$PROJECT-$ENV-$CLUSTER_NAME-rke2" | cut -c1-32)
+LB_DNS=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" --names "$LB_NAME" \
+  --query "LoadBalancers[0].DNSName" --output text 2>/dev/null || echo "None")
+
+if [ -z "$LB_DNS" ] || [ "$LB_DNS" = "None" ]; then
+  echo "[fetch-rke2-kubeconfig] Internal NLB not found: $LB_NAME" >&2
+  exit 1
+fi
+
+echo "[fetch-rke2-kubeconfig] Found NLB: $LB_DNS"
+
+COMMAND_ID=$(aws ssm send-command --region "$AWS_REGION" \
+  --instance-ids "$INSTANCE_ID" \
+  --document-name "AWS-RunShellScript" \
+  --comment "Fetch RKE2 kubeconfig" \
+  --parameters commands='sudo cat /etc/rancher/rke2/rke2.yaml' \
+  --query "Command.CommandId" --output text)
+
+echo "[fetch-rke2-kubeconfig] SSM Command ID: $COMMAND_ID"
+
+for _ in $(seq 1 30); do
+  STATUS=$(aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" \
+    --query "Status" --output text 2>/dev/null || echo "Pending")
+  if [ "$STATUS" = "Success" ]; then
+    break
+  fi
+  if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
+    echo "[fetch-rke2-kubeconfig] SSM command failed (status=$STATUS)" >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+CFG=$(aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" \
+  --query "StandardOutputContent" --output text)
+
+if [ -z "$CFG" ] || [ "$CFG" = "None" ]; then
+  echo "[fetch-rke2-kubeconfig] Empty kubeconfig output" >&2
+  exit 1
+fi
+
+mkdir -p "$HOME/.kube"
+echo "$CFG" | sed -E "s#server: https://127\\.0\\.0\\.1:6443#server: https://$LB_DNS:6443#g" > "$HOME/.kube/config"
+chmod 600 "$HOME/.kube/config"
+
+echo "[fetch-rke2-kubeconfig] Saved: $HOME/.kube/config"
+echo "[fetch-rke2-kubeconfig] kube-apiserver: https://$LB_DNS:6443"
+
+kubectl cluster-info
+FETCH_SCRIPT
+
+sed -i "s/PLACEHOLDER_PROJECT/${project}/g" /usr/local/bin/fetch-rke2-kubeconfig
+sed -i "s/PLACEHOLDER_ENV/${env}/g" /usr/local/bin/fetch-rke2-kubeconfig
+sed -i "s/PLACEHOLDER_NAME/${name}/g" /usr/local/bin/fetch-rke2-kubeconfig
+sed -i "s/PLACEHOLDER_REGION/${region}/g" /usr/local/bin/fetch-rke2-kubeconfig
+chmod +x /usr/local/bin/fetch-rke2-kubeconfig
+
+# -----------------------------------------------------------------------------
+# Helper: install Argo CD via Helm
+# -----------------------------------------------------------------------------
+cat >/usr/local/bin/bootstrap-argocd <<'ARGOCD_SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+NAMESPACE="$1"
+RELEASE="$2"
+SERVICE_TYPE="$3"
+NODEPORT="$4"
+
+[ -z "$NAMESPACE" ] && NAMESPACE="argocd"
+[ -z "$RELEASE" ] && RELEASE="argocd"
+[ -z "$SERVICE_TYPE" ] && SERVICE_TYPE="ClusterIP"
+[ -z "$NODEPORT" ] && NODEPORT="30443"
+
+helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
+helm repo update >/dev/null
+
+kubectl get ns "$NAMESPACE" >/dev/null 2>&1 || kubectl create ns "$NAMESPACE"
+
+if [ "$SERVICE_TYPE" = "NodePort" ]; then
+  helm upgrade --install "$RELEASE" argo/argo-cd \
+    --namespace "$NAMESPACE" \
+    --create-namespace \
+    --set server.service.type=NodePort \
+    --set server.service.nodePortHttps="$NODEPORT" \
+    --set 'configs.params.server\.insecure=true' \
+    --wait --timeout 5m
+  
+  echo "[bootstrap-argocd] Installed Argo CD with NodePort ($NODEPORT)"
+  echo "  External access via Public NLB: https://<PUBLIC_NLB_DNS>:$NODEPORT"
+else
+  helm upgrade --install "$RELEASE" argo/argo-cd \
+    --namespace "$NAMESPACE" \
+    --create-namespace \
+    --set server.service.type=ClusterIP \
+    --set 'configs.params.server\.insecure=true' \
+    --wait --timeout 5m
+  
+  echo "[bootstrap-argocd] Installed Argo CD with ClusterIP"
+  echo "  Port-forward: kubectl -n $NAMESPACE port-forward svc/$RELEASE-argocd-server 8080:443"
+fi
+
+echo ""
+echo "Initial admin password:"
+echo "  kubectl -n $NAMESPACE get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo"
+ARGOCD_SCRIPT
+chmod +x /usr/local/bin/bootstrap-argocd
+
+# -----------------------------------------------------------------------------
+# Helper: apply ArgoCD Application manifests (App-of-Apps pattern)
+# -----------------------------------------------------------------------------
+cat >/usr/local/bin/apply-argocd-apps <<'APPS_SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_URL="$1"
+APP_PATH="$2"
+REVISION="$3"
+NAMESPACE="$4"
+
+[ -z "$APP_PATH" ] && APP_PATH="apps"
+[ -z "$REVISION" ] && REVISION="HEAD"
+[ -z "$NAMESPACE" ] && NAMESPACE="argocd"
+
+if [ -z "$REPO_URL" ]; then
+  echo "Usage: apply-argocd-apps <git-repo-url> [path] [revision] [namespace]"
+  echo "Example: apply-argocd-apps https://github.com/myorg/gitops-apps.git apps main"
+  exit 1
+fi
+
+kubectl apply -f - <<EOF
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-apps
+  namespace: $NAMESPACE
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: $REPO_URL
+    targetRevision: $REVISION
+    path: $APP_PATH
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: $NAMESPACE
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+EOF
+
+echo "[apply-argocd-apps] Created root Application: $REPO_URL ($APP_PATH @ $REVISION)"
+echo "  Check status: argocd app get root-apps"
+APPS_SCRIPT
+chmod +x /usr/local/bin/apply-argocd-apps
+
+log "Bootstrap complete. Available commands:"
+log "  1) fetch-rke2-kubeconfig                                   - Get kubeconfig from RKE2 CP"
+log "  2) bootstrap-argocd [ns] [rel] [ClusterIP|NodePort] [port] - Install ArgoCD"
+log "  3) apply-argocd-apps <repo> [path] [rev]                   - Deploy App-of-Apps"

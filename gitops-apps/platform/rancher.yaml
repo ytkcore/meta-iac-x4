@@ -1,0 +1,143 @@
+################################################################################
+# Rancher Application (ArgoCD)
+#
+# Prerequisites:
+# - cert-manager installed (via 55-bootstrap or separate ArgoCD app)
+# - Ingress Controller running (RKE2 default: nginx)
+# - DNS CNAME configured: rancher.example.com -> NLB DNS
+#
+# Rancher 2.10.x + RKE2 v1.31.x 호환
+################################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rancher
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: rancher
+    app.kubernetes.io/part-of: platform
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # 배포 순서: cert-manager 이후
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: default
+  
+  source:
+    repoURL: https://releases.rancher.com/server-charts/stable
+    chart: rancher
+    targetRevision: "2.10.10"  # Rancher 버전
+    helm:
+      releaseName: rancher
+      valuesObject:
+        # ====================================================================
+        # [REQUIRED] 도메인 설정 - 실제 값으로 변경 필수!
+        # ====================================================================
+        hostname: rancher.example.com  # <-- 변경 필요
+        
+        # ====================================================================
+        # TLS 설정 (External Termination - NLB + ACM)
+        # ====================================================================
+        tls: external
+        
+        # ====================================================================
+        # Ingress 설정
+        # ====================================================================
+        ingress:
+          enabled: true
+          ingressClassName: nginx
+          extraAnnotations:
+            # NLB에서 TLS 종료하므로 SSL redirect 비활성화
+            nginx.ingress.kubernetes.io/ssl-redirect: "false"
+            nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+            nginx.ingress.kubernetes.io/configuration-snippet: |
+              proxy_set_header X-Forwarded-Proto "https";
+              proxy_set_header X-Forwarded-Port "443";
+              proxy_set_header X-Forwarded-Ssl "on";
+            nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+            # Proxy 설정
+            nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+            nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
+            nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"
+        
+        # ====================================================================
+        # [REQUIRED] Bootstrap 비밀번호 - 실제 값으로 변경 필수!
+        # 첫 로그인 후 변경됨
+        # ====================================================================
+        bootstrapPassword: "CHANGE_ME_SECURE_PASSWORD"  # <-- 변경 필요
+        
+        # ====================================================================
+        # 레플리카 (HA)
+        # ====================================================================
+        replicas: 3
+        
+        # ====================================================================
+        # 리소스 설정
+        # ====================================================================
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        # ====================================================================
+        # Private Registry (Harbor) - 선택적
+        # Harbor를 통한 이미지 캐싱 사용 시 주석 해제
+        # ====================================================================
+        # systemDefaultRegistry: "10.0.x.x:80/dockerhub-proxy"
+        # useBundledSystemChart: true
+        
+        # ====================================================================
+        # Audit Log (선택적)
+        # ====================================================================
+        auditLog:
+          level: 1
+          destination: sidecar
+        
+        # ====================================================================
+        # 추가 환경 변수 (Proxy 등)
+        # ====================================================================
+        # extraEnv:
+        #   - name: HTTP_PROXY
+        #     value: ""
+        #   - name: HTTPS_PROXY
+        #     value: ""
+        #   - name: NO_PROXY
+        #     value: "localhost,127.0.0.1,10.0.0.0/8"
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cattle-system
+  
+  # ====================================================================
+  # Sync Policy
+  # ====================================================================
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # ====================================================================
+  # Health Check 무시 (Rancher 초기화 시간 고려)
+  # ====================================================================
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: bootstrap-secret
+      jsonPointers:
+        - /data

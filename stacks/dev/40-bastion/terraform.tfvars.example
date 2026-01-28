@@ -1,0 +1,15 @@
+# Bastion Subnet
+# - SSM-only 권장: private subnet (예: common-private-a)
+# - 만약 EIP/SSH가 필요한 break-glass 운영을 하려면 public subnet으로 지정하고,
+#   별도 SG를 임시로 부착하여 22/tcp를 제한적으로 오픈하세요.
+#
+# bastion_subnet_key = "common-private-a"
+# instance_type      = "t3.micro"
+
+# Bastion에 kubectl/helm 및 ArgoCD 부트스트랩 스크립트를 사전 설치 (default: true)
+# enable_bootstrap_tools = true
+
+# 추가 IAM 정책(선택): bastion 안에서 AWS CLI로 추가 작업이 필요할 때 주입
+# iam_policy_arns = [
+#   # e.g. "arn:aws:iam::aws:policy/ReadOnlyAccess"
+# ]

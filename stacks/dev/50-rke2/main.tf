@@ -1,0 +1,189 @@
+locals {
+  # backend 관련 변수들을 "사용"한 것으로 처리하여 경고/린트 노이즈를 줄입니다.
+  _backend_settings = {
+    bucket     = var.state_bucket
+    region     = var.state_region
+    key_prefix = var.state_key_prefix
+    azs        = var.azs
+  }
+}
+
+provider "aws" {
+  region = var.region
+}
+
+# 00-network 스택의 출력값(VPC/서브넷 등)을 참조합니다.
+data "terraform_remote_state" "network" {
+  backend = "s3"
+  config = {
+    bucket = var.state_bucket
+    region = var.state_region
+    key    = "${var.state_key_prefix}/${var.env}/00-network.tfstate"
+  }
+}
+
+################################################################################
+# Harbor tfstate 존재 여부 자동 감지 (S3 key 존재 여부 기반)
+################################################################################
+
+data "aws_s3_objects" "harbor_tfstate" {
+  bucket = var.state_bucket
+  prefix = "${var.state_key_prefix}/${var.env}/45-harbor.tfstate"
+}
+
+locals {
+  harbor_tfstate_found = length(try(data.aws_s3_objects.harbor_tfstate.keys, [])) > 0
+  effective_use_harbor = var.use_harbor || (var.auto_use_harbor_if_state_exists && local.harbor_tfstate_found)
+}
+
+################################################################################
+# ACM auto-discovery (Harbor 방식 + network remote state)
+################################################################################
+
+locals {
+  # 네트워크 스택에서 ACM 인증서 ARN 가져오기
+  network_acm_certificate_arn = try(data.terraform_remote_state.network.outputs.acm_certificate_arn, null)
+
+  # 조회 도메인 우선순위: acm_cert_domain > acm_cert_search_domain(호환) > "*.<base_domain>"
+  acm_lookup_domain = (
+    var.acm_cert_domain != null ? var.acm_cert_domain :
+    var.acm_cert_search_domain != null ? var.acm_cert_search_domain :
+    var.base_domain != null ? "*.${var.base_domain}" :
+    null
+  )
+}
+
+# ACM 인증서 조회 (조건부)
+# NOTE: data.aws_acm_certificate는 결과가 0개면 "empty result"로 즉시 에러가 납니다.
+# 따라서 아래 조건(스택 ARN/네트워크 output이 모두 없을 때)에서만 lookup을 수행합니다.
+data "aws_acm_certificate" "wildcard" {
+  count = (
+    var.enable_acm_tls_termination &&
+    var.acm_certificate_arn == null &&
+    local.network_acm_certificate_arn == null &&
+    local.acm_lookup_domain != null
+  ) ? 1 : 0
+
+  domain      = local.acm_lookup_domain
+  statuses    = ["ISSUED"]
+  most_recent = true
+}
+
+locals {
+  discovered_acm_certificate_arn = try(data.aws_acm_certificate.wildcard[0].arn, null)
+
+  # 최종 인증서 ARN (스택 변수 > 네트워크 remote state > AWS lookup)
+  effective_acm_certificate_arn = (
+    var.acm_certificate_arn != null ? var.acm_certificate_arn :
+    local.network_acm_certificate_arn != null ? local.network_acm_certificate_arn :
+    local.discovered_acm_certificate_arn
+  )
+
+  # 디폴트로 ACM 적용을 "시도"하되, ARN을 확보할 수 있을 때만 최종 활성화
+  effective_enable_acm_tls_termination = var.enable_acm_tls_termination && (local.effective_acm_certificate_arn != null)
+  
+  acm_cert_source = (
+    var.acm_certificate_arn != null ? "stack_var" :
+    local.network_acm_certificate_arn != null ? "network_remote_state" :
+    local.discovered_acm_certificate_arn != null ? "aws_acm_lookup" :
+    "none"
+  )
+}
+
+# Harbor remote state (선택적)
+data "terraform_remote_state" "harbor" {
+  count   = local.effective_use_harbor ? 1 : 0
+  backend = "s3"
+  config = {
+    bucket = var.state_bucket
+    region = var.state_region
+    key    = "${var.state_key_prefix}/${var.env}/45-harbor.tfstate"
+  }
+}
+
+locals {
+  vpc_id   = data.terraform_remote_state.network.outputs.vpc_id
+  vpc_cidr = data.terraform_remote_state.network.outputs.vpc_cidr
+
+  # subnets 모듈에서 tier 별로 모아둔 값을 그대로 사용합니다.
+  subnet_ids_by_tier = data.terraform_remote_state.network.outputs.subnet_ids_by_tier
+
+  # Harbor 설정 (선택적) - Harbor가 없으면 null 사용
+  harbor_hostname       = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_hostname, null) : null
+  harbor_private_ip     = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_private_ip, null) : null
+  harbor_scheme         = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_scheme, "http") : "http"
+  harbor_proxy_project  = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_proxy_cache_project, "dockerhub-proxy") : "dockerhub-proxy"
+
+  # ⚠️ 중요: Harbor token realm/redirect 및 내부 통신 안정화를 위해 기본적으로 DNS(hostname) 기반 hostport를 사용합니다.
+  # - harbor_registry_hostport_by_dns: harbor.<base_domain>:80 형태
+  # - RKE2 노드에 /etc/hosts를 자동으로 추가하여 내부망(Private IP)으로 해석되도록 합니다.
+  harbor_registry_hostport = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_registry_hostport_by_dns, null) : null
+
+  # 00-network 기본 서브넷 tier는 public/db/k8s_cp/k8s_dp 입니다.
+  control_plane_subnet_ids = local.subnet_ids_by_tier["k8s_cp"]
+  worker_subnet_ids        = local.subnet_ids_by_tier["k8s_dp"]
+  public_subnet_ids        = local.subnet_ids_by_tier["public"]
+  
+  common_tags = merge(
+    {
+      Project = var.project
+      Env     = var.env
+    },
+    var.tags
+  )
+}
+
+module "rke2" {
+  source = "../../../modules/rke2-cluster"
+
+  project = var.project
+  env     = var.env
+  name    = var.name
+
+  tags = local.common_tags
+
+  vpc_id   = local.vpc_id
+  vpc_cidr = local.vpc_cidr
+
+  control_plane_subnet_ids = local.control_plane_subnet_ids
+  worker_subnet_ids        = local.worker_subnet_ids
+
+  control_plane_count = var.control_plane_count
+  worker_count        = var.worker_count
+  instance_type       = var.instance_type
+
+  root_volume_size_gb = var.root_volume_size_gb
+  root_volume_type    = var.root_volume_type
+
+  enable_internal_nlb = var.enable_internal_nlb
+  rke2_version        = var.rke2_version
+  rke2_token          = var.rke2_token
+  extra_policy_arns   = var.extra_policy_arns
+
+  ami_id    = var.ami_id
+  os_family = var.os_family
+
+  # Harbor(내부 레지스트리) 연동 - 선택적
+  harbor_registry_hostport          = local.harbor_registry_hostport
+  harbor_hostname                   = local.harbor_hostname
+  harbor_private_ip                 = local.harbor_private_ip
+  harbor_add_hosts_entry            = true
+  harbor_scheme                     = local.harbor_scheme
+  harbor_proxy_project              = local.harbor_proxy_project
+  disable_default_registry_fallback = local.effective_use_harbor ? var.disable_default_registry_fallback : false
+  harbor_auth_enabled               = local.effective_use_harbor ? var.harbor_auth_enabled : false
+  harbor_username                   = var.harbor_username
+  harbor_password                   = var.harbor_password
+
+  # Public Ingress NLB (Optional)
+  enable_public_ingress_nlb           = var.enable_public_ingress_nlb
+  enable_public_ingress_http_listener = var.enable_public_ingress_http_listener
+  public_subnet_ids                   = local.public_subnet_ids
+  ingress_http_nodeport               = var.ingress_http_nodeport
+  ingress_https_nodeport              = var.ingress_https_nodeport
+
+  # ACM TLS Termination (Optional)
+  enable_acm_tls_termination = local.effective_enable_acm_tls_termination
+  acm_certificate_arn        = local.effective_acm_certificate_arn
+  acm_ssl_policy             = var.acm_ssl_policy
+}
