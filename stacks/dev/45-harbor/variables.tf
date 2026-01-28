@@ -1,3 +1,10 @@
+# =============================================================================
+# Variables - Harbor Stack
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Basic
+# -----------------------------------------------------------------------------
 variable "region" {
   description = "AWS Region"
   type        = string
@@ -5,144 +12,86 @@ variable "region" {
 }
 
 variable "env" {
-  description = "Environment Name"
+  description = "Environment name"
   type        = string
 }
 
 variable "project" {
-  description = "Project Name"
+  description = "Project name"
   type        = string
 }
 
 variable "name" {
-  description = "Resource name prefix (from env.tfvars)"
+  description = "Resource name prefix"
   type        = string
 }
 
 variable "tags" {
-  description = "Common tags (not used by harbor-ec2 module today, kept to avoid tfvars warnings)"
+  description = "Common tags"
   type        = map(string)
   default     = {}
 }
 
-# ----------------------------------------------------------------------------
-# Remote state settings (shared via stacks/<env>/env.tfvars)
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Remote State
+# -----------------------------------------------------------------------------
 variable "state_bucket" {
+  description = "Terraform remote state S3 bucket"
   type        = string
-  description = "Remote state S3 bucket (terraform_remote_state)."
   default     = null
 }
 
 variable "state_region" {
+  description = "Terraform remote state region"
   type        = string
-  description = "Remote state region (terraform_remote_state)."
   default     = null
 }
 
 variable "state_key_prefix" {
+  description = "Terraform remote state key prefix"
   type        = string
-  description = "Remote state key prefix (terraform_remote_state)."
   default     = null
 }
 
-# ----------------------------------------------------------------------------
-# Placement
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Network
+# -----------------------------------------------------------------------------
 variable "harbor_subnet_key" {
-  description = "Key in 00-network output subnet_ids map where Harbor EC2 will be placed."
+  description = "Subnet key in 00-network outputs for Harbor EC2"
   type        = string
   default     = "common-private-c"
 }
 
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # EC2
-# ----------------------------------------------------------------------------
-variable "key_name" {
-  description = "SSH Key Name (optional; SSM-only 권장)"
-  type        = string
-  default     = null
-}
-
+# -----------------------------------------------------------------------------
 variable "instance_type" {
-  description = "Instance Type"
+  description = "EC2 instance type"
   type        = string
   default     = "t3.large"
 }
 
-# ----------------------------------------------------------------------------
-# Harbor App
-# ----------------------------------------------------------------------------
-variable "harbor_hostname" {
-  description = "Harbor Service Domain"
+variable "key_name" {
+  description = "SSH key name (optional, SSM recommended)"
   type        = string
-  default     = "harbor.internal"
-}
-
-variable "harbor_version" {
-  description = "Harbor Version"
-  type        = string
-  default     = "2.9.1"
-}
-
-variable "harbor_enable_tls" {
-  description = "Enable TLS"
-  type        = bool
-  default     = false
-}
-
-variable "harbor_proxy_cache_project" {
-  description = "Harbor proxy-cache project name (used by downstream stacks)"
-  type        = string
-  default     = "dockerhub-proxy"
-}
-# ----------------------------------------------------------------------------
-# ALB / ACM
-# ----------------------------------------------------------------------------
-variable "alb_certificate_arn" {
-  description = "ACM certificate ARN for Harbor ALB HTTPS listener (optional). If empty, only HTTP listener is created by this stack."
-  type        = string
-  default     = ""
-}
-
-variable "enable_alb" {
-  description = "Whether to create an Application Load Balancer for Harbor"
-  type        = bool
-  default     = true
-}
-
-
-# ----------------------------------------------------------------------------
-# S3 (Auto-injected by Makefile)
-# ----------------------------------------------------------------------------
-variable "target_bucket_name" {
-  description = "S3 Bucket Name (Injected)"
-  type        = string
-}
-
-variable "create_bucket" {
-  description = "Create S3 Bucket Flag (Injected)"
-  type        = bool
-}
-
-# ----------------------------------------------------------------------------
-# Storage Configuration
-# ----------------------------------------------------------------------------
-variable "storage_type" {
-  description = "Storage backend type (filesystem or s3)"
-  type        = string
-  default     = "filesystem"
+  default     = null
 }
 
 variable "root_volume_size" {
-  description = "Root EBS volume size in GB"
+  description = "Root EBS volume size (GB)"
   type        = number
   default     = 100
 }
 
-# ----------------------------------------------------------------------------
-# Harbor Additional Settings
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Harbor App
+# -----------------------------------------------------------------------------
+variable "harbor_enable_tls" {
+  description = "Enable TLS on Harbor (internal)"
+  type        = bool
+  default     = false
+}
+
 variable "admin_password" {
   description = "Harbor admin password"
   type        = string
@@ -157,47 +106,115 @@ variable "db_password" {
   sensitive   = true
 }
 
+variable "harbor_proxy_cache_project" {
+  description = "Docker Hub proxy cache project name"
+  type        = string
+  default     = "dockerhub-proxy"
+}
+
 variable "create_proxy_cache" {
-  description = "Whether to create Docker Hub proxy cache project"
+  description = "Create Docker Hub proxy cache project"
   type        = bool
-  # RKE2 설치/운영에서 외부 레지스트리 의존성을 줄이기 위해 기본 활성화
-  default = true
+  default     = true
 }
 
 # -----------------------------------------------------------------------------
-# Helm Chart Seeding (OCI Registry)
+# Storage
+# -----------------------------------------------------------------------------
+variable "storage_type" {
+  description = "Storage backend (filesystem or s3)"
+  type        = string
+  default     = "filesystem"
+}
+
+variable "target_bucket_name" {
+  description = "S3 bucket name for Harbor storage"
+  type        = string
+}
+
+variable "create_bucket" {
+  description = "Create S3 bucket"
+  type        = bool
+}
+
+# -----------------------------------------------------------------------------
+# ALB / ACM
+# -----------------------------------------------------------------------------
+variable "enable_alb" {
+  description = "Create ALB for Harbor"
+  type        = bool
+  default     = true
+}
+
+variable "alb_certificate_arn" {
+  description = "ACM certificate ARN (empty = auto-discover *.base_domain)"
+  type        = string
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# Route53
+# -----------------------------------------------------------------------------
+variable "base_domain" {
+  description = "Base domain (e.g., example.com)"
+  type        = string
+}
+
+variable "enable_route53_harbor_cname" {
+  description = "Create Route53 CNAME for harbor.<base_domain>"
+  type        = bool
+  default     = true
+}
+
+variable "route53_zone_id" {
+  description = "Route53 Zone ID (empty = auto-discover)"
+  type        = string
+  default     = ""
+}
+
+variable "route53_private_zone" {
+  description = "Use private hosted zone for auto-discovery"
+  type        = bool
+  default     = false
+}
+
+# -----------------------------------------------------------------------------
+# Helm Chart Seeding
 # -----------------------------------------------------------------------------
 variable "helm_seeding_mode" {
-  description = "Helm 차트 시딩 방식: disabled(비활성화), local-exec(Terraform에서 실행), user-data(EC2 부팅 시 실행)"
+  description = "Helm seeding mode: disabled, local-exec, user-data"
   type        = string
   default     = "local-exec"
 
   validation {
     condition     = contains(["disabled", "local-exec", "user-data"], var.helm_seeding_mode)
-    error_message = "helm_seeding_mode must be one of: disabled, local-exec, user-data"
+    error_message = "Must be: disabled, local-exec, or user-data"
   }
 }
 
 variable "argocd_chart_version" {
-  description = "ArgoCD Helm chart version to seed"
+  description = "ArgoCD Helm chart version"
   type        = string
   default     = "5.55.0"
 }
 
 variable "certmanager_chart_version" {
-  description = "cert-manager Helm chart version to seed"
+  description = "cert-manager Helm chart version"
   type        = string
   default     = "v1.14.5"
 }
 
 variable "rancher_chart_version" {
-  description = "Rancher Helm chart version to seed"
+  description = "Rancher Helm chart version"
   type        = string
   default     = "2.10.3"
 }
 
+# -----------------------------------------------------------------------------
+# Image Seeding
+# -----------------------------------------------------------------------------
 variable "seed_images" {
-  description = "Whether to pre-pull and push seed images"
+  description = "Pre-pull and push seed images"
   type        = bool
   default     = false
 }
@@ -212,35 +229,4 @@ variable "seed_neo4j_tag" {
   description = "Neo4j image tag to seed"
   type        = string
   default     = ""
-}
-
-/*
-variable "acm_cert_domain" {
-  description = "검색할 ACM 인증서의 도메인 이름 (예: *.mymeta.net 또는 harbor.mymeta.net)"
-  type        = string
-}
-*/
-
-variable "base_domain" {
-  description = "사용할 루트 도메인 (예: mymeta.net)"
-  type        = string
-  //  default     = "mymeta.net" # 여기에 본인의 도메인을 기본값으로 넣어두세요
-}
-
-variable "enable_route53_harbor_cname" {
-  description = "Harbor ALB DNS를 Route53에 CNAME(harbor.<base_domain>)으로 자동 등록할지 여부"
-  type        = bool
-  default     = true
-}
-
-variable "route53_zone_id" {
-  description = "Route53 Hosted Zone ID (미지정 시 base_domain으로 자동 탐색)"
-  type        = string
-  default     = ""
-}
-
-variable "route53_private_zone" {
-  description = "자동 탐색 시 Private Hosted Zone을 사용할지 여부"
-  type        = bool
-  default     = false
 }
