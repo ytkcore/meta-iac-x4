@@ -4,9 +4,8 @@ output "instance_id" {
 }
 
 output "harbor_endpoint" {
-  description = "Harbor URL (internal)"
-  # NOTE: 실제 Harbor hostname은 main.tf의 local.final_hostname을 사용합니다.
-  value       = "${var.harbor_enable_tls ? "https" : "http"}://${local.final_hostname}"
+  description = "Harbor URL (via ALB)"
+  value       = "${local.acm_certificate_arn != null ? "https" : "http"}://${local.final_hostname}"
 }
 
 output "s3_bucket" {
@@ -23,7 +22,13 @@ output "harbor_hostname" {
 }
 
 output "harbor_scheme" {
-  value = var.harbor_enable_tls ? "https" : "http"
+  description = "Harbor URL scheme based on ACM certificate"
+  value       = local.acm_certificate_arn != null ? "https" : "http"
+}
+
+output "acm_certificate_arn" {
+  description = "ACM certificate ARN used for ALB HTTPS (auto-discovered or explicit)"
+  value       = local.acm_certificate_arn
 }
 
 output "harbor_registry_hostport" {
@@ -77,6 +82,17 @@ output "harbor_alb_dns_name" {
   value       = module.harbor.alb_dns_name
 }
 
+output "harbor_cname_applied" {
+  description = "Harbor ALB CNAME 적용 여부 및 상태"
+  value = {
+    enabled            = var.enable_route53_harbor_cname
+    zone_id_discovered = local.route53_zone_id_effective != "" ? local.route53_zone_id_effective : null
+    cname_created      = length(aws_route53_record.harbor_cname) > 0
+    subdomain          = local.final_hostname
+    target_alb_dns     = try(module.harbor.alb_dns_name, null)
+  }
+}
+
 output "harbor_connection_info" {
   description = "Harbor 접속 및 DNS 설정 정보"
   value       = <<EOT
@@ -84,7 +100,7 @@ output "harbor_connection_info" {
 ================================================================================
 [Harbor Setup Complete]
 
-1. Harbor URL : ${var.harbor_enable_tls ? "https" : "http"}://${local.final_hostname}
+1. Harbor URL : ${local.acm_certificate_arn != null ? "https" : "http"}://${local.final_hostname}
 2. Admin Info : admin   
 
 [Internal Resolution]

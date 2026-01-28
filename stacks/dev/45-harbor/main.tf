@@ -70,7 +70,20 @@ locals {
   final_alb_subnets = values(local.subnets_by_az)
 }
 
-# ACM certificate lookup removed: provide alb_certificate_arn explicitly when needed.
+# -----------------------------------------------------------------------------
+# ACM 인증서 자동 탐색 (*.base_domain 와일드카드 인증서)
+# -----------------------------------------------------------------------------
+data "aws_acm_certificate" "wildcard" {
+  count       = var.alb_certificate_arn == "" ? 1 : 0
+  domain      = "*.${var.base_domain}"
+  statuses    = ["ISSUED"]
+  most_recent = true
+}
+
+locals {
+  # 명시적으로 제공된 ARN이 있으면 사용, 없으면 자동 탐색
+  acm_certificate_arn = var.alb_certificate_arn != "" ? var.alb_certificate_arn : try(data.aws_acm_certificate.wildcard[0].arn, null)
+}
 
 # -----------------------------------------------------------------------------
 # 4. Harbor 모듈 호출
@@ -103,8 +116,8 @@ module "harbor" {
   seed_postgres_tag   = var.seed_postgres_tag
   seed_neo4j_tag      = var.seed_neo4j_tag
 
-  # Helm chart seeding (OCI)
-  seed_helm_charts          = var.seed_helm_charts
+  # Helm chart seeding (OCI) - user-data 모드일 때만 활성화
+  seed_helm_charts          = var.helm_seeding_mode == "user-data"
   argocd_chart_version      = var.argocd_chart_version
   certmanager_chart_version = var.certmanager_chart_version
   rancher_chart_version     = var.rancher_chart_version
@@ -113,7 +126,7 @@ module "harbor" {
   enable_alb     = true
   alb_subnet_ids = local.final_alb_subnets
 
-  alb_certificate_arn = (var.alb_certificate_arn != "" ? var.alb_certificate_arn : null)
+  alb_certificate_arn = local.acm_certificate_arn
   alb_internal        = false
   alb_ingress_cidrs   = ["0.0.0.0/0"]
 }
@@ -122,11 +135,16 @@ module "harbor" {
 # 5. Route53: harbor.<base_domain> CNAME -> Harbor ALB DNS (optional)
 # -----------------------------------------------------------------------------
 
-# Hosted Zone auto-discovery removed to avoid hard-fail when no zone exists.
-# Provide route53_zone_id explicitly when enable_route53_harbor_cname=true.
+# Route53 Hosted Zone 동적 탐색 (존재하지 않으면 null 반환)
+data "aws_route53_zone" "selected" {
+  count        = var.enable_route53_harbor_cname && var.route53_zone_id == "" ? 1 : 0
+  name         = "${var.base_domain}."
+  private_zone = var.route53_private_zone
+}
 
 locals {
-  route53_zone_id_effective = var.route53_zone_id
+  # route53_zone_id가 명시적으로 제공되면 사용, 아니면 동적 탐색 결과 사용
+  route53_zone_id_effective = var.route53_zone_id != "" ? var.route53_zone_id : try(data.aws_route53_zone.selected[0].zone_id, "")
   harbor_alb_dns_name       = try(module.harbor.alb_dns_name, "")
 }
 
@@ -148,5 +166,115 @@ resource "null_resource" "save_domain_setting" {
   provisioner "local-exec" {
     # domain.auto.tfvars 라는 별도 파일에 저장하여 기존 설정 파일과 충돌 방지
     command = "echo 'base_domain = \"${var.base_domain}\"' > domain.auto.tfvars"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# 6. Helm Chart Seeding (Local-Exec 방식)
+# -----------------------------------------------------------------------------
+# user_data 대신 로컬에서 직접 Harbor API로 차트를 시딩합니다.
+# 테스트 완료 후 user_data로 다시 반영할 수 있습니다.
+
+resource "null_resource" "seed_helm_charts" {
+  count = var.helm_seeding_mode == "local-exec" ? 1 : 0
+
+  triggers = {
+    harbor_instance = module.harbor.instance_id
+    argocd_version  = var.argocd_chart_version
+    certmanager_ver = var.certmanager_chart_version
+    rancher_version = var.rancher_chart_version
+  }
+
+  # Route53 CNAME 생성 후 실행 (DNS 전파 대기)
+  depends_on = [module.harbor, aws_route53_record.harbor_cname]
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    working_dir = path.root
+    command     = <<-EOT
+      set -e
+      
+      # 로그 파일 설정 (모니터링: tail -f /tmp/harbor-seeding.log)
+      LOG_FILE="/tmp/harbor-seeding.log"
+      echo "=== Helm Seeding Started: $(date) ===" | tee -a "$LOG_FILE"
+      exec > >(tee -a "$LOG_FILE") 2>&1
+      
+      # ALB DNS (health check용)
+      ALB_DNS="${module.harbor.alb_dns_name}"
+      # CNAME (seeding용 - ACM 인증서와 일치)
+      HARBOR_CNAME="${local.final_hostname}"
+      SCHEME="${local.acm_certificate_arn != null ? "https" : "http"}"
+      
+      echo "ALB DNS: $ALB_DNS"
+      echo "Harbor CNAME: $HARBOR_CNAME"
+      echo "Scheme: $SCHEME"
+      
+      # Smart wait: 먼저 health check 시도, 실패하면 대기 후 재시도
+      echo "Checking if Harbor is already running..."
+      HARBOR_READY=false
+      
+      # 1차: 즉시 체크 (기존 EC2인 경우 바로 성공)
+      if curl -fsSk --connect-timeout 5 "$SCHEME://$ALB_DNS/api/v2.0/health" 2>/dev/null | grep -q healthy; then
+        echo "Harbor is already healthy! Skipping wait."
+        HARBOR_READY=true
+      else
+        # 신규 배포: 120초 대기 후 재시도
+        echo "Harbor not ready. Waiting 120 seconds for EC2 bootstrap..."
+        sleep 120
+        
+        # 2차: 최대 60회 × 10초 = 10분 대기
+        echo "Checking Harbor health via ALB..."
+        for i in $(seq 1 60); do
+          if curl -fsSk --connect-timeout 5 "$SCHEME://$ALB_DNS/api/v2.0/health" 2>/dev/null | grep -q healthy; then
+            echo "Harbor is healthy!"
+            HARBOR_READY=true
+            break
+          fi
+          echo "Waiting for Harbor... (attempt $i/60)"
+          sleep 10
+        done
+      fi
+      
+      if [ "$HARBOR_READY" != "true" ]; then
+        echo "ERROR: Harbor did not become healthy in time"
+        exit 1
+      fi
+      
+      # DNS 전파 확인 (CNAME이 ALB로 해석되는지 체크)
+      echo "Checking DNS propagation for $HARBOR_CNAME..."
+      DNS_READY=false
+      for i in $(seq 1 12); do
+        if host "$HARBOR_CNAME" 2>/dev/null | grep -q "alias\|address"; then
+          echo "DNS is ready!"
+          DNS_READY=true
+          break
+        fi
+        echo "Waiting for DNS propagation... (attempt $i/12)"
+        sleep 10
+      done
+      
+      echo "=== Starting Helm chart seeding ==="
+      if [ "$DNS_READY" = "true" ]; then
+        # CNAME 사용 (인증서와 일치)
+        ../../../scripts/seed-helm-charts.sh \
+          "$HARBOR_CNAME" \
+          "${var.admin_password}" \
+          --argocd-version "${var.argocd_chart_version}" \
+          --certmanager-version "${var.certmanager_chart_version}" \
+          --rancher-version "${var.rancher_chart_version}"
+      else
+        # DNS 미전파 시 ALB DNS + insecure 모드
+        echo "DNS not ready, using ALB DNS with --insecure"
+        ../../../scripts/seed-helm-charts.sh \
+          "$ALB_DNS" \
+          "${var.admin_password}" \
+          --argocd-version "${var.argocd_chart_version}" \
+          --certmanager-version "${var.certmanager_chart_version}" \
+          --rancher-version "${var.rancher_chart_version}" \
+          --insecure
+      fi
+      
+      echo "=== Helm Seeding Completed: $(date) ==="
+    EOT
   }
 }

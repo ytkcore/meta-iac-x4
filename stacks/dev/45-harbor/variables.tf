@@ -167,10 +167,15 @@ variable "create_proxy_cache" {
 # -----------------------------------------------------------------------------
 # Helm Chart Seeding (OCI Registry)
 # -----------------------------------------------------------------------------
-variable "seed_helm_charts" {
-  description = "Whether to download and push Helm charts to Harbor OCI registry for 55-bootstrap"
-  type        = bool
-  default     = true
+variable "helm_seeding_mode" {
+  description = "Helm 차트 시딩 방식: disabled(비활성화), local-exec(Terraform에서 실행), user-data(EC2 부팅 시 실행)"
+  type        = string
+  default     = "local-exec"
+
+  validation {
+    condition     = contains(["disabled", "local-exec", "user-data"], var.helm_seeding_mode)
+    error_message = "helm_seeding_mode must be one of: disabled, local-exec, user-data"
+  }
 }
 
 variable "argocd_chart_version" {
@@ -188,7 +193,7 @@ variable "certmanager_chart_version" {
 variable "rancher_chart_version" {
   description = "Rancher Helm chart version to seed"
   type        = string
-  default     = "2.10.10"
+  default     = "2.10.3"
 }
 
 variable "seed_images" {
@@ -232,11 +237,6 @@ variable "route53_zone_id" {
   description = "Route53 Hosted Zone ID (미지정 시 base_domain으로 자동 탐색)"
   type        = string
   default     = ""
-
-  validation {
-    condition     = !(var.enable_route53_harbor_cname && var.route53_zone_id == "")
-    error_message = "enable_route53_harbor_cname=true requires route53_zone_id to be set (Hosted Zone not auto-discovered)."
-  }
 }
 
 variable "route53_private_zone" {

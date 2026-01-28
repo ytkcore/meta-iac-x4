@@ -156,47 +156,198 @@ cat > /opt/harbor/seed-helm-charts.sh << 'EOFHELM'
 #!/bin/bash
 set -euo pipefail
 exec > >(tee -a /var/log/harbor-helm-seed.log) 2>&1
+echo "=== Helm Chart Seeding Started: $(date) ==="
+
 HOSTNAME="__HOSTNAME__"
 ADMIN_PASS="__ADMIN_PASSWORD__"
 ENABLE_TLS="__ENABLE_TLS__"
 ARGOCD_VER="__ARGOCD_VER__"
 CERTMANAGER_VER="__CERTMANAGER_VER__"
 RANCHER_VER="__RANCHER_VER__"
-SCHEME="http"; [[ "$ENABLE_TLS" == "true" ]] && SCHEME="https"
 
-# IMPORTANT:
-# - Harbor 자체는 enable_tls=false(HTTP)로 구동될 수 있으나,
-#   Helm OCI는 기본적으로 HTTPS를 선호합니다.
-# - 이 리포지토리는 Harbor 앞단에 ALB+ACM(HTTPS) 엔드포인트(예: harbor.<base_domain>)가
-#   존재한다는 전제 하에, OCI 푸시는 FQDN(=HOSTNAME)으로 수행합니다.
-#   (127.0.0.1 또는 Private IP로는 HTTPS가 없어 실패할 수 있습니다.)
-OCI_REGISTRY_HOST="$HOSTNAME"
+# Harbor API는 항상 로컬(127.0.0.1)로 접근 (HTTP)
+API_HOST="127.0.0.1"
+API_URL="http://$API_HOST/api/v2.0"
+AUTH="admin:$ADMIN_PASS"
 
-LOGIN_FLAGS=""
-PUSH_FLAGS=""
-if [[ "$ENABLE_TLS" == "true" ]]; then
-  # self-signed/사설 CA 환경에서 편의상 TLS 검증 스킵
-  LOGIN_FLAGS="--insecure"
-  PUSH_FLAGS="--insecure-skip-tls-verify"
-fi
+# OCI 푸시도 로컬호스트 사용 (insecure 모드)
+# ALB/외부 DNS가 아직 준비 안됐을 수 있으므로 127.0.0.1 사용
+OCI_REGISTRY_HOST="$API_HOST"
+OCI_URL="oci://$OCI_REGISTRY_HOST/helm-charts"
 
-command -v helm &>/dev/null || curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-curl -fsSk -u "admin:$ADMIN_PASS" -X POST "$SCHEME://127.0.0.1/api/v2.0/projects" \
-  -H "Content-Type: application/json" -d '{"project_name":"helm-charts","public":true}' 2>/dev/null || true
-echo "$ADMIN_PASS" | helm registry login "$OCI_REGISTRY_HOST" -u admin --password-stdin $LOGIN_FLAGS 2>/dev/null || true
-
-seed() {
-  local R="$1" U="$2" C="$3" V="$4"
-  cd /tmp && rm -f $${C}*.tgz 2>/dev/null || true
-  helm repo add "$R" "$U" --force-update 2>/dev/null && helm repo update 2>/dev/null || true
-  helm pull "$R/$C" --version "$V" 2>/dev/null && helm push $${C}*.tgz oci://$OCI_REGISTRY_HOST/helm-charts $PUSH_FLAGS 2>/dev/null || true
-  rm -f $${C}*.tgz 2>/dev/null || true
+# 재시도 함수
+retry() {
+  local max="$1" delay="$2" attempt=1
+  shift 2
+  until "$@"; do
+    if ((attempt >= max)); then
+      echo "[ERROR] Command failed after $max attempts: $*"
+      return 1
+    fi
+    echo "[WARN] Attempt $attempt failed, retrying in $${delay}s..."
+    ((attempt++))
+    sleep "$delay"
+  done
+  echo "[OK] Command succeeded: $*"
 }
-seed "argo" "https://argoproj.github.io/argo-helm" "argo-cd" "$ARGOCD_VER"
-seed "jetstack" "https://charts.jetstack.io" "cert-manager" "$CERTMANAGER_VER"
-seed "rancher" "https://releases.rancher.com/server-charts/stable" "rancher" "$RANCHER_VER"
-helm repo remove argo jetstack rancher 2>/dev/null || true
-echo "[OK] Helm seeding done"
+
+# Harbor 헬스 체크 대기
+wait_harbor_healthy() {
+  echo "[INFO] Waiting for Harbor to be healthy..."
+  for i in {1..60}; do
+    if curl -fsSk "$API_URL/health" 2>/dev/null | grep -q '"status":"healthy"'; then
+      echo "[OK] Harbor is healthy"
+      return 0
+    fi
+    echo "[INFO] Harbor not ready yet (attempt $i/60)..."
+    sleep 10
+  done
+  echo "[ERROR] Harbor health check timed out"
+  return 1
+}
+
+# Helm 설치
+install_helm() {
+  if command -v helm &>/dev/null; then
+    echo "[OK] Helm already installed: $(helm version --short)"
+    return 0
+  fi
+  echo "[INFO] Installing Helm..."
+  
+  local script="/tmp/get-helm-3.sh"
+  local attempt=0
+  local max_attempts=3
+  
+  # 스크립트 다운로드 (재시도)
+  while ((attempt < max_attempts)); do
+    if curl -fsSL -o "$script" https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 2>&1; then
+      chmod +x "$script"
+      break
+    fi
+    ((attempt++))
+    echo "[WARN] Download attempt $attempt failed, retrying in 10s..."
+    sleep 10
+  done
+  
+  if [[ ! -f "$script" ]]; then
+    echo "[ERROR] Failed to download Helm install script"
+    return 1
+  fi
+  
+  # 스크립트 실행
+  if bash "$script" 2>&1; then
+    rm -f "$script"
+    echo "[OK] Helm installed successfully"
+    return 0
+  else
+    rm -f "$script"
+    echo "[ERROR] Helm installation failed"
+    return 1
+  fi
+}
+
+# helm-charts 프로젝트 생성
+create_helm_project() {
+  echo "[INFO] Creating helm-charts project..."
+  local resp
+  resp=$(curl -fsSk -u "$AUTH" -w "%%{http_code}" -o /dev/null \
+    -X POST "$API_URL/projects" \
+    -H "Content-Type: application/json" \
+    -d '{"project_name":"helm-charts","public":true}' 2>/dev/null) || true
+  
+  if [[ "$resp" == "201" ]]; then
+    echo "[OK] helm-charts project created"
+  elif [[ "$resp" == "409" ]]; then
+    echo "[OK] helm-charts project already exists"
+  else
+    echo "[WARN] Project creation returned: $resp (may already exist)"
+  fi
+}
+
+# Harbor OCI 레지스트리 로그인
+login_registry() {
+  echo "[INFO] Logging into Harbor OCI registry at $OCI_REGISTRY_HOST..."
+  # insecure 플래그로 HTTP 레지스트리 허용
+  if echo "$ADMIN_PASS" | helm registry login "$OCI_REGISTRY_HOST" -u admin --password-stdin --insecure 2>&1; then
+    echo "[OK] Helm registry login successful"
+    return 0
+  else
+    echo "[ERROR] Helm registry login failed"
+    return 1
+  fi
+}
+
+# 차트 다운로드 및 푸시
+seed_chart() {
+  local repo_name="$1" repo_url="$2" chart_name="$3" chart_version="$4"
+  
+  echo "[INFO] Seeding chart: $chart_name (version: $chart_version)"
+  cd /tmp
+  rm -f $${chart_name}*.tgz 2>/dev/null || true
+  
+  # 레포 추가 및 업데이트
+  if ! helm repo add "$repo_name" "$repo_url" --force-update 2>&1; then
+    echo "[ERROR] Failed to add repo: $repo_name"
+    return 1
+  fi
+  helm repo update "$repo_name" 2>&1 || true
+  
+  # 차트 다운로드
+  if ! helm pull "$repo_name/$chart_name" --version "$chart_version" 2>&1; then
+    echo "[ERROR] Failed to pull chart: $repo_name/$chart_name:$chart_version"
+    return 1
+  fi
+  
+  local tgz_file=$(ls $${chart_name}*.tgz 2>/dev/null | head -1)
+  if [[ -z "$tgz_file" ]]; then
+    echo "[ERROR] Chart file not found after pull"
+    return 1
+  fi
+  
+  # OCI 레지스트리에 푸시 (insecure 모드)
+  if helm push "$tgz_file" "$OCI_URL" --insecure-skip-tls-verify 2>&1; then
+    echo "[OK] Successfully pushed: $chart_name:$chart_version"
+  else
+    echo "[ERROR] Failed to push chart: $chart_name"
+    rm -f "$tgz_file" 2>/dev/null || true
+    return 1
+  fi
+  
+  rm -f "$tgz_file" 2>/dev/null || true
+  return 0
+}
+
+# 메인 로직
+main() {
+  wait_harbor_healthy || exit 1
+  install_helm || exit 1
+  create_helm_project
+  
+  # OCI 로그인 재시도
+  retry 5 10 login_registry || {
+    echo "[ERROR] Cannot login to registry, aborting seeding"
+    exit 1
+  }
+  
+  # 각 차트 시딩 (실패해도 계속 진행)
+  local failed=0
+  
+  seed_chart "argo" "https://argoproj.github.io/argo-helm" "argo-cd" "$ARGOCD_VER" || ((failed++))
+  seed_chart "jetstack" "https://charts.jetstack.io" "cert-manager" "$CERTMANAGER_VER" || ((failed++))
+  seed_chart "rancher" "https://releases.rancher.com/server-charts/stable" "rancher" "$RANCHER_VER" || ((failed++))
+  
+  # 레포 정리
+  helm repo remove argo jetstack rancher 2>/dev/null || true
+  
+  if ((failed > 0)); then
+    echo "[WARN] Helm seeding completed with $failed failures"
+    exit 1
+  fi
+  
+  echo "=== Helm Chart Seeding Completed Successfully: $(date) ==="
+}
+
+main "$@"
 EOFHELM
 
 # Replace placeholders
