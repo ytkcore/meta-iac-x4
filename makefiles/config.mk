@@ -11,8 +11,16 @@ STACK_DIR := stacks/$(ENV)/$(STACK)
 BOOT_DIR  := stacks/bootstrap-backend
 VERSIONS_TEMPLATE ?= templates/versions.tf
 
+# Terraform Provider Cache (Local)
+# - 플러그인 다운로드 시간을 단축하고 디스크 공간을 절약합니다.
+# - 기본 경로: ~/.terraform.d/plugin-cache
+export TF_PLUGIN_CACHE_DIR ?= $(HOME)/.terraform.d/plugin-cache
+
+# 캐시 디렉토리가 없으면 생성 (shell 함수의 부작용을 이용)
+_ := $(shell mkdir -p $(TF_PLUGIN_CACHE_DIR))
+
 # Terraform 옵션
-TF_ARGS ?= -compact-warnings
+TF_OPTS ?= -compact-warnings
 # 상위 디렉토리의 env.tfvars 참조
 ENV_TFVARS := -var-file=../env.tfvars
 
@@ -24,18 +32,12 @@ ENV_AUTO_TFVARS := $(if $(wildcard stacks/$(ENV)/env.auto.tfvars),-var-file=../e
 TF_STACK := terraform -chdir=$(STACK_DIR)
 TF_BOOT  := terraform -chdir=$(BOOT_DIR)
 
-# Remote Backend 설정 (기본값)
-STATE_REGION     := $(or $(STATE_REGION),ap-northeast-2)
-STATE_BUCKET     := $(or $(STATE_BUCKET),enc-tfstate)
-STATE_KEY_PREFIX := $(or $(STATE_KEY_PREFIX),enc-iac)
-
-# stacks/<env>/env.tfvars 파일이 존재하면 파싱하여 변수 덮어쓰기
-ifneq (,$(wildcard stacks/$(ENV)/env.tfvars))
-STATE_BUCKET     := $(or $(shell sed -nE 's/^\s*state_bucket\s*=\s*"([^"]+)".*/\1/p' stacks/$(ENV)/env.tfvars | head -n 1),$(STATE_BUCKET))
-STATE_REGION     := $(or $(shell sed -nE 's/^\s*state_region\s*=\s*"([^"]+)".*/\1/p' stacks/$(ENV)/env.tfvars | head -n 1),$(STATE_REGION))
-STATE_KEY_PREFIX := $(or $(shell sed -nE 's/^\s*state_key_prefix\s*=\s*"([^"]+)".*/\1/p' stacks/$(ENV)/env.tfvars | head -n 1),$(STATE_KEY_PREFIX))
-endif
+# Backend configuration is managed via stacks/<env>/backend.hcl
+# No Makefile variables needed - Terraform reads .hcl directly
+BACKEND_CONFIG_FILE := stacks/$(ENV)/backend.hcl
+STATE_KEY_PREFIX := iac
 
 # 스택 실행 순서 및 RKE2 스택 이름 정의
-STACK_ORDER := 00-network 10-security 20-endpoints 30-db 40-bastion 50-rke2 60-db
+
+STACK_ORDER := 00-network 10-security 20-endpoints 30-db 40-bastion 50-rke2 55-bootstrap 60-db
 RKE2_STACK_NAME := 50-rke2

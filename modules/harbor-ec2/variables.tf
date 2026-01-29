@@ -4,12 +4,17 @@
 
 # --- Basic ---
 variable "name" {
-  description = "Name prefix for resources"
+  description = "Name prefix for resources (workload name)"
   type        = string
 }
 
 variable "env" {
   description = "Environment name (dev, staging, prod)"
+  type        = string
+}
+
+variable "project" {
+  description = "Project name"
   type        = string
 }
 

@@ -1,5 +1,6 @@
 variable "region" {
-  type = string
+  type    = string
+  default = "ap-northeast-2"
 }
 
 variable "env" {
@@ -10,13 +11,8 @@ variable "project" {
   type = string
 }
 
-variable "name" {
-  type = string
-}
-
-variable "tags" {
-  type = map(string)
-}
+# name 제거 (locals 자동 생성)
+# tags 제거 (locals 자동 생성)
 
 # Remote state settings (shared via stacks/<env>/env.tfvars)
 variable "state_bucket" {
@@ -48,6 +44,7 @@ variable "instance_type" {
   type    = string
   default = "t3.micro"
 }
+
 variable "ami_id" {
   description = "Optional AMI ID override."
   type        = string
@@ -108,7 +105,6 @@ variable "bastion_security_group_id" {
   default     = null
 }
 
-
 variable "enable_bootstrap_tools" {
   type        = bool
   description = "If true, install kubectl/helm + helper scripts on bastion and attach minimal IAM for SSM SendCommand/Describe."
@@ -119,4 +115,16 @@ variable "argocd_nodeport" {
   type        = number
   description = "NodePort for ArgoCD server (used when exposing via Public NLB)"
   default     = 30443
+}
+
+# [NEW] base_domain (global variable compatibility)
+variable "base_domain" {
+  type        = string
+  description = "Base domain (compatible with global env.tfvars)"
+  default     = null
+
+  validation {
+    condition     = can(regex("^[a-z0-9.-]+$", var.base_domain))
+    error_message = "도메인 형식은 소문자, 숫자, 점(.), 하이픈(-)만 허용됩니다."
+  }
 }

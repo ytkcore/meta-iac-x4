@@ -7,6 +7,28 @@ locals {
     key_prefix = var.state_key_prefix
     azs        = var.azs
   }
+
+  tags = {
+    ManagedBy   = "terraform"
+    Project     = var.project
+    Environment = var.env
+  }
+
+  # Name Format: {env}-{project}-{workload}-{resource}-{suffix}
+  workload_name = "bastion"
+  name_prefix   = "${var.env}-${var.project}-${local.workload_name}"
+
+  # bastion을 배치할 서브넷 키(예: "common-private-a")에 해당하는 subnet id
+  bastion_subnet_id = data.terraform_remote_state.network.outputs.subnet_ids[var.bastion_subnet_key]
+
+  # Bastion 부트스트랩 유틸(helm/kubectl 및 helper script) 설치
+  bastion_user_data = var.enable_bootstrap_tools ? templatefile("${path.module}/user_data/bastion-bootstrap.sh.tftpl", {
+    project         = var.project
+    env             = var.env
+    name            = local.workload_name
+    region          = var.region
+    argocd_nodeport = var.argocd_nodeport
+  }) : null
 }
 
 # 00-network 스택의 출력값(VPC/서브넷 등)을 참조합니다.
@@ -20,25 +42,6 @@ data "terraform_remote_state" "network" {
   }
 }
 
-locals {
-  tags = merge(var.tags, {
-    Environment = var.env
-    Project     = var.project
-  })
-
-  # bastion을 배치할 서브넷 키(예: "common-private-a")에 해당하는 subnet id
-  bastion_subnet_id = data.terraform_remote_state.network.outputs.subnet_ids[var.bastion_subnet_key]
-
-  # Bastion 부트스트랩 유틸(helm/kubectl 및 helper script) 설치
-  bastion_user_data = var.enable_bootstrap_tools ? templatefile("${path.module}/user_data/bastion-bootstrap.sh.tftpl", {
-    project         = var.project
-    env             = var.env
-    name            = var.name
-    region          = var.region
-    argocd_nodeport = var.argocd_nodeport
-  }) : null
-}
-
 # ---------------------------------------------------------------------------
 # Bastion 보안그룹 (SSM only 기본)
 # - 기본적으로 인바운드(SSH 등)를 허용하지 않습니다.
@@ -47,20 +50,23 @@ locals {
 # ---------------------------------------------------------------------------
 resource "aws_security_group" "bastion" {
   count       = var.bastion_security_group_id == null ? 1 : 0
-  name_prefix = "${var.name}-bastion-"
+  name        = "${local.name_prefix}-sg"
   description = "Bastion SG (SSM only, no ingress by default)"
   vpc_id      = data.terraform_remote_state.network.outputs.vpc_id
 
   # ingress 없음: SSM only
 
   egress {
+    description = "All egress"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = local.tags
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix}-sg"
+  })
 }
 
 locals {
@@ -72,9 +78,10 @@ locals {
 module "bastion" {
   source = "../../../modules/ec2-instance"
 
-  name   = "${var.name}-bastion-a"
-  env    = var.env
-  region = var.region
+  name    = local.workload_name
+  env     = var.env
+  project = var.project
+  region  = var.region
 
   subnet_id              = local.bastion_subnet_id
   vpc_security_group_ids = local.bastion_sg_ids
@@ -92,7 +99,7 @@ module "bastion" {
 # '부트스트랩 작업을 자동화'하기 위해 필요한 최소 권한을 Bastion 인스턴스 Role에 부여합니다.
 resource "aws_iam_policy" "bastion_bootstrap" {
   count       = var.enable_bootstrap_tools ? 1 : 0
-  name        = "${var.name}-${var.env}-bastion-bootstrap"
+  name        = "${local.name_prefix}-policy"
   description = "Minimal IAM permissions for bootstrap utilities running on the bastion instance"
 
   policy = jsonencode({

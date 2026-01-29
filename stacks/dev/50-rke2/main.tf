@@ -6,6 +6,14 @@ locals {
     key_prefix = var.state_key_prefix
     azs        = var.azs
   }
+
+  workload_name = "k8s"
+  name          = "${var.project}-${var.env}-${local.workload_name}"
+  common_tags = {
+    ManagedBy   = "terraform"
+    Project     = var.project
+    Environment = var.env
+  }
 }
 
 provider "aws" {
@@ -81,7 +89,7 @@ locals {
 
   # 디폴트로 ACM 적용을 "시도"하되, ARN을 확보할 수 있을 때만 최종 활성화
   effective_enable_acm_tls_termination = var.enable_acm_tls_termination && (local.effective_acm_certificate_arn != null)
-  
+
   acm_cert_source = (
     var.acm_certificate_arn != null ? "stack_var" :
     local.network_acm_certificate_arn != null ? "network_remote_state" :
@@ -109,10 +117,10 @@ locals {
   subnet_ids_by_tier = data.terraform_remote_state.network.outputs.subnet_ids_by_tier
 
   # Harbor 설정 (선택적) - Harbor가 없으면 null 사용
-  harbor_hostname       = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_hostname, null) : null
-  harbor_private_ip     = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_private_ip, null) : null
-  harbor_scheme         = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_scheme, "http") : "http"
-  harbor_proxy_project  = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_proxy_cache_project, "dockerhub-proxy") : "dockerhub-proxy"
+  harbor_hostname      = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_hostname, null) : null
+  harbor_private_ip    = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_private_ip, null) : null
+  harbor_scheme        = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_scheme, "http") : "http"
+  harbor_proxy_project = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_proxy_cache_project, "dockerhub-proxy") : "dockerhub-proxy"
 
   # ⚠️ 중요: Harbor token realm/redirect 및 내부 통신 안정화를 위해 기본적으로 DNS(hostname) 기반 hostport를 사용합니다.
   # - harbor_registry_hostport_by_dns: harbor.<base_domain>:80 형태
@@ -123,14 +131,6 @@ locals {
   control_plane_subnet_ids = local.subnet_ids_by_tier["k8s_cp"]
   worker_subnet_ids        = local.subnet_ids_by_tier["k8s_dp"]
   public_subnet_ids        = local.subnet_ids_by_tier["public"]
-  
-  common_tags = merge(
-    {
-      Project = var.project
-      Env     = var.env
-    },
-    var.tags
-  )
 }
 
 module "rke2" {
@@ -138,7 +138,7 @@ module "rke2" {
 
   project = var.project
   env     = var.env
-  name    = var.name
+  name    = local.workload_name
 
   tags = local.common_tags
 

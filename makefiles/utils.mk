@@ -11,7 +11,9 @@ HARBOR_VERSION     := 2.9.1
 # [변경] 버킷 이름 규칙(글로벌 유니크): {환경}-harbor-storage-{accountId}-{region}
 # 예) dev-harbor-storage-123456789012-ap-northeast-2
 AWS_ACCOUNT_ID := $(or $(shell aws sts get-caller-identity --query Account --output text 2>/dev/null),unknown)
-HARBOR_BUCKET_NAME := $(ENV)-harbor-storage-$(AWS_ACCOUNT_ID)-$(STATE_REGION)
+# Extract region from backend.hcl if available
+BACKEND_REGION := $(shell grep -E '^region' stacks/$(ENV)/backend.hcl 2>/dev/null | sed -E 's/.*"([^"]+)".*/\1/' || echo "ap-northeast-2")
+HARBOR_BUCKET_NAME := $(ENV)-harbor-storage-$(AWS_ACCOUNT_ID)-$(BACKEND_REGION)
 
 # [설정] 중앙 관리 파일 및 타겟 링크 경로 정의
 # 공통 파일: modules/common_versions.tf
@@ -24,14 +26,13 @@ TARGET_VERSION_FILE := stacks/$(ENV)/$(STACK)/versions.tf
 # -----------------------------------------------------------------------------
 ifeq ($(STACK),$(HARBOR_STACK_NAME))
     BUCKET_CHECK := $(shell aws s3api head-bucket --bucket $(HARBOR_BUCKET_NAME) 2>&1 || echo "NOT_FOUND")
-	TF_ARGS += -var='state_bucket=$(STATE_BUCKET)'
 
     ifneq (,$(findstring NOT_FOUND,$(BUCKET_CHECK)))
-        TF_ARGS += -var='target_bucket_name=$(HARBOR_BUCKET_NAME)' -var='create_bucket=true'
+        TF_OPTS += -var='target_bucket_name=$(HARBOR_BUCKET_NAME)' -var='create_bucket=true'
     else ifneq (,$(findstring 404,$(BUCKET_CHECK)))
-        TF_ARGS += -var='target_bucket_name=$(HARBOR_BUCKET_NAME)' -var='create_bucket=true'
+        TF_OPTS += -var='target_bucket_name=$(HARBOR_BUCKET_NAME)' -var='create_bucket=true'
     else
-        TF_ARGS += -var='target_bucket_name=$(HARBOR_BUCKET_NAME)' -var='create_bucket=false'
+        TF_OPTS += -var='target_bucket_name=$(HARBOR_BUCKET_NAME)' -var='create_bucket=false'
     endif
 endif
 
@@ -78,7 +79,7 @@ _deploy-harbor-ssm:
 	@aws ssm send-command \
 		--document-name "AWS-RunShellScript" \
 		--targets "Key=InstanceIds,Values=$(INSTANCE_ID)" \
-		--parameters 'commands=["$(shell cat scripts/install-harbor.sh | sed 's/"/\\"/g' | sed "s/'/'\\\\''/g")", "$(ENV)", "harbor", "$(HARBOR_VERSION)"]' \
+		--parameters 'commands=["$(shell cat scripts/harbor/install-harbor.sh | sed 's/"/\\"/g' | sed "s/'/'\\\\''/g")", "$(ENV)", "harbor", "$(HARBOR_VERSION)"]' \
 		--comment "Deploy Harbor $(HARBOR_VERSION)" \
 		--output text \
 		--query "Command.CommandId"
@@ -87,12 +88,7 @@ _deploy-harbor-ssm:
 # -----------------------------------------------------------------------------
 # 5. Clean Up
 # -----------------------------------------------------------------------------
-.PHONY: clean
-#clean:
-#	@echo "🧹 Cleaning up generated files for stack '$(STACK)'..."
-#	@rm -f $(TARGET_VERSION_FILE)
-#	@echo "   - Removed: $(TARGET_VERSION_FILE)"
-#	@echo "✅ Clean complete."
+.PHONY: clean clean-cache
 
 # -----------------------------------------------------------------------------
 # Clean
@@ -105,3 +101,14 @@ clean:
 	find stacks modules -name "domain.auto.tfvars" -type f -delete || true
 	find stacks modules -name "env.auto.tfvars" -type f -delete || true
 	find stacks -name "terraform.tfstate*" -type f -delete || true
+	@echo "🧹 Cleaned up project-local artifacts."
+	@echo "ℹ️  To clean shared Terraform plugin cache, run: make clean-cache"
+
+clean-cache:
+	@if [ -d "$(TF_PLUGIN_CACHE_DIR)" ]; then \
+		echo "🧹 Removing Terraform plugin cache at $(TF_PLUGIN_CACHE_DIR)..."; \
+		rm -rf "$(TF_PLUGIN_CACHE_DIR)"; \
+		echo "✅ Cache cleaned."; \
+	else \
+		echo "ℹ️  Cache directory $(TF_PLUGIN_CACHE_DIR) does not exist."; \
+	fi

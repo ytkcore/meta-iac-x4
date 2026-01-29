@@ -138,3 +138,15 @@ variable "backup_retention_days" {
   default     = 1
   description = "Backup retention days for managed DB (dev-friendly default: 1)."
 }
+
+# [NEW] base_domain (global variable compatibility)
+variable "base_domain" {
+  type        = string
+  description = "Base domain (compatible with global env.tfvars)"
+  default     = null
+
+  validation {
+    condition     = can(regex("^[a-z0-9.-]+$", var.base_domain))
+    error_message = "도메인 형식은 소문자, 숫자, 점(.), 하이픈(-)만 허용됩니다."
+  }
+}

@@ -55,6 +55,15 @@ data "aws_route53_zone" "selected" {
 # 3. Locals (통합)
 # -----------------------------------------------------------------------------
 locals {
+  # [NEW] Generate name and tags locally
+  workload_name = "harbor"
+  name          = "${var.project}-${var.env}-${local.workload_name}"
+  tags = {
+    ManagedBy   = "terraform"
+    Project     = var.project
+    Environment = var.env
+  }
+
   # Network
   vpc_id    = data.terraform_remote_state.network.outputs.vpc_id
   subnet_id = data.terraform_remote_state.network.outputs.subnet_ids[var.harbor_subnet_key]
@@ -81,9 +90,10 @@ module "harbor" {
   source = "../../../modules/harbor-ec2"
 
   # Basic
-  name   = var.name
-  env    = var.env
-  region = var.region
+  name    = local.workload_name
+  env     = var.env
+  project = var.project
+  region  = var.region
 
   # Network
   vpc_id    = local.vpc_id
@@ -193,13 +203,13 @@ resource "null_resource" "seed_helm_charts" {
 
       # Seeding
       if [ "$DNS_OK" = "true" ]; then
-        ../../../scripts/seed-helm-charts.sh "$HARBOR_CNAME" "${var.admin_password}" \
+        ../../../scripts/harbor/seed-helm-charts-client.sh "$HARBOR_CNAME" "${var.admin_password}" \
           --argocd-version "${var.argocd_chart_version}" \
           --certmanager-version "${var.certmanager_chart_version}" \
           --rancher-version "${var.rancher_chart_version}"
       else
         echo "DNS not ready, using ALB with --insecure"
-        ../../../scripts/seed-helm-charts.sh "$ALB_DNS" "${var.admin_password}" \
+        ../../../scripts/harbor/seed-helm-charts-client.sh "$ALB_DNS" "${var.admin_password}" \
           --argocd-version "${var.argocd_chart_version}" \
           --certmanager-version "${var.certmanager_chart_version}" \
           --rancher-version "${var.rancher_chart_version}" \

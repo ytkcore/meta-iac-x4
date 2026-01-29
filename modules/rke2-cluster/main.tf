@@ -13,8 +13,6 @@ data "aws_ssm_parameter" "ubuntu_2204_ami" {
   name = "/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id"
 }
 
-
-
 data "aws_vpc" "this" {
   id = var.vpc_id
 }
@@ -24,6 +22,9 @@ resource "random_password" "rke2_token" {
 }
 
 locals {
+  # Name Format: {env}-{project}-{workload}-{resource}-{suffix}
+  name_prefix = "${var.env}-${var.project}-${var.name}"
+
   # Token & AMI
   token = coalesce(var.rke2_token, random_password.rke2_token.result)
   ami_id = var.ami_id != null ? var.ami_id : (
@@ -46,6 +47,7 @@ locals {
       bootstrap = i == 0
     }
   }
+
   workers = {
     for i in range(var.worker_count) :
     format("worker-%02d", i + 1) => {
@@ -71,7 +73,7 @@ locals {
 # IAM & Security Groups
 ##############################
 resource "aws_iam_role" "nodes" {
-  name = "${var.project}-${var.env}-${var.name}-rke2-nodes-role"
+  name = "${local.name_prefix}-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -99,13 +101,13 @@ resource "aws_iam_role_policy_attachment" "extra" {
 }
 
 resource "aws_iam_instance_profile" "nodes" {
-  name = "${var.project}-${var.env}-${var.name}-rke2-nodes-profile"
+  name = "${local.name_prefix}-profile"
   role = aws_iam_role.nodes.name
   tags = local.common_tags
 }
 
 resource "aws_security_group" "nodes" {
-  name        = "${var.project}-${var.env}-${var.name}-rke2-nodes-sg"
+  name        = "${local.name_prefix}-common-sg"
   description = "RKE2 nodes SG"
   vpc_id      = var.vpc_id
 
@@ -141,7 +143,7 @@ resource "aws_security_group" "nodes" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = merge(local.common_tags, { Name = "${var.project}-${var.env}-${var.name}-rke2-nodes-sg" })
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-common-sg" })
 }
 
 ##############################
@@ -149,17 +151,17 @@ resource "aws_security_group" "nodes" {
 ##############################
 resource "aws_lb" "rke2" {
   count              = 1
-  name               = substr("${var.project}-${var.env}-${var.name}-rke2", 0, 32)
+  name               = substr("${local.name_prefix}-nlb-server", 0, 32)
   internal           = true
   load_balancer_type = "network"
   subnets            = local.cp_subnets
 
-  tags = merge(local.common_tags, { Name = "${var.project}-${var.env}-${var.name}-rke2-nlb" })
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-nlb-server" })
 }
 
 resource "aws_lb_target_group" "supervisor" {
   count       = 1
-  name        = substr("${var.project}-${var.env}-${var.name}-9345", 0, 32)
+  name        = substr("${local.name_prefix}-tg-9345", 0, 32)
   port        = 9345
   protocol    = "TCP"
   target_type = "instance"
@@ -175,7 +177,7 @@ resource "aws_lb_target_group" "supervisor" {
 
 resource "aws_lb_target_group" "apiserver" {
   count       = 1
-  name        = substr("${var.project}-${var.env}-${var.name}-6443", 0, 32)
+  name        = substr("${local.name_prefix}-tg-6443", 0, 32)
   port        = 6443
   protocol    = "TCP"
   target_type = "instance"
@@ -270,10 +272,10 @@ resource "aws_instance" "control_plane" {
     ingress_https_nodeport          = var.ingress_https_nodeport
     ingress_external_traffic_policy = var.ingress_external_traffic_policy
     # Health Check Script (single source of truth)
-    health_check_script = file("${path.module}/../../scripts/check-rke2-health.sh")
+    health_check_script = file("${path.module}/../../scripts/rke2/check-rke2-health.sh")
   })
 
-  tags = merge(local.common_tags, { Name = "${var.project}-${var.env}-${var.name}-${each.key}" })
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-${each.key}" })
 
   depends_on = [aws_lb.rke2]
 
@@ -332,7 +334,7 @@ resource "aws_instance" "worker" {
     harbor_password                   = var.harbor_password
   })
 
-  tags = merge(local.common_tags, { Name = "${var.project}-${var.env}-${var.name}-${each.key}" })
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-${each.key}" })
 
   # [추가] Control Plane이 먼저 생성된 후 Worker 생성
   depends_on = [aws_instance.control_plane]
@@ -363,7 +365,7 @@ resource "aws_lb_target_group_attachment" "apiserver" {
 
 ##############################
 # Ingress NLB (Optional)
-# 
+#
 # 두 가지 모드 지원:
 # 1. TCP Passthrough (기본): 443 TCP → NodePort 30443
 # 2. ACM TLS Termination: 443 TLS(ACM) → NodePort 30080 (HTTP)
@@ -371,7 +373,7 @@ resource "aws_lb_target_group_attachment" "apiserver" {
 
 resource "aws_lb" "ingress" {
   count              = var.enable_public_ingress_nlb ? 1 : 0
-  name               = substr("${var.project}-${var.env}-${var.name}-ingress", 0, 32)
+  name               = substr("${local.name_prefix}-nlb-ingress", 0, 32)
   internal           = false
   load_balancer_type = "network"
   subnets            = var.public_subnet_ids
@@ -379,12 +381,12 @@ resource "aws_lb" "ingress" {
   # ACM TLS 사용 시 cross-zone load balancing 권장
   enable_cross_zone_load_balancing = var.enable_acm_tls_termination ? true : false
 
-  tags = merge(local.common_tags, { Name = "${var.project}-${var.env}-${var.name}-ingress-nlb" })
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-nlb-ingress" })
 }
 
 resource "aws_lb_target_group" "ingress_http" {
   count              = var.enable_public_ingress_nlb ? 1 : 0
-  name               = substr("${var.project}-${var.env}-${var.name}-http", 0, 32)
+  name               = substr("${local.name_prefix}-tg-http", 0, 32)
   port               = var.ingress_http_nodeport
   protocol           = "TCP"
   preserve_client_ip = false
@@ -405,7 +407,7 @@ resource "aws_lb_target_group" "ingress_http" {
 # HTTPS 백엔드 타겟 그룹 (TCP Passthrough 모드에서만 사용)
 resource "aws_lb_target_group" "ingress_https" {
   count              = var.enable_public_ingress_nlb && !var.enable_acm_tls_termination ? 1 : 0
-  name               = substr("${var.project}-${var.env}-${var.name}-https", 0, 32)
+  name               = substr("${local.name_prefix}-tg-https", 0, 32)
   port               = var.ingress_https_nodeport
   protocol           = "TCP"
   preserve_client_ip = false

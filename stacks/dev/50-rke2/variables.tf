@@ -39,17 +39,8 @@ variable "azs" {
   default     = ["ap-northeast-2a", "ap-northeast-2c"]
 }
 
-variable "tags" {
-  description = "공통 태그"
-  type        = map(string)
-  default     = {}
-}
-
-variable "name" {
-  description = "네이밍 접두어"
-  type        = string
-  default     = "k8s"
-}
+# tags 제거 (locals 자동 생성)
+# name 제거 (locals 자동 생성)
 
 variable "control_plane_count" {
   description = "Control Plane 노드 수"
@@ -209,6 +200,11 @@ variable "acm_certificate_arn" {
 variable "base_domain" {
   description = "ACM 자동 조회용 루트 도메인 (예: example.com). 지정 시 '*.<base_domain>' 인증서를 조회합니다."
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9.-]+$", var.base_domain))
+    error_message = "도메인 형식은 소문자, 숫자, 점(.), 하이픈(-)만 허용됩니다."
+  }
 }
 
 variable "acm_cert_domain" {

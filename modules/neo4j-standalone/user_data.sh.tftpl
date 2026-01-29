@@ -6,10 +6,11 @@ if [ -f "$MARKER" ]; then
   exit 0
 fi
 
+
 REGISTRY_HOSTPORT="${harbor_registry_hostport}"
 PROJECT="${harbor_project}"
 TAG="${neo4j_image_tag}"
-IMAGE="${REGISTRY_HOSTPORT}/${PROJECT}/library/neo4j:${TAG}"
+IMAGE="$REGISTRY_HOSTPORT/$PROJECT/library/neo4j:$TAG"
 
 NEO4J_AUTH="${neo4j_auth}"
 
@@ -26,21 +27,22 @@ if [ "${harbor_insecure}" = "true" ]; then
   mkdir -p /etc/docker
   cat > /etc/docker/daemon.json <<JSON
 {
-  "insecure-registries": ["${REGISTRY_HOSTPORT}"]
+  "insecure-registries": ["$REGISTRY_HOSTPORT"]
 }
 JSON
   systemctl restart docker >/dev/null 2>&1 || true
 fi
 
-docker pull "${IMAGE}"
+docker pull "$IMAGE"
 docker rm -f neo4j >/dev/null 2>&1 || true
 
 docker run -d --name neo4j \
   --restart unless-stopped \
   -p 7474:7474 \
   -p 7687:7687 \
-  -e NEO4J_AUTH="${NEO4J_AUTH}" \
+  -e NEO4J_AUTH="$NEO4J_AUTH" \
   -v /data/neo4j:/data \
-  "${IMAGE}"
+  "$IMAGE"
+
 
 touch "$MARKER"

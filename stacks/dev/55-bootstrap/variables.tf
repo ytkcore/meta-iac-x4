@@ -203,6 +203,11 @@ variable "base_domain" {
   description = "루트 도메인 (예: example.com). argocd/rancher 호스트네임 구성에 사용됩니다."
   type        = string
   default     = ""
+
+  validation {
+    condition     = can(regex("^[a-z0-9.-]+$", var.base_domain))
+    error_message = "도메인 형식은 소문자, 숫자, 점(.), 하이픈(-)만 허용됩니다."
+  }
 }
 
 variable "domain" {

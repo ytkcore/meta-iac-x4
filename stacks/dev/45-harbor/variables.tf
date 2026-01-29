@@ -21,16 +21,8 @@ variable "project" {
   type        = string
 }
 
-variable "name" {
-  description = "Resource name prefix"
-  type        = string
-}
-
-variable "tags" {
-  description = "Common tags"
-  type        = map(string)
-  default     = {}
-}
+# name 제거 (locals 자동 생성)
+# tags 제거 (locals 자동 생성/default)
 
 # -----------------------------------------------------------------------------
 # Remote State
@@ -158,6 +150,11 @@ variable "alb_certificate_arn" {
 variable "base_domain" {
   description = "Base domain (e.g., example.com)"
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9.-]+$", var.base_domain))
+    error_message = "도메인 형식은 소문자, 숫자, 점(.), 하이픈(-)만 허용됩니다."
+  }
 }
 
 variable "enable_route53_harbor_cname" {

@@ -6,10 +6,11 @@ if [ -f "$MARKER" ]; then
   exit 0
 fi
 
+
 REGISTRY_HOSTPORT="${harbor_registry_hostport}"
 PROJECT="${harbor_project}"
 TAG="${postgres_image_tag}"
-IMAGE="${REGISTRY_HOSTPORT}/${PROJECT}/library/postgres:${TAG}"
+IMAGE="$REGISTRY_HOSTPORT/$PROJECT/library/postgres:$TAG"
 
 DB_NAME="${db_name}"
 DB_USER="${db_username}"
@@ -28,22 +29,23 @@ if [ "${harbor_insecure}" = "true" ]; then
   mkdir -p /etc/docker
   cat > /etc/docker/daemon.json <<JSON
 {
-  "insecure-registries": ["${REGISTRY_HOSTPORT}"]
+  "insecure-registries": ["$REGISTRY_HOSTPORT"]
 }
 JSON
   systemctl restart docker >/dev/null 2>&1 || true
 fi
 
-docker pull "${IMAGE}"
+docker pull "$IMAGE"
 docker rm -f postgres >/dev/null 2>&1 || true
 
 docker run -d --name postgres \
   --restart unless-stopped \
   -p 5432:5432 \
-  -e POSTGRES_DB="${DB_NAME}" \
-  -e POSTGRES_USER="${DB_USER}" \
-  -e POSTGRES_PASSWORD="${DB_PASS}" \
+  -e POSTGRES_DB="$DB_NAME" \
+  -e POSTGRES_USER="$DB_USER" \
+  -e POSTGRES_PASSWORD="$DB_PASS" \
   -v /data/postgres:/var/lib/postgresql/data \
-  "${IMAGE}"
+  "$IMAGE"
+
 
 touch "$MARKER"

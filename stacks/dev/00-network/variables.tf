@@ -1,5 +1,6 @@
 variable "region" {
-  type = string
+  type    = string
+  default = "ap-northeast-2"
 }
 
 variable "env" {
@@ -10,13 +11,8 @@ variable "project" {
   type = string
 }
 
-variable "name" {
-  type = string
-}
-
-variable "tags" {
-  type = map(string)
-}
+# name 제거 (locals에서 생성)
+# tags 제거 (locals에서 생성 혹은 default 처리)
 
 # Shared remote state settings used by downstream stacks via terraform_remote_state.
 # (This stack itself does not consume remote state, but it declares these variables
@@ -150,4 +146,16 @@ variable "state_key_prefix" {
   type        = string
   description = "Remote state key prefix (used by Makefile/terraform init backend-config). Kept here to avoid tfvars undeclared warnings."
   default     = null
+}
+
+# [NEW] Optional: user defined base_domain (not used in network but to avoid undeclared variable error)
+variable "base_domain" {
+  type        = string
+  description = "Base domain (not used in network stack but present in global env.tfvars)"
+  default     = null
+
+  validation {
+    condition     = can(regex("^[a-z0-9.-]+$", var.base_domain))
+    error_message = "도메인 형식은 소문자, 숫자, 점(.), 하이픈(-)만 허용됩니다."
+  }
 }

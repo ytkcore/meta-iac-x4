@@ -1,10 +1,15 @@
 variable "name" {
-  description = "Resource name prefix"
+  description = "Resource name (workload name)"
   type        = string
 }
 
 variable "env" {
   description = "Environment name"
+  type        = string
+}
+
+variable "project" {
+  description = "Project name"
   type        = string
 }
 
@@ -45,4 +50,10 @@ variable "root_volume_size" {
   description = "Root EBS volume size in GB"
   type        = number
   default     = 30
+}
+
+variable "ami_id" {
+  description = "AMI ID Override (Optional)"
+  type        = string
+  default     = null
 }
