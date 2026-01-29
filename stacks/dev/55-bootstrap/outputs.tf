@@ -1,10 +1,10 @@
-################################################################################
-# 55-bootstrap Stack Outputs
-################################################################################
+# ==============================================================================
+# 55-bootstrap Outputs
+# ==============================================================================
 
-# -----------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # ArgoCD Outputs
-# -----------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 output "argocd_namespace" {
   description = "ArgoCD 설치 namespace"
   value       = var.argocd_namespace
@@ -32,15 +32,7 @@ output "argocd_server_url" {
 # -----------------------------------------------------------------------------
 # cert-manager Outputs
 # -----------------------------------------------------------------------------
-output "cert_manager_installed" {
-  description = "cert-manager 설치 여부"
-  value       = var.install_cert_manager
-}
-
-output "cert_manager_version" {
-  description = "설치된 cert-manager 버전"
-  value       = var.install_cert_manager ? var.cert_manager_version : "not installed"
-}
+# Cert-Manager outputs removed
 
 # -----------------------------------------------------------------------------
 # GitOps Outputs
@@ -61,9 +53,9 @@ output "gitops_repo_url" {
 output "helm_repository_source" {
   description = "Helm 차트 설치 소스"
   value = {
-    argocd      = local.argocd_repository
-    certmanager = local.certmanager_repository
-    rancher     = local.rancher_repository
+    argocd = local.argocd_repository
+    # certmanager = local.certmanager_repository  <-- Removed
+    # rancher     = local.rancher_repository      <-- Removed
     source_type = local.harbor_oci_available ? "harbor_oci" : "external"
   }
 }

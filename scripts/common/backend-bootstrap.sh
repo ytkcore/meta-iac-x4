@@ -1,22 +1,52 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
+# =============================================================================
+# Backend Bootstrap Script
+# Usage: STATE_BUCKET=<bucket> STATE_REGION=<region> ./backend-bootstrap.sh
+# =============================================================================
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+set -uo pipefail
+
+# -----------------------------------------------------------------------------
+# Constants
+# -----------------------------------------------------------------------------
+GREEN=$'\e[32m'
+RED=$'\e[31m'
+YELLOW=$'\e[33m'
+CYAN=$'\e[36m'
+DIM=$'\e[2m'
+NC=$'\e[0m'
+
+# -----------------------------------------------------------------------------
+# Functions
+# -----------------------------------------------------------------------------
+ok()     { echo -e "  ${GREEN}✓${NC} $*"; }
+fail()   { echo -e "  ${RED}✗${NC} $*"; }
+warn()   { echo -e "  ${YELLOW}!${NC} $*"; }
+info()   { echo -e "  ${DIM}$*${NC}"; }
+header() { echo -e "\n${CYAN}[$1]${NC} $2"; }
+
+tf() { terraform -chdir="${BOOT_DIR}" "$@"; }
+
+# -----------------------------------------------------------------------------
+# Setup
+# -----------------------------------------------------------------------------
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BOOT_DIR="${ROOT_DIR}/stacks/bootstrap-backend"
 
 STATE_BUCKET="${STATE_BUCKET:?STATE_BUCKET is required}"
 STATE_REGION="${STATE_REGION:-ap-northeast-2}"
 
-tf() {
-  terraform -chdir="${BOOT_DIR}" "$@"
-}
-
-echo "==> [bootstrap] init (${STATE_BUCKET} / ${STATE_REGION})"
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+header 1 "Terraform Init (${STATE_BUCKET} / ${STATE_REGION})"
 tf init -upgrade=false -reconfigure >/dev/null
+ok "Terraform initialized"
 
-# If the bucket already exists (and you have access), import it into bootstrap state
+header 2 "Check Backend Bucket"
 if aws s3api head-bucket --bucket "${STATE_BUCKET}" >/dev/null 2>&1; then
-  echo "==> [bootstrap] bucket already exists. Importing into terraform state (if needed)"
+  warn "Bucket already exists. Importing into terraform state..."
+  
   addrs=(
     "aws_s3_bucket.tfstate"
     "aws_s3_bucket_versioning.this"
@@ -27,14 +57,21 @@ if aws s3api head-bucket --bucket "${STATE_BUCKET}" >/dev/null 2>&1; then
 
   for addr in "${addrs[@]}"; do
     if ! tf state list 2>/dev/null | grep -q "^${addr}$"; then
-      echo "  - import ${addr}"
-      # 일부 리소스(예: policy)는 아직 없을 수 있어 import 실패 가능 -> apply에서 생성됨
-      tf import         -var="state_bucket=${STATE_BUCKET}"         -var="state_region=${STATE_REGION}"         "${addr}" "${STATE_BUCKET}" >/dev/null 2>&1 || true
+      info "Importing ${addr}..."
+      tf import \
+        -var="state_bucket=${STATE_BUCKET}" \
+        -var="state_region=${STATE_REGION}" \
+        "${addr}" "${STATE_BUCKET}" >/dev/null 2>&1 || true
     fi
   done
+  ok "Import completed"
 else
-  echo "==> [bootstrap] bucket does not exist. It will be created by terraform."
+  info "Bucket does not exist. It will be created by Terraform."
 fi
 
-echo "==> [bootstrap] apply"
-tf apply -auto-approve   -var="state_bucket=${STATE_BUCKET}"   -var="state_region=${STATE_REGION}"
+header 3 "Apply Bootstrap"
+tf apply -auto-approve \
+  -var="state_bucket=${STATE_BUCKET}" \
+  -var="state_region=${STATE_REGION}"
+
+ok "Backend bootstrap completed"

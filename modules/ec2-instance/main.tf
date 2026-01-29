@@ -60,7 +60,7 @@ resource "aws_instance" "this" {
   vpc_security_group_ids = var.vpc_security_group_ids
   iam_instance_profile   = aws_iam_instance_profile.this.name
   key_name               = var.key_name
-  user_data_base64       = var.user_data != null ? base64encode(var.user_data) : null
+  user_data_base64       = var.user_data_base64 != null ? var.user_data_base64 : (var.user_data != null ? base64encode(var.user_data) : null)
 
   root_block_device {
     volume_type = "gp3"

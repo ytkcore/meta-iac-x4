@@ -1,72 +1,91 @@
-#!/usr/bin/env bash
-set -e
+#!/bin/bash
+# =============================================================================
+# Environment Initialization Script
+# Usage: ENV=dev ./init-env.sh
+# =============================================================================
 
-# Colors
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+set -uo pipefail
 
-# Directory paths
+# -----------------------------------------------------------------------------
+# Constants
+# -----------------------------------------------------------------------------
+GREEN=$'\e[32m'
+RED=$'\e[31m'
+YELLOW=$'\e[33m'
+CYAN=$'\e[36m'
+BOLD=$'\e[1m'
+DIM=$'\e[2m'
+NC=$'\e[0m'
+
+# -----------------------------------------------------------------------------
+# Functions
+# -----------------------------------------------------------------------------
+ok()     { echo -e "  ${GREEN}✓${NC} $*"; }
+fail()   { echo -e "  ${RED}✗${NC} $*"; }
+warn()   { echo -e "  ${YELLOW}!${NC} $*"; }
+info()   { echo -e "  ${DIM}$*${NC}"; }
+header() { echo -e "\n${CYAN}${BOLD}[$1]${NC} $2"; }
+
+get_input() {
+  local prompt="$1" default="$2" var_name="$3"
+  local val
+  read -r -p "${prompt} [${default}]: " val
+  if [[ -z "$val" ]]; then
+    val="$default"
+  fi
+  eval "$var_name=\"$val\""
+  echo "  -> Selected: $val"
+}
+
+# -----------------------------------------------------------------------------
+# Setup
+# -----------------------------------------------------------------------------
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV="${ENV:-dev}"
 ENV_DIR="stacks/${ENV}"
 TFVARS_FILE="${ENV_DIR}/env.tfvars"
 
-echo -e "${BLUE}=== [Init] Initializing Environment: ${ENV} ===${NC}"
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+echo -e "\n${BOLD}Environment Initialization: ${ENV}${NC}\n"
 
-# 1. Create directory if not exists
-if [ ! -d "${ENV_DIR}" ]; then
-  echo -e "${YELLOW}Creating directory: ${ENV_DIR}${NC}"
+# Create directory
+header 1 "Directory Setup"
+if [[ ! -d "${ENV_DIR}" ]]; then
   mkdir -p "${ENV_DIR}"
+  ok "Created ${ENV_DIR}"
+else
+  ok "Directory exists: ${ENV_DIR}"
 fi
 
-# 2. Check if env.tfvars exists
-if [ -f "${TFVARS_FILE}" ]; then
-  echo -e "${GREEN}Found existing ${TFVARS_FILE}.${NC}"
+# Check existing config
+if [[ -f "${TFVARS_FILE}" ]]; then
+  ok "Found existing ${TFVARS_FILE}"
   read -p "Do you want to re-configure it? (y/N) " RECONFIG
   if [[ ! "$RECONFIG" =~ ^[Yy]$ ]]; then
-    echo "Skipping configuration."
+    info "Skipping configuration"
     exit 0
   fi
 fi
 
-# 3. Interactive Configuration (Minimal)
-echo -e "\n${BLUE}--- Configuration Wizard ---${NC}"
+# Interactive configuration
+header 2 "Configuration Wizard"
 
-# Function to get input with default
-get_input() {
-  local prompt="$1"
-  local default="$2"
-  local var_name="$3"
-  
-  read -p "${prompt} [${default}]: " input
-  input="${input:-$default}"
-  eval "$var_name=\"$input\""
-}
-
-# (1) Base Domain (Required)
 while true; do
   get_input "Enter Base Domain" "unifiedmeta.net" BASE_DOMAIN
-  if [ -n "$BASE_DOMAIN" ]; then
-    break
-  else
-    echo -e "${RED}Base Domain is required.${NC}"
-  fi
+  [[ -n "$BASE_DOMAIN" ]] && break
+  fail "Base Domain is required"
 done
 
-# (2) Project Name
 get_input "Enter Project Name" "meta" PROJECT
 
-# (3) S3 State Bucket (Smart Default)
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "000000")
 DEFAULT_BUCKET="${PROJECT}-${ENV}-tfstate-${AWS_ACCOUNT_ID}"
 get_input "Enter S3 State Bucket Name" "${DEFAULT_BUCKET}" STATE_BUCKET
 
-echo -e "${YELLOW}Creating ${TFVARS_FILE} with minimal configuration...${NC}"
-
-# Generate env.tfvars (Minimal)
+# Generate env.tfvars
+header 3 "Generating Configuration"
 cat > "${TFVARS_FILE}" <<EOF
 # -----------------------------------------------------------------------------
 # Essential Configuration
@@ -74,6 +93,13 @@ cat > "${TFVARS_FILE}" <<EOF
 base_domain  = "${BASE_DOMAIN}"
 project      = "${PROJECT}"
 env          = "${ENV}"
+
+# -----------------------------------------------------------------------------
+# Remote State Configuration
+# -----------------------------------------------------------------------------
+state_bucket     = "${STATE_BUCKET}"
+state_region     = "ap-northeast-2"
+state_key_prefix = "iac"
 
 # -----------------------------------------------------------------------------
 # Optional Overrides (Uncomment to change defaults)
@@ -84,48 +110,47 @@ env          = "${ENV}"
 # db_instance_type   = "t3.large"
 # postgres_image_tag = "18.1"
 EOF
+ok "Created ${TFVARS_FILE}"
 
-# Generate backend.hcl (Terraform native format)
+# Generate backend.hcl
 BACKEND_HCL="${ENV_DIR}/backend.hcl"
 cat > "${BACKEND_HCL}" <<EOF
 bucket = "${STATE_BUCKET}"
 region = "ap-northeast-2"
 EOF
+ok "Created ${BACKEND_HCL}"
 
-echo -e "\n${GREEN}Configuration Saved to ${TFVARS_FILE} and ${BACKEND_HCL}${NC}"
-echo -e "NOTE: Advanced settings (instance types, versions, etc.) use sensible defaults."
-echo -e "You can override them in ${TFVARS_FILE} if needed.\n"
+# Backend initialization
+header 4 "Backend Initialization"
+info "Checking if S3 backend bucket exists..."
 
-# 4. Smart Backend Initialization
-echo -e "${BLUE}--- Backend Initialization ---${NC}"
-echo "Checking if S3 backend bucket exists..."
-
-# Check if bucket exists
 if aws s3api head-bucket --bucket "${STATE_BUCKET}" 2>/dev/null; then
-  echo -e "${GREEN}✓ Backend bucket '${STATE_BUCKET}' already exists.${NC}"
+  ok "Backend bucket '${STATE_BUCKET}' already exists"
 else
-  echo -e "${YELLOW}⚠ Backend bucket '${STATE_BUCKET}' does not exist.${NC}"
+  warn "Backend bucket '${STATE_BUCKET}' does not exist"
   read -p "Do you want to create it now? (Y/n) " CREATE_BACKEND
   
   if [[ ! "$CREATE_BACKEND" =~ ^[Nn]$ ]]; then
-    echo "Creating S3 backend bucket..."
+    info "Creating S3 backend bucket..."
     STATE_BUCKET="${STATE_BUCKET}" STATE_REGION="ap-northeast-2" \
       "${ROOT_DIR}/scripts/common/backend-bootstrap.sh"
     
-    if [ $? -eq 0 ]; then
-      echo -e "${GREEN}✓ Backend bucket created successfully!${NC}"
+    if [[ $? -eq 0 ]]; then
+      ok "Backend bucket created successfully"
     else
-      echo -e "${RED}✗ Failed to create backend bucket.${NC}"
-      echo "Please check AWS credentials and try again."
+      fail "Failed to create backend bucket"
+      info "Please check AWS credentials and try again"
       exit 1
     fi
   else
-    echo -e "${YELLOW}Skipping backend creation.${NC}"
-    echo "You'll need to create it manually before running terraform."
+    warn "Skipping backend creation"
+    info "You'll need to create it manually before running terraform"
   fi
 fi
 
-echo -e "\n${GREEN}=== Init Complete ===${NC}"
-echo "Next Steps:"
-echo "  1. make plan  STACK=00-network"
-echo "  2. make apply STACK=00-network"
+# Summary
+echo -e "\n${BOLD}Init Complete${NC}"
+echo ""
+info "Next Steps:"
+info "  1. make plan  STACK=00-network"
+info "  2. make apply STACK=00-network"

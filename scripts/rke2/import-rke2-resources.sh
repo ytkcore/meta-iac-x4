@@ -1,225 +1,201 @@
 #!/bin/bash
-###############################################################################
-# import-rke2-resources.sh
-#
-# 기존에 AWS에 생성되어 있지만 Terraform state에 없는 RKE2 리소스들을
-# Terraform state로 import하는 스크립트입니다.
-#
-# 사용법:
-#   cd stacks/dev/50-rke2
-#   ../../../scripts/import-rke2-resources.sh
-#
-# 또는 환경을 지정:
-#   ENV=prod ../../../scripts/import-rke2-resources.sh
-###############################################################################
-set -e
+# =============================================================================
+# RKE2 Resource Import Script
+# Usage: cd stacks/dev/50-rke2 && ../../../scripts/rke2/import-rke2-resources.sh
+# =============================================================================
 
-# 환경 변수 (기본값: dev)
+set -uo pipefail
+
+# -----------------------------------------------------------------------------
+# Constants
+# -----------------------------------------------------------------------------
+GREEN=$'\e[32m'
+RED=$'\e[31m'
+YELLOW=$'\e[33m'
+CYAN=$'\e[36m'
+BOLD=$'\e[1m'
+DIM=$'\e[2m'
+NC=$'\e[0m'
+
+# -----------------------------------------------------------------------------
+# Functions
+# -----------------------------------------------------------------------------
+ok()     { echo -e "  ${GREEN}✓${NC} $*"; }
+fail()   { echo -e "  ${RED}✗${NC} $*"; }
+warn()   { echo -e "  ${YELLOW}!${NC} $*"; }
+info()   { echo -e "  ${DIM}$*${NC}"; }
+header() { echo -e "\n${CYAN}${BOLD}[$1]${NC} $2"; }
+
+import_resource() {
+  local step="$1" name="$2" check_cmd="$3" check_arg="$4" tf_addr="$5" import_id="$6"
+  
+  header "$step" "Checking $name"
+  
+  if eval "$check_cmd" --"$check_arg" "$import_id" >/dev/null 2>&1; then
+    info "Found. Importing..."
+    if terraform import -var-file=../env.tfvars "$tf_addr" "$import_id" 2>/dev/null; then
+      ok "Imported $name"
+    else
+      warn "Already in state or failed"
+    fi
+  else
+    info "Not found in AWS. Skipping."
+  fi
+}
+
+import_resource_by_id() {
+  local step="$1" name="$2" resource_id="$3" tf_addr="$4"
+  
+  header "$step" "Checking $name"
+  
+  if [[ -n "$resource_id" ]] && [[ "$resource_id" != "None" ]]; then
+    info "Found: $resource_id. Importing..."
+    if terraform import -var-file=../env.tfvars "$tf_addr" "$resource_id" 2>/dev/null; then
+      ok "Imported $name"
+    else
+      warn "Already in state or failed"
+    fi
+  else
+    info "Not found in AWS. Skipping."
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# Setup
+# -----------------------------------------------------------------------------
 ENV="${ENV:-dev}"
 PROJECT="${PROJECT:-dev}"
 NAME="${NAME:-dev-network}"
 
-# 리소스 이름 패턴 (modules/rke2-cluster/main.tf 참조)
 ROLE_NAME="${PROJECT}-${ENV}-${NAME}-rke2-nodes-role"
 PROFILE_NAME="${PROJECT}-${ENV}-${NAME}-rke2-nodes-profile"
 SG_NAME="${PROJECT}-${ENV}-${NAME}-rke2-nodes-sg"
 NLB_NAME="${PROJECT}-${ENV}-${NAME}-rke2"
 TG_9345_NAME="${PROJECT}-${ENV}-${NAME}-9345"
 TG_6443_NAME="${PROJECT}-${ENV}-${NAME}-6443"
-
-# Public Ingress NLB 리소스 이름
 INGRESS_NLB_NAME="${PROJECT}-${ENV}-${NAME}-ingress"
 TG_HTTP_NAME="${PROJECT}-${ENV}-${NAME}-http"
 TG_HTTPS_NAME="${PROJECT}-${ENV}-${NAME}-https"
 
-echo "=============================================="
-echo "RKE2 Resource Import Script"
-echo "=============================================="
-echo "Environment: ${ENV}"
-echo "Project: ${PROJECT}"
-echo "Name: ${NAME}"
+# -----------------------------------------------------------------------------
+# Header
+# -----------------------------------------------------------------------------
+echo -e "\n${BOLD}RKE2 Resource Import${NC}\n"
+info "Environment: ${ENV}"
+info "Project: ${PROJECT}"
+info "Name: ${NAME}"
 echo ""
-echo "Internal NLB Resources:"
-echo "  - IAM Role: ${ROLE_NAME}"
-echo "  - IAM Instance Profile: ${PROFILE_NAME}"
-echo "  - Security Group: ${SG_NAME}"
-echo "  - Internal NLB: ${NLB_NAME}"
-echo "  - Target Group (9345): ${TG_9345_NAME}"
-echo "  - Target Group (6443): ${TG_6443_NAME}"
+info "Internal NLB Resources:"
+info "  - IAM Role: ${ROLE_NAME}"
+info "  - IAM Instance Profile: ${PROFILE_NAME}"
+info "  - Security Group: ${SG_NAME}"
+info "  - Internal NLB: ${NLB_NAME}"
+info "  - Target Group (9345): ${TG_9345_NAME}"
+info "  - Target Group (6443): ${TG_6443_NAME}"
 echo ""
-echo "Public Ingress NLB Resources:"
-echo "  - Ingress NLB: ${INGRESS_NLB_NAME}"
-echo "  - Target Group (HTTP): ${TG_HTTP_NAME}"
-echo "  - Target Group (HTTPS): ${TG_HTTPS_NAME}"
-echo "=============================================="
-echo ""
+info "Public Ingress NLB Resources:"
+info "  - Ingress NLB: ${INGRESS_NLB_NAME}"
+info "  - Target Group (HTTP): ${TG_HTTP_NAME}"
+info "  - Target Group (HTTPS): ${TG_HTTPS_NAME}"
 
-# 확인
 read -p "Continue with import? (y/N): " confirm
-if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-  echo "Aborted."
-  exit 0
-fi
+[[ "$confirm" != "y" && "$confirm" != "Y" ]] && { echo "Aborted."; exit 0; }
 
-echo ""
-echo "=== Starting import process ==="
-echo ""
-
+# -----------------------------------------------------------------------------
 # 1. IAM Role
-echo "[1/10] Checking IAM Role: ${ROLE_NAME}"
-if aws iam get-role --role-name "${ROLE_NAME}" >/dev/null 2>&1; then
-  echo "  -> Found. Importing..."
-  terraform import -var-file=../env.tfvars \
-    'module.rke2.aws_iam_role.nodes' \
-    "${ROLE_NAME}" 2>/dev/null && echo "  -> Success" || echo "  -> Already in state or failed"
-else
-  echo "  -> Not found in AWS. Skipping."
-fi
+# -----------------------------------------------------------------------------
+import_resource "1/10" "IAM Role: ${ROLE_NAME}" \
+  "aws iam get-role" "role-name" \
+  'module.rke2.aws_iam_role.nodes' "${ROLE_NAME}"
 
+# -----------------------------------------------------------------------------
 # 2. IAM Instance Profile
-echo "[2/10] Checking IAM Instance Profile: ${PROFILE_NAME}"
-if aws iam get-instance-profile --instance-profile-name "${PROFILE_NAME}" >/dev/null 2>&1; then
-  echo "  -> Found. Importing..."
-  terraform import -var-file=../env.tfvars \
-    'module.rke2.aws_iam_instance_profile.nodes' \
-    "${PROFILE_NAME}" 2>/dev/null && echo "  -> Success" || echo "  -> Already in state or failed"
-else
-  echo "  -> Not found in AWS. Skipping."
-fi
+# -----------------------------------------------------------------------------
+import_resource "2/10" "IAM Instance Profile: ${PROFILE_NAME}" \
+  "aws iam get-instance-profile" "instance-profile-name" \
+  'module.rke2.aws_iam_instance_profile.nodes' "${PROFILE_NAME}"
 
-# 3. IAM Role Policy Attachment (SSM Core)
-echo "[3/10] Checking IAM Role Policy Attachment (SSM Core)"
+# -----------------------------------------------------------------------------
+# 3. IAM Role Policy Attachment
+# -----------------------------------------------------------------------------
+header "3/10" "Checking IAM Role Policy Attachment (SSM Core)"
 if aws iam get-role --role-name "${ROLE_NAME}" >/dev/null 2>&1; then
   POLICY_ARN="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
   ATTACHED=$(aws iam list-attached-role-policies --role-name "${ROLE_NAME}" \
     --query "AttachedPolicies[?PolicyArn=='${POLICY_ARN}'].PolicyArn" --output text 2>/dev/null)
-  if [ -n "$ATTACHED" ]; then
-    echo "  -> Found. Importing..."
+  if [[ -n "$ATTACHED" ]]; then
+    info "Found. Importing..."
     terraform import -var-file=../env.tfvars \
       'module.rke2.aws_iam_role_policy_attachment.ssm_core' \
-      "${ROLE_NAME}/${POLICY_ARN}" 2>/dev/null && echo "  -> Success" || echo "  -> Already in state or failed"
+      "${ROLE_NAME}/${POLICY_ARN}" 2>/dev/null && ok "Imported" || warn "Already in state or failed"
   else
-    echo "  -> Policy not attached. Skipping."
+    info "Policy not attached. Skipping."
   fi
 else
-  echo "  -> Role not found. Skipping."
+  info "Role not found. Skipping."
 fi
 
+# -----------------------------------------------------------------------------
 # 4. Security Group
-echo "[4/10] Checking Security Group: ${SG_NAME}"
+# -----------------------------------------------------------------------------
+header "4/10" "Checking Security Group: ${SG_NAME}"
 SG_ID=$(aws ec2 describe-security-groups \
   --filters "Name=group-name,Values=${SG_NAME}" \
   --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null)
+import_resource_by_id "4/10" "Security Group" "$SG_ID" 'module.rke2.aws_security_group.nodes'
 
-if [ -n "$SG_ID" ] && [ "$SG_ID" != "None" ]; then
-  echo "  -> Found: ${SG_ID}. Importing..."
-  terraform import -var-file=../env.tfvars \
-    'module.rke2.aws_security_group.nodes' \
-    "${SG_ID}" 2>/dev/null && echo "  -> Success" || echo "  -> Already in state or failed"
-else
-  echo "  -> Not found in AWS. Skipping."
-fi
-
+# -----------------------------------------------------------------------------
 # 5. Internal NLB
-echo "[5/10] Checking Internal NLB: ${NLB_NAME}"
-NLB_ARN=$(aws elbv2 describe-load-balancers \
-  --names "${NLB_NAME}" \
+# -----------------------------------------------------------------------------
+header "5/10" "Checking Internal NLB: ${NLB_NAME}"
+NLB_ARN=$(aws elbv2 describe-load-balancers --names "${NLB_NAME}" \
   --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "")
+import_resource_by_id "5/10" "Internal NLB" "$NLB_ARN" 'module.rke2.aws_lb.rke2[0]'
 
-if [ -n "$NLB_ARN" ] && [ "$NLB_ARN" != "None" ]; then
-  echo "  -> Found: ${NLB_ARN}. Importing..."
-  terraform import -var-file=../env.tfvars \
-    'module.rke2.aws_lb.rke2[0]' \
-    "${NLB_ARN}" 2>/dev/null && echo "  -> Success" || echo "  -> Already in state or failed"
-else
-  echo "  -> Not found in AWS. Skipping."
-fi
-
+# -----------------------------------------------------------------------------
 # 6. Target Group - 9345
-echo "[6/10] Checking Target Group: ${TG_9345_NAME}"
-TG_9345_ARN=$(aws elbv2 describe-target-groups \
-  --names "${TG_9345_NAME}" \
+# -----------------------------------------------------------------------------
+header "6/10" "Checking Target Group: ${TG_9345_NAME}"
+TG_9345_ARN=$(aws elbv2 describe-target-groups --names "${TG_9345_NAME}" \
   --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
+import_resource_by_id "6/10" "Target Group 9345" "$TG_9345_ARN" 'module.rke2.aws_lb_target_group.supervisor[0]'
 
-if [ -n "$TG_9345_ARN" ] && [ "$TG_9345_ARN" != "None" ]; then
-  echo "  -> Found: ${TG_9345_ARN}. Importing..."
-  terraform import -var-file=../env.tfvars \
-    'module.rke2.aws_lb_target_group.supervisor[0]' \
-    "${TG_9345_ARN}" 2>/dev/null && echo "  -> Success" || echo "  -> Already in state or failed"
-else
-  echo "  -> Not found in AWS. Skipping."
-fi
-
+# -----------------------------------------------------------------------------
 # 7. Target Group - 6443
-echo "[7/10] Checking Target Group: ${TG_6443_NAME}"
-TG_6443_ARN=$(aws elbv2 describe-target-groups \
-  --names "${TG_6443_NAME}" \
+# -----------------------------------------------------------------------------
+header "7/10" "Checking Target Group: ${TG_6443_NAME}"
+TG_6443_ARN=$(aws elbv2 describe-target-groups --names "${TG_6443_NAME}" \
   --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
+import_resource_by_id "7/10" "Target Group 6443" "$TG_6443_ARN" 'module.rke2.aws_lb_target_group.apiserver[0]'
 
-if [ -n "$TG_6443_ARN" ] && [ "$TG_6443_ARN" != "None" ]; then
-  echo "  -> Found: ${TG_6443_ARN}. Importing..."
-  terraform import -var-file=../env.tfvars \
-    'module.rke2.aws_lb_target_group.apiserver[0]' \
-    "${TG_6443_ARN}" 2>/dev/null && echo "  -> Success" || echo "  -> Already in state or failed"
-else
-  echo "  -> Not found in AWS. Skipping."
-fi
-
-# ============================================
-# Public Ingress NLB Resources
-# ============================================
-
+# -----------------------------------------------------------------------------
 # 8. Public Ingress NLB
-echo "[8/10] Checking Public Ingress NLB: ${INGRESS_NLB_NAME}"
-INGRESS_NLB_ARN=$(aws elbv2 describe-load-balancers \
-  --names "${INGRESS_NLB_NAME}" \
+# -----------------------------------------------------------------------------
+header "8/10" "Checking Public Ingress NLB: ${INGRESS_NLB_NAME}"
+INGRESS_NLB_ARN=$(aws elbv2 describe-load-balancers --names "${INGRESS_NLB_NAME}" \
   --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "")
+import_resource_by_id "8/10" "Ingress NLB" "$INGRESS_NLB_ARN" 'module.rke2.aws_lb.ingress[0]'
 
-if [ -n "$INGRESS_NLB_ARN" ] && [ "$INGRESS_NLB_ARN" != "None" ]; then
-  echo "  -> Found: ${INGRESS_NLB_ARN}. Importing..."
-  terraform import -var-file=../env.tfvars \
-    'module.rke2.aws_lb.ingress[0]' \
-    "${INGRESS_NLB_ARN}" 2>/dev/null && echo "  -> Success" || echo "  -> Already in state or failed"
-else
-  echo "  -> Not found in AWS. Skipping."
-fi
-
-# 9. Target Group - HTTP (Ingress)
-echo "[9/10] Checking Target Group: ${TG_HTTP_NAME}"
-TG_HTTP_ARN=$(aws elbv2 describe-target-groups \
-  --names "${TG_HTTP_NAME}" \
+# -----------------------------------------------------------------------------
+# 9. Target Group - HTTP
+# -----------------------------------------------------------------------------
+header "9/10" "Checking Target Group: ${TG_HTTP_NAME}"
+TG_HTTP_ARN=$(aws elbv2 describe-target-groups --names "${TG_HTTP_NAME}" \
   --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
+import_resource_by_id "9/10" "Target Group HTTP" "$TG_HTTP_ARN" 'module.rke2.aws_lb_target_group.ingress_http[0]'
 
-if [ -n "$TG_HTTP_ARN" ] && [ "$TG_HTTP_ARN" != "None" ]; then
-  echo "  -> Found: ${TG_HTTP_ARN}. Importing..."
-  terraform import -var-file=../env.tfvars \
-    'module.rke2.aws_lb_target_group.ingress_http[0]' \
-    "${TG_HTTP_ARN}" 2>/dev/null && echo "  -> Success" || echo "  -> Already in state or failed"
-else
-  echo "  -> Not found in AWS. Skipping."
-fi
-
-# 10. Target Group - HTTPS (Ingress)
-echo "[10/10] Checking Target Group: ${TG_HTTPS_NAME}"
-TG_HTTPS_ARN=$(aws elbv2 describe-target-groups \
-  --names "${TG_HTTPS_NAME}" \
+# -----------------------------------------------------------------------------
+# 10. Target Group - HTTPS
+# -----------------------------------------------------------------------------
+header "10/10" "Checking Target Group: ${TG_HTTPS_NAME}"
+TG_HTTPS_ARN=$(aws elbv2 describe-target-groups --names "${TG_HTTPS_NAME}" \
   --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
+import_resource_by_id "10/10" "Target Group HTTPS" "$TG_HTTPS_ARN" 'module.rke2.aws_lb_target_group.ingress_https[0]'
 
-if [ -n "$TG_HTTPS_ARN" ] && [ "$TG_HTTPS_ARN" != "None" ]; then
-  echo "  -> Found: ${TG_HTTPS_ARN}. Importing..."
-  terraform import -var-file=../env.tfvars \
-    'module.rke2.aws_lb_target_group.ingress_https[0]' \
-    "${TG_HTTPS_ARN}" 2>/dev/null && echo "  -> Success" || echo "  -> Already in state or failed"
-else
-  echo "  -> Not found in AWS. Skipping."
-fi
-
-echo ""
-echo "=============================================="
-echo "Import process completed!"
-echo "=============================================="
-echo ""
-echo "Next steps:"
-echo "  1. Run 'terraform plan -var-file=../env.tfvars' to verify"
-echo "  2. Run 'terraform apply -var-file=../env.tfvars' to apply changes"
-echo ""
+# -----------------------------------------------------------------------------
+# Summary
+# -----------------------------------------------------------------------------
+echo -e "\n${GREEN}${BOLD}Import Process Completed${NC}\n"
+info "Next steps:"
+info "  1. Run 'terraform plan -var-file=../env.tfvars' to verify"
+info "  2. Run 'terraform apply -var-file=../env.tfvars' to apply changes"

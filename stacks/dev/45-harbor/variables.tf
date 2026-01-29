@@ -51,7 +51,7 @@ variable "state_key_prefix" {
 variable "harbor_subnet_key" {
   description = "Subnet key in 00-network outputs for Harbor EC2"
   type        = string
-  default     = "common-private-c"
+  default     = "common-pri-c"
 }
 
 # -----------------------------------------------------------------------------

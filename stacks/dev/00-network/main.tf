@@ -7,7 +7,11 @@ locals {
   }
 
   # [NEW] Generate name and tags locally
-  name = "${var.project}-${var.env}"
+  # [NEW] Generate name and tags locally
+  # Naming Convention: {env}-{project}-{workload}-{resource}-{suffix}
+  workload  = "network"
+  base_name = "${var.env}-${var.project}-${local.workload}"
+
   tags = {
     ManagedBy   = "terraform"
     Project     = var.project
@@ -18,21 +22,21 @@ locals {
 
 module "vpc" {
   source = "../../../modules/vpc"
-  name   = local.name
+  name   = "${local.base_name}-vpc"
   cidr   = var.vpc_cidr
   tags   = local.tags
 }
 
 module "igw" {
   source = "../../../modules/igw"
-  name   = local.name
+  name   = "${local.base_name}-igw"
   vpc_id = module.vpc.vpc_id
   tags   = local.tags
 }
 
 module "subnets" {
   source  = "../../../modules/subnets"
-  name    = local.name
+  name    = "${local.base_name}-subnet"
   vpc_id  = module.vpc.vpc_id
   subnets = var.subnets
   tags    = local.tags
@@ -69,14 +73,14 @@ locals {
 
 module "nat" {
   source                 = "../../../modules/nat"
-  name                   = local.name
+  name                   = "${local.base_name}-nat"
   public_subnet_id_by_az = var.enable_nat ? local.public_subnet_id_by_az : {}
   tags                   = local.tags
 }
 
 module "routing" {
   source = "../../../modules/routing"
-  name   = local.name
+  name   = "${local.base_name}-rt"
   vpc_id = module.vpc.vpc_id
   igw_id = module.igw.igw_id
 
@@ -110,7 +114,7 @@ resource "aws_vpc_endpoint" "gateway" {
   route_table_ids   = local.gateway_route_table_ids
 
   tags = merge(local.tags, {
-    Name    = "${local.name}-vpce-gw-${each.value}"
+    Name    = "${local.base_name}-vpce-gw-${each.value}"
     Type    = "gateway"
     Service = each.value
   })

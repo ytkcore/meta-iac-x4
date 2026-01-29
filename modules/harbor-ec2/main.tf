@@ -105,7 +105,7 @@ module "ec2" {
   key_name               = var.key_name
   root_volume_size       = var.root_volume_size
 
-  user_data = templatefile("${path.module}/user_data.sh.tftpl", {
+  user_data_base64 = base64gzip(templatefile("${path.module}/user_data.sh.tftpl", {
     harbor_version = var.harbor_version
     hostname       = var.harbor_hostname
     enable_tls     = tostring(var.enable_tls)
@@ -133,7 +133,7 @@ module "ec2" {
     bootstrap_script   = file("${path.module}/../../scripts/harbor/bootstrap.sh")
     proxy_cache_script = file("${path.module}/../../scripts/harbor/setup-proxy-cache.sh")
     helm_seed_script   = file("${path.module}/../../scripts/harbor/seed-helm-charts.sh")
-  })
+  }))
 }
 
 # -----------------------------------------------------------------------------

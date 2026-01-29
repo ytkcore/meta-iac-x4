@@ -35,9 +35,9 @@ variable "state_key_prefix" {
 
 # Bastion settings
 variable "bastion_subnet_key" {
-  description = "Key in network stack output subnet_ids map (e.g., public-a)."
+  description = "Key in network stack output subnet_ids map (e.g., pub-a)."
   type        = string
-  default     = "common-private-a"
+  default     = "common-pri-a"
 }
 
 variable "instance_type" {
@@ -105,17 +105,6 @@ variable "bastion_security_group_id" {
   default     = null
 }
 
-variable "enable_bootstrap_tools" {
-  type        = bool
-  description = "If true, install kubectl/helm + helper scripts on bastion and attach minimal IAM for SSM SendCommand/Describe."
-  default     = true
-}
-
-variable "argocd_nodeport" {
-  type        = number
-  description = "NodePort for ArgoCD server (used when exposing via Public NLB)"
-  default     = 30443
-}
 
 # [NEW] base_domain (global variable compatibility)
 variable "base_domain" {

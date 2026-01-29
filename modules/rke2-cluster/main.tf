@@ -243,7 +243,7 @@ resource "aws_instance" "control_plane" {
     delete_on_termination = true
   }
 
-  user_data = templatefile("${path.module}/templates/rke2-server-userdata.sh.tftpl", {
+  user_data_base64 = base64gzip(templatefile("${path.module}/templates/rke2-server-userdata.sh.tftpl", {
     rke2_version = var.rke2_version
     token        = local.token
     tls_san      = local.tls_san
@@ -273,7 +273,7 @@ resource "aws_instance" "control_plane" {
     ingress_external_traffic_policy = var.ingress_external_traffic_policy
     # Health Check Script (single source of truth)
     health_check_script = file("${path.module}/../../scripts/rke2/check-rke2-health.sh")
-  })
+  }))
 
   tags = merge(local.common_tags, { Name = "${local.name_prefix}-${each.key}" })
 
@@ -311,7 +311,7 @@ resource "aws_instance" "worker" {
     delete_on_termination = true
   }
 
-  user_data = templatefile("${path.module}/templates/rke2-agent-userdata.sh.tftpl", {
+  user_data_base64 = base64gzip(templatefile("${path.module}/templates/rke2-agent-userdata.sh.tftpl", {
     rke2_version = var.rke2_version
     token        = local.token
     server_url   = local.server_url
@@ -332,7 +332,7 @@ resource "aws_instance" "worker" {
     harbor_auth_enabled               = var.harbor_auth_enabled
     harbor_username                   = var.harbor_username
     harbor_password                   = var.harbor_password
-  })
+  }))
 
   tags = merge(local.common_tags, { Name = "${local.name_prefix}-${each.key}" })
 

@@ -1,37 +1,65 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
+# =============================================================================
+# Empty S3 Bucket Script
+# Usage: ./empty-s3-bucket.sh <bucket-name>
+# =============================================================================
 
-# Empty an S3 bucket including versions/delete-markers (no jq).
-# Usage:
-#   ./scripts/empty-s3-bucket.sh <bucket-name>
-# With aws-vault:
-#   aws-vault exec <profile> -- ./scripts/empty-s3-bucket.sh <bucket-name>
+set -uo pipefail
 
+# -----------------------------------------------------------------------------
+# Constants
+# -----------------------------------------------------------------------------
+GREEN=$'\e[32m'
+RED=$'\e[31m'
+YELLOW=$'\e[33m'
+CYAN=$'\e[36m'
+DIM=$'\e[2m'
+NC=$'\e[0m'
+
+# -----------------------------------------------------------------------------
+# Functions
+# -----------------------------------------------------------------------------
+ok()     { echo -e "  ${GREEN}✓${NC} $*"; }
+fail()   { echo -e "  ${RED}✗${NC} $*"; }
+warn()   { echo -e "  ${YELLOW}!${NC} $*"; }
+info()   { echo -e "  ${DIM}$*${NC}"; }
+header() { echo -e "\n${CYAN}[$1]${NC} $2"; }
+
+add_item() {
+  local key="$1" vid="$2"
+  if [[ ${COUNT} -gt 0 ]]; then JSON+=','; fi
+  JSON+="{\"Key\":\"${key}\",\"VersionId\":\"${vid}\"}"
+  COUNT=$((COUNT+1))
+}
+
+# -----------------------------------------------------------------------------
+# Validation
+# -----------------------------------------------------------------------------
 BUCKET="${1:-}"
 if [[ -z "${BUCKET}" ]]; then
   echo "Usage: $0 <bucket-name>"
   exit 2
 fi
 
-echo "Emptying s3://${BUCKET} ..."
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+header 1 "Emptying s3://${BUCKET}"
 
+info "Removing objects..."
 aws s3 rm "s3://${BUCKET}" --recursive || true
 
+header 2 "Cleaning Versions & Delete Markers"
 while true; do
-  VERS=$(aws s3api list-object-versions --bucket "${BUCKET}" --query 'Versions[].{Key:Key,VersionId:VersionId}' --output text 2>/dev/null || true)
-  MARK=$(aws s3api list-object-versions --bucket "${BUCKET}" --query 'DeleteMarkers[].{Key:Key,VersionId:VersionId}' --output text 2>/dev/null || true)
+  VERS=$(aws s3api list-object-versions --bucket "${BUCKET}" \
+    --query 'Versions[].{Key:Key,VersionId:VersionId}' --output text 2>/dev/null || true)
+  MARK=$(aws s3api list-object-versions --bucket "${BUCKET}" \
+    --query 'DeleteMarkers[].{Key:Key,VersionId:VersionId}' --output text 2>/dev/null || true)
 
   [[ -z "${VERS}" && -z "${MARK}" ]] && break
 
   JSON='{"Objects":['
   COUNT=0
-
-  add_item () {
-    local key="$1"; local vid="$2"
-    if [[ ${COUNT} -gt 0 ]]; then JSON+=','; fi
-    JSON+="{"Key":"${key}","VersionId":"${vid}"}"
-    COUNT=$((COUNT+1))
-  }
 
   if [[ -n "${VERS}" ]]; then
     while read -r key vid rest; do
@@ -52,7 +80,8 @@ while true; do
   JSON+='],"Quiet":true}'
   [[ ${COUNT} -eq 0 ]] && break
 
+  info "Deleting ${COUNT} versions..."
   aws s3api delete-objects --bucket "${BUCKET}" --delete "${JSON}" >/dev/null 2>&1 || true
 done
 
-echo "Done."
+ok "Bucket emptied successfully"
