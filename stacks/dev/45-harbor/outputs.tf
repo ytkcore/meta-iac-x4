@@ -21,7 +21,12 @@ output "harbor_hostname" {
 }
 
 output "harbor_scheme" {
-  description = "Harbor URL scheme"
+  description = "Harbor internal scheme (for RKE2/internal access)"
+  value       = var.harbor_enable_tls ? "https" : "http"
+}
+
+output "harbor_external_scheme" {
+  description = "Harbor external scheme (ALB with ACM)"
   value       = local.acm_certificate_arn != null ? "https" : "http"
 }
 
@@ -67,6 +72,11 @@ output "harbor_cname_status" {
 output "harbor_registry_hostport" {
   description = "Harbor registry host:port (private IP)"
   value       = "${module.harbor.private_ip}:80"
+}
+
+output "harbor_registry_hostport_by_dns" {
+  description = "Harbor registry host:port using DNS hostname (for RKE2 internal access)"
+  value       = var.harbor_enable_tls ? "${local.final_hostname}:443" : "${local.final_hostname}:80"
 }
 
 output "harbor_proxy_cache_project" {

@@ -108,7 +108,7 @@ module "ec2" {
     enable_tls     = tostring(var.enable_tls)
     admin_password = var.admin_password
     db_password    = var.db_password
-    alb_dns_name  = try(aws_lb.harbor[0].dns_name, "")
+    alb_dns_name   = try(aws_lb.harbor[0].dns_name, "")
 
     //s3_region    = data.aws_region.current.name
     storage_type = var.storage_type
@@ -125,6 +125,11 @@ module "ec2" {
     argocd_chart_version      = var.argocd_chart_version
     certmanager_chart_version = var.certmanager_chart_version
     rancher_chart_version     = var.rancher_chart_version
+
+    # Scripts (single source of truth)
+    bootstrap_script   = file("${path.module}/../../scripts/harbor/bootstrap.sh")
+    proxy_cache_script = file("${path.module}/../../scripts/harbor/setup-proxy-cache.sh")
+    helm_seed_script   = file("${path.module}/../../scripts/harbor/seed-helm-charts.sh")
   })
 }
 

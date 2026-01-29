@@ -184,7 +184,7 @@ variable "route53_private_zone" {
 variable "helm_seeding_mode" {
   description = "Helm seeding mode: disabled, local-exec, user-data"
   type        = string
-  default     = "local-exec"
+  default     = "user-data"
 
   validation {
     condition     = contains(["disabled", "local-exec", "user-data"], var.helm_seeding_mode)

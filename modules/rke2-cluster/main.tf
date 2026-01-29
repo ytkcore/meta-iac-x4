@@ -24,28 +24,21 @@ resource "random_password" "rke2_token" {
 }
 
 locals {
+  # Token & AMI
   token = coalesce(var.rke2_token, random_password.rke2_token.result)
-
   ami_id = var.ami_id != null ? var.ami_id : (
     var.os_family == "ubuntu2204" ? data.aws_ssm_parameter.ubuntu_2204_ami.value : data.aws_ssm_parameter.al2023_ami.value
   )
 
+  # Subnets
   cp_subnets = distinct(length(var.control_plane_subnet_ids) > 0 ? var.control_plane_subnet_ids : var.private_subnet_ids)
   dp_subnets = distinct(length(var.worker_subnet_ids) > 0 ? var.worker_subnet_ids : var.private_subnet_ids)
 
+  # Cluster endpoints
   server_url = "https://${aws_lb.rke2[0].dns_name}:9345"
   tls_san    = aws_lb.rke2[0].dns_name
 
-  common_tags = merge(
-    var.tags,
-    {
-      Project = var.project
-      Env     = var.env
-    }
-  )
-}
-
-locals {
+  # Node maps
   control_planes = {
     for i in range(var.control_plane_count) :
     format("cp-%02d", i + 1) => {
@@ -53,13 +46,25 @@ locals {
       bootstrap = i == 0
     }
   }
-
   workers = {
     for i in range(var.worker_count) :
     format("worker-%02d", i + 1) => {
       subnet_id = local.dp_subnets[i % length(local.dp_subnets)]
     }
   }
+
+  # Ingress backend (ACM TLS termination support)
+  ingress_backend_port     = var.enable_acm_tls_termination ? var.ingress_http_nodeport : var.ingress_https_nodeport
+  ingress_backend_protocol = var.enable_acm_tls_termination ? "TCP" : "TCP"
+
+  # Tags
+  common_tags = merge(
+    var.tags,
+    {
+      Project = var.project
+      Env     = var.env
+    }
+  )
 }
 
 ##############################
@@ -237,13 +242,13 @@ resource "aws_instance" "control_plane" {
   }
 
   user_data = templatefile("${path.module}/templates/rke2-server-userdata.sh.tftpl", {
-    rke2_version                      = var.rke2_version
-    token                             = local.token
-    tls_san                           = local.tls_san
-    server_url                        = local.server_url
-    is_bootstrap                      = each.value.bootstrap
-    node_name                         = each.key
-    os_family                         = var.os_family
+    rke2_version = var.rke2_version
+    token        = local.token
+    tls_san      = local.tls_san
+    server_url   = local.server_url
+    is_bootstrap = each.value.bootstrap
+    node_name    = each.key
+    os_family    = var.os_family
     # templatefile() cannot interpolate null into strings.
     # Use empty string to represent "not configured".
     harbor_registry_hostport          = var.harbor_registry_hostport != null ? var.harbor_registry_hostport : ""
@@ -252,18 +257,20 @@ resource "aws_instance" "control_plane" {
     harbor_add_hosts_entry            = var.harbor_add_hosts_entry
     harbor_scheme                     = var.harbor_scheme
     harbor_proxy_project              = var.harbor_proxy_project
-    enable_image_prepull             = var.enable_image_prepull
-    image_prepull_source             = var.image_prepull_source
+    enable_image_prepull              = var.enable_image_prepull
+    image_prepull_source              = var.image_prepull_source
     disable_default_registry_fallback = var.disable_default_registry_fallback
     harbor_tls_insecure_skip_verify   = var.harbor_tls_insecure_skip_verify
     harbor_auth_enabled               = var.harbor_auth_enabled
     harbor_username                   = var.harbor_username
     harbor_password                   = var.harbor_password
     # Ingress NodePort(Service) 보장용 HelmChartConfig
-    configure_ingress_nodeport        = var.configure_ingress_nodeport
-    ingress_http_nodeport             = var.ingress_http_nodeport
-    ingress_https_nodeport            = var.ingress_https_nodeport
-    ingress_external_traffic_policy   = var.ingress_external_traffic_policy
+    configure_ingress_nodeport      = var.configure_ingress_nodeport
+    ingress_http_nodeport           = var.ingress_http_nodeport
+    ingress_https_nodeport          = var.ingress_https_nodeport
+    ingress_external_traffic_policy = var.ingress_external_traffic_policy
+    # Health Check Script (single source of truth)
+    health_check_script = file("${path.module}/../../scripts/check-rke2-health.sh")
   })
 
   tags = merge(local.common_tags, { Name = "${var.project}-${var.env}-${var.name}-${each.key}" })
@@ -303,11 +310,11 @@ resource "aws_instance" "worker" {
   }
 
   user_data = templatefile("${path.module}/templates/rke2-agent-userdata.sh.tftpl", {
-    rke2_version                      = var.rke2_version
-    token                             = local.token
-    server_url                        = local.server_url
-    node_name                         = each.key
-    os_family                         = var.os_family
+    rke2_version = var.rke2_version
+    token        = local.token
+    server_url   = local.server_url
+    node_name    = each.key
+    os_family    = var.os_family
     # templatefile() cannot interpolate null into strings.
     # Use empty string to represent "not configured".
     harbor_registry_hostport          = var.harbor_registry_hostport != null ? var.harbor_registry_hostport : ""
@@ -316,8 +323,8 @@ resource "aws_instance" "worker" {
     harbor_add_hosts_entry            = var.harbor_add_hosts_entry
     harbor_scheme                     = var.harbor_scheme
     harbor_proxy_project              = var.harbor_proxy_project
-    enable_image_prepull             = var.enable_image_prepull
-    image_prepull_source             = var.image_prepull_source
+    enable_image_prepull              = var.enable_image_prepull
+    image_prepull_source              = var.image_prepull_source
     disable_default_registry_fallback = var.disable_default_registry_fallback
     harbor_tls_insecure_skip_verify   = var.harbor_tls_insecure_skip_verify
     harbor_auth_enabled               = var.harbor_auth_enabled
@@ -362,12 +369,6 @@ resource "aws_lb_target_group_attachment" "apiserver" {
 # 2. ACM TLS Termination: 443 TLS(ACM) → NodePort 30080 (HTTP)
 ##############################
 
-locals {
-  # ACM TLS 사용 시 백엔드는 HTTP NodePort로 연결
-  ingress_backend_port     = var.enable_acm_tls_termination ? var.ingress_http_nodeport : var.ingress_https_nodeport
-  ingress_backend_protocol = var.enable_acm_tls_termination ? "TCP" : "TCP"
-}
-
 resource "aws_lb" "ingress" {
   count              = var.enable_public_ingress_nlb ? 1 : 0
   name               = substr("${var.project}-${var.env}-${var.name}-ingress", 0, 32)
@@ -382,13 +383,13 @@ resource "aws_lb" "ingress" {
 }
 
 resource "aws_lb_target_group" "ingress_http" {
-  count       = var.enable_public_ingress_nlb ? 1 : 0
-  name        = substr("${var.project}-${var.env}-${var.name}-http", 0, 32)
-  port        = var.ingress_http_nodeport
-  protocol    = "TCP"
+  count              = var.enable_public_ingress_nlb ? 1 : 0
+  name               = substr("${var.project}-${var.env}-${var.name}-http", 0, 32)
+  port               = var.ingress_http_nodeport
+  protocol           = "TCP"
   preserve_client_ip = false
-  target_type = "instance"
-  vpc_id      = var.vpc_id
+  target_type        = "instance"
+  vpc_id             = var.vpc_id
 
   health_check {
     protocol            = "TCP"
@@ -403,13 +404,13 @@ resource "aws_lb_target_group" "ingress_http" {
 
 # HTTPS 백엔드 타겟 그룹 (TCP Passthrough 모드에서만 사용)
 resource "aws_lb_target_group" "ingress_https" {
-  count       = var.enable_public_ingress_nlb && !var.enable_acm_tls_termination ? 1 : 0
-  name        = substr("${var.project}-${var.env}-${var.name}-https", 0, 32)
-  port        = var.ingress_https_nodeport
-  protocol    = "TCP"
+  count              = var.enable_public_ingress_nlb && !var.enable_acm_tls_termination ? 1 : 0
+  name               = substr("${var.project}-${var.env}-${var.name}-https", 0, 32)
+  port               = var.ingress_https_nodeport
+  protocol           = "TCP"
   preserve_client_ip = false
-  target_type = "instance"
-  vpc_id      = var.vpc_id
+  target_type        = "instance"
+  vpc_id             = var.vpc_id
 
   health_check {
     protocol            = "TCP"
@@ -459,7 +460,7 @@ resource "aws_lb_listener" "ingress_https_tls" {
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.ingress_http[0].arn  # HTTP 백엔드로 전달
+    target_group_arn = aws_lb_target_group.ingress_http[0].arn # HTTP 백엔드로 전달
   }
 }
 
@@ -485,9 +486,9 @@ resource "aws_security_group_rule" "ingress_http_from_public" {
   from_port         = var.ingress_http_nodeport
   to_port           = var.ingress_http_nodeport
   protocol          = "tcp"
-    cidr_blocks       = [data.aws_vpc.this.cidr_block]
+  cidr_blocks       = [data.aws_vpc.this.cidr_block]
   security_group_id = aws_security_group.nodes.id
-    description       = "Ingress HTTP NodePort (from VPC CIDR only)"
+  description       = "Ingress HTTP NodePort (from VPC CIDR only)"
 }
 
 resource "aws_security_group_rule" "ingress_https_from_public" {
