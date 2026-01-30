@@ -5,13 +5,13 @@ output "subnet_ids" {
 output "subnet_ids_by_tier" {
   value = {
     for t in distinct([for _, v in var.subnets : v.tier]) :
-    t => [for k, v in var.subnets : aws_subnet.this[k].id if v.tier == t]
+    t => [for k, v in var.subnets : try(aws_subnet.this[k].id, null) if v.tier == t && try(aws_subnet.this[k].id, null) != null]
   }
 }
 
 output "subnet_ids_by_az" {
   value = {
     for az in distinct([for _, v in var.subnets : v.az]) :
-    az => [for k, v in var.subnets : aws_subnet.this[k].id if v.az == az]
+    az => [for k, v in var.subnets : try(aws_subnet.this[k].id, null) if v.az == az && try(aws_subnet.this[k].id, null) != null]
   }
 }

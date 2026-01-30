@@ -426,18 +426,54 @@ resource "helm_release" "argocd" {
 # ------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------
+# Data Lookup: Ingress NLB (Recovery / Fallback)
+# Remote state가 복구 중이거나 불완전할 경우, 실제 AWS 리소스를 직접 조회합니다.
+# ------------------------------------------------------------------------------
+locals {
+  # Remote state에서 값 가져오기 (없으면 null)
+  remote_nlb_dns     = try(data.terraform_remote_state.rke2.outputs.ingress_public_nlb_dns, null)
+  remote_nlb_zone_id = try(data.terraform_remote_state.rke2.outputs.ingress_public_nlb_zone_id, null)
+
+  # NLB 이름 추론 (modules/rke2-cluster/main.tf 로직 참조)
+  # name_prefix = "${env}-${project}-${name}" where name="k8s"
+  # nlb_name    = substr("${name_prefix}-nlb-ingress", 0, 32)
+  target_nlb_name = substr("${var.env}-${var.project}-k8s-nlb-ingress", 0, 32)
+}
+
+data "aws_lb" "ingress" {
+  # Remote state에 값이 없고, ingress가 활성화된 경우에만 조회 시도
+  count = (local.remote_nlb_dns == null || local.remote_nlb_dns == "") ? 1 : 0
+  name  = local.target_nlb_name
+}
+
+locals {
+  # 최종 사용할 NLB 정보 (Remote State > AWS Lookup > null)
+  final_nlb_dns = (
+    local.remote_nlb_dns != null && local.remote_nlb_dns != "" ? local.remote_nlb_dns :
+    try(data.aws_lb.ingress[0].dns_name, null)
+  )
+  final_nlb_zone_id = (
+    local.remote_nlb_zone_id != null && local.remote_nlb_zone_id != "" ? local.remote_nlb_zone_id :
+    try(data.aws_lb.ingress[0].zone_id, null)
+  )
+
+  # 레코드 생성 가능 여부 확인
+  can_create_dns_record = local.final_nlb_dns != null && local.final_nlb_zone_id != null
+}
+
+# ------------------------------------------------------------------------------
 # Route53 Alias Record for ArgoCD
 # ------------------------------------------------------------------------------
 resource "aws_route53_record" "argocd" {
-  count = var.enable_route53_argocd_alias && local.argocd_hostname != "" ? 1 : 0
+  count = var.enable_route53_argocd_alias && local.argocd_hostname != "" && local.can_create_dns_record ? 1 : 0
 
   zone_id = var.route53_zone_id != "" ? var.route53_zone_id : data.aws_route53_zone.selected[0].zone_id
   name    = local.argocd_hostname
   type    = "A"
 
   alias {
-    name                   = data.terraform_remote_state.rke2.outputs.ingress_public_nlb_dns
-    zone_id                = data.terraform_remote_state.rke2.outputs.ingress_public_nlb_zone_id
+    name                   = local.final_nlb_dns
+    zone_id                = local.final_nlb_zone_id
     evaluate_target_health = true
   }
 }
@@ -446,15 +482,15 @@ resource "aws_route53_record" "argocd" {
 # Route53 Alias Record for Rancher
 # ------------------------------------------------------------------------------
 resource "aws_route53_record" "rancher" {
-  count = var.enable_route53_argocd_alias && local.rancher_hostname != "" ? 1 : 0
+  count = var.enable_route53_argocd_alias && local.rancher_hostname != "" && local.can_create_dns_record ? 1 : 0
 
   zone_id = var.route53_zone_id != "" ? var.route53_zone_id : data.aws_route53_zone.selected[0].zone_id
   name    = local.rancher_hostname
   type    = "A"
 
   alias {
-    name                   = data.terraform_remote_state.rke2.outputs.ingress_public_nlb_dns
-    zone_id                = data.terraform_remote_state.rke2.outputs.ingress_public_nlb_zone_id
+    name                   = local.final_nlb_dns
+    zone_id                = local.final_nlb_zone_id
     evaluate_target_health = true
   }
 }

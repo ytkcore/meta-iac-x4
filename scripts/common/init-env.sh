@@ -80,7 +80,8 @@ done
 
 get_input "Enter Project Name" "meta" PROJECT
 
-AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "000000")
+#AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "000000")
+DEFAULT_BUCKET="${ENV}-${PROJECT}-tfstate"
 get_input "Enter S3 State Bucket Name" "${DEFAULT_BUCKET}" STATE_BUCKET
 
 # Smart SSH Key Detection
@@ -91,7 +92,7 @@ elif [[ -f "${HOME}/.ssh/id_rsa" ]]; then
    DEFAULT_SSH_KEY="~/.ssh/id_rsa"
 fi
 
-get_input "Enter GitOps Repo URL (SSH format)" "git@github.com:ytk-cloud/meta-iac-x4.git" GITOPS_REPO
+get_input "Enter GitOps Repo URL (SSH format)" "git@github.com:ytkcore/meta-iac-x4.git" GITOPS_REPO
 get_input "Enter Local SSH Key Path" "${DEFAULT_SSH_KEY}" SSH_KEY_PATH
 
 # Generate env.tfvars

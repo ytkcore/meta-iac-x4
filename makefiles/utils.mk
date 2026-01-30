@@ -55,7 +55,10 @@ clean-cache:
 # -----------------------------------------------------------------------------
 # Bulk Operations
 # -----------------------------------------------------------------------------
-.PHONY: plan-all apply-all destroy-all
+.PHONY: plan-all apply-all destroy-all import-all
+
+import-all:
+	@bash scripts/terraform/recover-all.sh "$(ENV)" "$(STACK)"
 
 plan-all:
 	@for s in $(STACK_ORDER); do echo "==> PLAN $(ENV)/$$s"; $(MAKE) plan ENV=$(ENV) STACK=$$s; done

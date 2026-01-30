@@ -11,7 +11,7 @@ spec:
   project: default
   source:
     repoURL: https://releases.rancher.com/server-charts/stable
-    targetRevision: 2.8.3
+    targetRevision: 2.13.2
     chart: rancher
     helm:
       values: |

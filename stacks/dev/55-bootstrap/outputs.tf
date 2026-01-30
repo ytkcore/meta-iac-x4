@@ -47,6 +47,11 @@ output "gitops_repo_url" {
   value       = var.enable_gitops_apps ? var.gitops_repo_url : ""
 }
 
+output "gitops_ssh_key_path" {
+  description = "GitOps 저장소 접근용 SSH 키 경로"
+  value       = var.enable_gitops_apps ? var.gitops_ssh_key_path : "N/A"
+}
+
 # -----------------------------------------------------------------------------
 # Connection Info
 # -----------------------------------------------------------------------------
@@ -70,6 +75,7 @@ output "connection_info" {
 1. ArgoCD Namespace : ${var.argocd_namespace}
 2. ArgoCD NodePort  : HTTP=${var.argocd_nodeport_http}, HTTPS=${var.argocd_nodeport_https}
 3. ArgoCD URL       : ${local.argocd_hostname != "" ? "https://${local.argocd_hostname}" : "Use NodePort"}
+4. Kubeconfig Path  : ${var.kubeconfig_path != null ? var.kubeconfig_path : "Using KUBECONFIG env var or default (~/.kube/config)"}
 
 [Helm Chart Source]
 ${local.harbor_oci_available ? "Harbor OCI: ${local.harbor_oci_url}" : "External Repositories (Internet)"}
