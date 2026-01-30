@@ -81,8 +81,18 @@ done
 get_input "Enter Project Name" "meta" PROJECT
 
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "000000")
-DEFAULT_BUCKET="${PROJECT}-${ENV}-tfstate-${AWS_ACCOUNT_ID}"
 get_input "Enter S3 State Bucket Name" "${DEFAULT_BUCKET}" STATE_BUCKET
+
+# Smart SSH Key Detection
+DEFAULT_SSH_KEY="~/.ssh/id_rsa"
+if [[ -f "${HOME}/.ssh/id_ed25519" ]]; then
+  DEFAULT_SSH_KEY="~/.ssh/id_ed25519"
+elif [[ -f "${HOME}/.ssh/id_rsa" ]]; then
+   DEFAULT_SSH_KEY="~/.ssh/id_rsa"
+fi
+
+get_input "Enter GitOps Repo URL (SSH format)" "git@github.com:ytk-cloud/meta-iac-x4.git" GITOPS_REPO
+get_input "Enter Local SSH Key Path" "${DEFAULT_SSH_KEY}" SSH_KEY_PATH
 
 # Generate env.tfvars
 header 3 "Generating Configuration"
@@ -109,6 +119,14 @@ state_key_prefix = "iac"
 
 # db_instance_type   = "t3.large"
 # postgres_image_tag = "18.1"
+
+# -----------------------------------------------------------------------------
+# GitOps Configuration
+# -----------------------------------------------------------------------------
+enable_gitops_apps = true
+gitops_apps_path   = "gitops-apps/bootstrap"
+gitops_repo_url    = "${GITOPS_REPO}"
+gitops_ssh_key_path = "${SSH_KEY_PATH}"
 EOF
 ok "Created ${TFVARS_FILE}"
 

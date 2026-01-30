@@ -5,7 +5,9 @@ SHELL := /usr/bin/env bash
 # =============================================================================
 
 include makefiles/config.mk
+include makefiles/ssm.mk
 include makefiles/terraform.mk
+include makefiles/utils.mk
 
 .PHONY: help whoami init
 

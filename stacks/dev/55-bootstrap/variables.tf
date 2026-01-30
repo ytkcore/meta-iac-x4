@@ -168,11 +168,9 @@ variable "gitops_apps_path" {
   default     = "gitops-apps/platform"
 }
 
-variable "gitops_repo_ssh_private_key" {
-  description = "Private Git 저장소 SSH 키 (Base64 인코딩)"
+variable "gitops_ssh_key_path" {
+  description = "Local path to SSH Private Key for GitOps Repo access (e.g. ~/.ssh/id_ed25519)"
   type        = string
-  default     = ""
-  sensitive   = true
 }
 
 ################################################################################

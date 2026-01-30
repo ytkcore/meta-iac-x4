@@ -10,8 +10,13 @@ crash.log
 crash.*.log
 
 # Exclude all .tfvars files, which are likely to contain sensitive data
+# Terraform Variables
 *.tfvars
 *.tfvars.json
+env.tfvars
+
+# Local Configs
+stacks/**/env.tfvars
 
 # Ignore override files as they are usually used to override resources locally
 override.tf
@@ -52,3 +57,5 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+*.pid

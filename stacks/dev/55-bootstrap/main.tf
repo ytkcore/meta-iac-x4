@@ -154,6 +154,7 @@ provider "kubectl" {
 locals {
   effective_base_domain = var.base_domain != "" ? var.base_domain : var.domain
   argocd_hostname       = local.effective_base_domain != "" ? "${var.argocd_subdomain}.${local.effective_base_domain}" : ""
+  rancher_hostname      = local.effective_base_domain != "" ? "rancher.${local.effective_base_domain}" : ""
 
 
   common_labels = {
@@ -441,6 +442,23 @@ resource "aws_route53_record" "argocd" {
   }
 }
 
+# ------------------------------------------------------------------------------
+# Route53 Alias Record for Rancher
+# ------------------------------------------------------------------------------
+resource "aws_route53_record" "rancher" {
+  count = var.enable_route53_argocd_alias && local.rancher_hostname != "" ? 1 : 0
+
+  zone_id = var.route53_zone_id != "" ? var.route53_zone_id : data.aws_route53_zone.selected[0].zone_id
+  name    = local.rancher_hostname
+  type    = "A"
+
+  alias {
+    name                   = data.terraform_remote_state.rke2.outputs.ingress_public_nlb_dns
+    zone_id                = data.terraform_remote_state.rke2.outputs.ingress_public_nlb_zone_id
+    evaluate_target_health = true
+  }
+}
+
 
 
 # ------------------------------------------------------------------------------
@@ -455,21 +473,6 @@ data "kubernetes_secret" "argocd_initial_admin" {
   depends_on = [helm_release.argocd]
 }
 
-# ------------------------------------------------------------------------------
-# 4. ArgoCD Root Application (App-of-Apps Pattern) - Optional
-# ------------------------------------------------------------------------------
-resource "kubectl_manifest" "argocd_root_app" {
-  count = var.enable_gitops_apps && var.gitops_repo_url != "" ? 1 : 0
-
-  yaml_body = templatefile("${path.module}/templates/argocd-root-app.yaml.tftpl", {
-    namespace = var.argocd_namespace
-    repo_url  = var.gitops_repo_url
-    branch    = var.gitops_repo_branch
-    path      = var.gitops_apps_path
-  })
-
-  depends_on = [helm_release.argocd]
-}
 
 # ------------------------------------------------------------------------------
 # ArgoCD Repository: Harbor OCI Helm Charts
@@ -489,26 +492,45 @@ resource "kubectl_manifest" "argocd_harbor_oci_repo" {
   ]
 }
 
-
 # ------------------------------------------------------------------------------
-# 5. ArgoCD Repository Secret (Private Git Repo) - Optional
+# 5. ArgoCD Repository Secret (Private Git Repo) - SSH Key Based
 # ------------------------------------------------------------------------------
 resource "kubernetes_secret" "argocd_repo_creds" {
-  count = var.enable_gitops_apps && var.gitops_repo_ssh_private_key != "" ? 1 : 0
+  count = var.enable_gitops_apps && var.gitops_ssh_key_path != "" ? 1 : 0
 
   metadata {
     name      = "repo-creds"
     namespace = var.argocd_namespace
     labels = {
-      "argocd.argoproj.io/secret-type" = "repo-creds"
+      "argocd.argoproj.io/secret-type" = "repository"
     }
   }
 
   data = {
     type          = "git"
     url           = var.gitops_repo_url
-    sshPrivateKey = base64decode(var.gitops_repo_ssh_private_key)
+    sshPrivateKey = file(pathexpand(var.gitops_ssh_key_path))
   }
 
   depends_on = [helm_release.argocd]
+}
+
+# ------------------------------------------------------------------------------
+# 6. ArgoCD Root Application (App of Apps)
+# ------------------------------------------------------------------------------
+resource "kubectl_manifest" "argocd_root_app" {
+  count = var.enable_gitops_apps ? 1 : 0
+
+  yaml_body = templatefile("${path.module}/templates/argocd-root-app.yaml.tftpl", {
+    namespace = var.argocd_namespace
+    repo_url  = var.gitops_repo_url # Must be SSH URL (git@github.com:...)
+    branch    = var.gitops_repo_branch
+    path      = var.gitops_apps_path
+  })
+
+  depends_on = [
+    helm_release.argocd,
+    kubectl_manifest.argocd_harbor_oci_repo,
+    kubernetes_secret.argocd_repo_creds
+  ]
 }
