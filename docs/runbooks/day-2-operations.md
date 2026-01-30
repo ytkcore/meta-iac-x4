@@ -115,5 +115,5 @@ aws-vault exec <profile> -- make apply ENV=dev STACK=50-rke2
 - Ubuntu 22.04로 변경:
   ```bash
   aws-vault exec <profile> -- make apply ENV=dev STACK=50-rke2 \
-    TF_ARGS='-compact-warnings -var="os_family=ubuntu2204"'
+    TF_OPTS='-compact-warnings -var="os_family=ubuntu2204"'
   ```

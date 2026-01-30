@@ -1,14 +1,10 @@
-# -----------------------------------------------------------------------------
-# 1. Backend & Network State
-# -----------------------------------------------------------------------------
-locals {
-  _backend_settings = {
-    bucket     = var.state_bucket
-    region     = var.state_region
-    key_prefix = var.state_key_prefix
-  }
-}
+# =============================================================================
+# Harbor Stack - ALB + HTTPS + Helm Seeding
+# =============================================================================
 
+# -----------------------------------------------------------------------------
+# 1. Remote State
+# -----------------------------------------------------------------------------
 data "terraform_remote_state" "network" {
   backend = "s3"
   config = {
@@ -20,133 +16,207 @@ data "terraform_remote_state" "network" {
 }
 
 # -----------------------------------------------------------------------------
-# 2. 자동 계산 로직 (Locals)
-# -----------------------------------------------------------------------------
-locals {
-  vpc_id    = data.terraform_remote_state.network.outputs.vpc_id
-  subnet_id = data.terraform_remote_state.network.outputs.subnet_ids[var.harbor_subnet_key]
-
-  # [핵심] 입력받은 루트 도메인 앞에 'harbor'를 자동으로 붙임
-  final_hostname = "harbor.${var.base_domain}"
-
-  # [핵심] 인증서 검색용 도메인 (*.mymeta.net)
-  cert_search_domain = "*.${var.base_domain}"
-}
-
-# -----------------------------------------------------------------------------
-# 3. 리소스 자동 검색 및 필터링 (ALB 에러 해결)
+# 2. Data Sources
 # -----------------------------------------------------------------------------
 
-# 1) VPC 내의 후보 서브넷(Public)들을 일단 모두 가져옵니다.
-data "aws_subnets" "candidates" {
+# Public Subnets (ALB용 - AZ당 1개)
+data "aws_subnets" "public" {
   filter {
     name   = "vpc-id"
-    values = [local.vpc_id]
+    values = [data.terraform_remote_state.network.outputs.vpc_id]
   }
-
-  # [중요] Public Subnet만 가져오기 위해 이름에 "public"이 들어간 것을 찾습니다.
-  # 만약 태그 규칙이 다르다면 이 부분을 조정하거나 주석 처리하세요.
   filter {
     name   = "tag:Name"
-    values = ["*public*"]
+    values = ["*pub*"]
   }
 }
 
-# 2) 가져온 서브넷 ID 각각의 상세 정보(어느 AZ인지)를 조회합니다.
 data "aws_subnet" "details" {
-  for_each = toset(data.aws_subnets.candidates.ids)
+  for_each = toset(data.aws_subnets.public.ids)
   id       = each.value
 }
 
-# 3) [핵심] AZ별로 하나의 서브넷만 남깁니다.
-locals {
-  # 맵(Map)을 만들면 Key(AZ 이름)가 중복될 경우 뒤의 값으로 덮어씌워지는 특성을 이용합니다.
-  # 예: { "ap-northeast-2a" = "subnet-1", "ap-northeast-2a" = "subnet-2" } -> 결과적으로 하나만 남음
-  subnets_by_az = {
-    for s in data.aws_subnet.details : s.availability_zone => s.id
-  }
-
-  # 맵에서 서브넷 ID들만 추출 (이제 AZ당 1개임이 보장됨)
-  final_alb_subnets = values(local.subnets_by_az)
+# ACM 인증서 자동 탐색 (*.base_domain)
+data "aws_acm_certificate" "wildcard" {
+  count       = var.alb_certificate_arn == "" ? 1 : 0
+  domain      = "*.${var.base_domain}"
+  statuses    = ["ISSUED"]
+  most_recent = true
 }
 
-# ACM certificate lookup removed: provide alb_certificate_arn explicitly when needed.
+# Route53 Hosted Zone 자동 탐색
+data "aws_route53_zone" "selected" {
+  count        = var.enable_route53_harbor_cname && var.route53_zone_id == "" ? 1 : 0
+  name         = "${var.base_domain}."
+  private_zone = var.route53_private_zone
+}
 
 # -----------------------------------------------------------------------------
-# 4. Harbor 모듈 호출
+# 3. Locals (통합)
+# -----------------------------------------------------------------------------
+locals {
+  # [NEW] Generate name and tags locally
+  workload_name = "harbor"
+  name          = "${var.project}-${var.env}-${local.workload_name}"
+  tags = {
+    ManagedBy   = "terraform"
+    Project     = var.project
+    Environment = var.env
+  }
+
+  # Network
+  vpc_id    = data.terraform_remote_state.network.outputs.vpc_id
+  subnet_id = data.terraform_remote_state.network.outputs.subnet_ids[var.harbor_subnet_key]
+
+  # ALB Subnets (AZ당 1개만 선택)
+  subnets_by_az     = { for s in data.aws_subnet.details : s.availability_zone => s.id }
+  final_alb_subnets = values(local.subnets_by_az)
+
+  # Harbor hostname
+  final_hostname = "harbor.${var.base_domain}"
+
+  # ACM (명시적 ARN 우선, 없으면 자동 탐색)
+  acm_certificate_arn = var.alb_certificate_arn != "" ? var.alb_certificate_arn : try(data.aws_acm_certificate.wildcard[0].arn, null)
+
+  # Route53 (명시적 zone_id 우선, 없으면 자동 탐색)
+  route53_zone_id     = var.route53_zone_id != "" ? var.route53_zone_id : try(data.aws_route53_zone.selected[0].zone_id, "")
+  harbor_alb_dns_name = try(module.harbor.alb_dns_name, "")
+}
+
+# -----------------------------------------------------------------------------
+# 4. Harbor Module
 # -----------------------------------------------------------------------------
 module "harbor" {
   source = "../../../modules/harbor-ec2"
 
-  # ... (기존 설정들: Basic, Infra, App, Storage 등 그대로 유지) ...
-  name   = var.name
-  env    = var.env
-  region = var.region
+  # Basic
+  name    = local.workload_name
+  env     = var.env
+  project = var.project
+  region  = var.region
 
-  vpc_id           = local.vpc_id
-  subnet_id        = local.subnet_id
+  # Network
+  vpc_id    = local.vpc_id
+  subnet_id = local.subnet_id
+
+  # EC2
   instance_type    = var.instance_type
   key_name         = var.key_name
   root_volume_size = var.root_volume_size
 
+  # Harbor App
   harbor_hostname = local.final_hostname
   enable_tls      = var.harbor_enable_tls
   admin_password  = var.admin_password
   db_password     = var.db_password
 
-  storage_type        = var.storage_type
-  target_bucket_name  = var.target_bucket_name
-  create_bucket       = var.create_bucket
+  # Storage
+  storage_type       = var.storage_type
+  target_bucket_name = var.target_bucket_name
+  create_bucket      = var.create_bucket
+
+  # Proxy Cache
   proxy_cache_project = var.harbor_proxy_cache_project
   create_proxy_cache  = var.create_proxy_cache
-  seed_images         = var.seed_images
-  seed_postgres_tag   = var.seed_postgres_tag
-  seed_neo4j_tag      = var.seed_neo4j_tag
 
-  # Helm chart seeding (OCI)
-  seed_helm_charts          = var.seed_helm_charts
+  # Image Seeding
+  seed_images       = var.seed_images
+  seed_postgres_tag = var.seed_postgres_tag
+  seed_neo4j_tag    = var.seed_neo4j_tag
+
+  # Helm Seeding (user-data mode)
+  seed_helm_charts          = var.helm_seeding_mode == "user-data"
   argocd_chart_version      = var.argocd_chart_version
   certmanager_chart_version = var.certmanager_chart_version
   rancher_chart_version     = var.rancher_chart_version
 
-  # [수정] 위에서 필터링한 "AZ당 1개" 리스트를 주입
-  enable_alb     = true
-  alb_subnet_ids = local.final_alb_subnets
-
-  alb_certificate_arn = (var.alb_certificate_arn != "" ? var.alb_certificate_arn : null)
+  # ALB
+  enable_alb          = true
+  alb_subnet_ids      = local.final_alb_subnets
+  alb_certificate_arn = local.acm_certificate_arn
   alb_internal        = false
   alb_ingress_cidrs   = ["0.0.0.0/0"]
 }
 
 # -----------------------------------------------------------------------------
-# 5. Route53: harbor.<base_domain> CNAME -> Harbor ALB DNS (optional)
+# 5. Route53 CNAME
 # -----------------------------------------------------------------------------
-
-# Hosted Zone auto-discovery removed to avoid hard-fail when no zone exists.
-# Provide route53_zone_id explicitly when enable_route53_harbor_cname=true.
-
-locals {
-  route53_zone_id_effective = var.route53_zone_id
-  harbor_alb_dns_name       = try(module.harbor.alb_dns_name, "")
-}
-
 resource "aws_route53_record" "harbor_cname" {
+  count           = var.enable_route53_harbor_cname && var.enable_alb && local.route53_zone_id != "" ? 1 : 0
   allow_overwrite = true
-  count           = var.enable_route53_harbor_cname && var.enable_alb && local.route53_zone_id_effective != "" ? 1 : 0
-  zone_id         = local.route53_zone_id_effective
-  name            = local.final_hostname
-  type            = "CNAME"
-  ttl             = 300
-  records         = [local.harbor_alb_dns_name]
+
+  zone_id = local.route53_zone_id
+  name    = local.final_hostname
+  type    = "CNAME"
+  ttl     = 300
+  records = [local.harbor_alb_dns_name]
 }
 
-resource "null_resource" "save_domain_setting" {
+# -----------------------------------------------------------------------------
+# 6. Helm Chart Seeding (local-exec)
+# -----------------------------------------------------------------------------
+resource "null_resource" "seed_helm_charts" {
+  count = var.helm_seeding_mode == "local-exec" ? 1 : 0
+
   triggers = {
-    domain = var.base_domain
+    harbor_instance = module.harbor.instance_id
+    chart_versions  = "${var.argocd_chart_version}-${var.certmanager_chart_version}-${var.rancher_chart_version}"
   }
 
+  depends_on = [module.harbor, aws_route53_record.harbor_cname]
+
   provisioner "local-exec" {
-    # domain.auto.tfvars 라는 별도 파일에 저장하여 기존 설정 파일과 충돌 방지
-    command = "echo 'base_domain = \"${var.base_domain}\"' > domain.auto.tfvars"
+    interpreter = ["/bin/bash", "-c"]
+    working_dir = path.root
+    command     = <<-EOT
+      set -e
+      LOG="/tmp/harbor-seeding.log"
+      exec > >(tee -a "$LOG") 2>&1
+      echo "=== Helm Seeding Started: $(date) ==="
+
+      ALB_DNS="${module.harbor.alb_dns_name}"
+      HARBOR_CNAME="${local.final_hostname}"
+      SCHEME="${local.acm_certificate_arn != null ? "https" : "http"}"
+
+      echo "ALB: $ALB_DNS | CNAME: $HARBOR_CNAME | Scheme: $SCHEME"
+
+      # Smart wait: 즉시 체크 → 실패 시 대기 후 재시도
+      if curl -fsSk --connect-timeout 5 "$SCHEME://$ALB_DNS/api/v2.0/health" 2>/dev/null | grep -q healthy; then
+        echo "Harbor already healthy!"
+      else
+        echo "Waiting 120s for EC2 bootstrap..."
+        sleep 120
+        for i in $(seq 1 60); do
+          curl -fsSk --connect-timeout 5 "$SCHEME://$ALB_DNS/api/v2.0/health" 2>/dev/null | grep -q healthy && break
+          echo "Waiting... ($i/60)"
+          sleep 10
+        done
+      fi
+
+      # DNS 전파 확인
+      DNS_OK=false
+      for i in $(seq 1 12); do
+        host "$HARBOR_CNAME" 2>/dev/null | grep -q "alias\|address" && DNS_OK=true && break
+        echo "DNS propagation... ($i/12)"
+        sleep 10
+      done
+
+      # Seeding
+      if [ "$DNS_OK" = "true" ]; then
+        ../../../scripts/harbor/seed-helm-charts-client.sh "$HARBOR_CNAME" "${var.admin_password}" \
+          --argocd-version "${var.argocd_chart_version}" \
+          --certmanager-version "${var.certmanager_chart_version}" \
+          --rancher-version "${var.rancher_chart_version}"
+      else
+        echo "DNS not ready, using ALB with --insecure"
+        ../../../scripts/harbor/seed-helm-charts-client.sh "$ALB_DNS" "${var.admin_password}" \
+          --argocd-version "${var.argocd_chart_version}" \
+          --certmanager-version "${var.certmanager_chart_version}" \
+          --rancher-version "${var.rancher_chart_version}" \
+          --insecure
+      fi
+
+      echo "=== Helm Seeding Completed: $(date) ==="
+    EOT
   }
 }

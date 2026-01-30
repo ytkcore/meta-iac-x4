@@ -1,6 +1,16 @@
 variable "name" {
   type        = string
-  description = "Name prefix."
+  description = "Workload name (e.g. postgres)."
+}
+
+variable "project" {
+  type        = string
+  description = "Project name."
+}
+
+variable "env" {
+  type        = string
+  description = "Environment name."
 }
 
 variable "vpc_id" {

@@ -16,6 +16,16 @@ locals {
   key_network  = "${var.state_key_prefix}/${var.env}/${local.stack_network}.tfstate"
   key_security = "${var.state_key_prefix}/${var.env}/${local.stack_security}.tfstate"
   key_rke2     = "${var.state_key_prefix}/${var.env}/${local.stack_rke2}.tfstate"
+
+  # Name Prefix for Managed DBs
+  managed_db_prefix = "${var.env}-${var.project}-postgres"
+
+  # [NEW] Generate tags locally
+  common_tags = {
+    ManagedBy   = "terraform"
+    Project     = var.project
+    Environment = var.env
+  }
 }
 
 data "terraform_remote_state" "network" {
@@ -97,13 +107,15 @@ module "postgres" {
   count  = var.postgres_mode == "self" ? 1 : 0
   source = "../../../modules/postgres-standalone"
 
-  name = "${var.project}-${var.env}"
+  name    = "postgres"
+  env     = var.env
+  project = var.project
 
   vpc_id    = local.vpc_id
   subnet_id = local.postgres_subnet_id
 
-  instance_type  = var.db_instance_type
-  root_volume_gb = var.db_root_volume_gb
+  instance_type       = var.db_instance_type
+  root_volume_size_gb = var.db_root_volume_gb
 
   postgres_image_tag = var.postgres_image_tag
   db_name            = var.postgres_db_name
@@ -113,11 +125,8 @@ module "postgres" {
   allowed_sg_ids      = local.allowed_sgs
   allowed_cidr_blocks = local.allowed_cidrs
 
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Role    = "postgres"
-  }
+  tags = merge(local.common_tags, { Role = "postgres" })
+
   ami_id                   = data.aws_ssm_parameter.ecs_ami.value
   harbor_registry_hostport = local.harbor_registry_hostport
   harbor_scheme            = local.harbor_scheme
@@ -129,13 +138,15 @@ module "postgres" {
 module "neo4j" {
   source = "../../../modules/neo4j-standalone"
 
-  name = "${var.project}-${var.env}"
+  name    = "neo4j"
+  env     = var.env
+  project = var.project
 
   vpc_id    = local.vpc_id
   subnet_id = local.neo4j_subnet_id
 
-  instance_type  = var.db_instance_type
-  root_volume_gb = var.db_root_volume_gb
+  instance_type       = var.db_instance_type
+  root_volume_size_gb = var.db_root_volume_gb
 
   neo4j_image_tag = var.neo4j_image_tag
   neo4j_password  = local.neo4j_password_effective
@@ -143,11 +154,8 @@ module "neo4j" {
   allowed_sg_ids      = local.allowed_sgs
   allowed_cidr_blocks = local.allowed_cidrs
 
-  tags = {
-    Project = var.project
-    Env     = var.env
-    Role    = "neo4j"
-  }
+  tags = merge(local.common_tags, { Role = "neo4j" })
+
   ami_id                   = data.aws_ssm_parameter.ecs_ami.value
   harbor_registry_hostport = local.harbor_registry_hostport
   harbor_scheme            = local.harbor_scheme
@@ -159,18 +167,17 @@ module "neo4j" {
 resource "aws_db_subnet_group" "postgres" {
   count = var.postgres_mode == "rds" || var.postgres_mode == "aurora" ? 1 : 0
 
-  name       = "${var.project}-${var.env}-postgres-subnet"
+  name       = "${local.managed_db_prefix}-subnet-group"
   subnet_ids = local.db_subnet_ids
 
-  tags = {
-    Project = var.project
-    Env     = var.env
-  }
+  tags = merge(local.common_tags, {
+    Name = "${local.managed_db_prefix}-subnet-group"
+  })
 }
 
 resource "aws_security_group" "postgres_managed" {
   count       = var.postgres_mode == "rds" || var.postgres_mode == "aurora" ? 1 : 0
-  name_prefix = "${var.project}-${var.env}-postgres-managed-"
+  name        = "${local.managed_db_prefix}-managed-sg"
   description = "Managed PostgreSQL SG"
   vpc_id      = local.vpc_id
 
@@ -201,16 +208,15 @@ resource "aws_security_group" "postgres_managed" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Project = var.project
-    Env     = var.env
-  }
+  tags = merge(local.common_tags, {
+    Name = "${local.managed_db_prefix}-managed-sg"
+  })
 }
 
 resource "aws_db_instance" "postgres" {
   count = var.postgres_mode == "rds" ? 1 : 0
 
-  identifier = "${var.project}-${var.env}-postgres"
+  identifier = "${local.managed_db_prefix}-rds"
 
   engine         = "postgres"
   engine_version = var.rds_engine_version
@@ -234,17 +240,16 @@ resource "aws_db_instance" "postgres" {
   deletion_protection     = false
   apply_immediately       = true
 
-  tags = {
-    Project = var.project
-    Env     = var.env
-  }
+  tags = merge(local.common_tags, {
+    Name = "${local.managed_db_prefix}-rds"
+  })
 }
 
 # Managed PostgreSQL (optional): Aurora PostgreSQL (single writer instance)
 resource "aws_rds_cluster" "aurora" {
   count = var.postgres_mode == "aurora" ? 1 : 0
 
-  cluster_identifier = "${var.project}-${var.env}-aurora-pg"
+  cluster_identifier = "${local.managed_db_prefix}-aurora-cluster"
 
   engine         = "aurora-postgresql"
   engine_version = var.aurora_engine_version
@@ -261,16 +266,15 @@ resource "aws_rds_cluster" "aurora" {
   deletion_protection     = false
   apply_immediately       = true
 
-  tags = {
-    Project = var.project
-    Env     = var.env
-  }
+  tags = merge(local.common_tags, {
+    Name = "${local.managed_db_prefix}-aurora-cluster"
+  })
 }
 
 resource "aws_rds_cluster_instance" "aurora_writer" {
   count = var.postgres_mode == "aurora" ? 1 : 0
 
-  identifier         = "${var.project}-${var.env}-aurora-pg-1"
+  identifier         = "${local.managed_db_prefix}-aurora-01"
   cluster_identifier = aws_rds_cluster.aurora[0].id
 
   engine         = aws_rds_cluster.aurora[0].engine
@@ -280,8 +284,7 @@ resource "aws_rds_cluster_instance" "aurora_writer" {
   publicly_accessible = false
   apply_immediately   = true
 
-  tags = {
-    Project = var.project
-    Env     = var.env
-  }
+  tags = merge(local.common_tags, {
+    Name = "${local.managed_db_prefix}-aurora-01"
+  })
 }

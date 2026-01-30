@@ -5,36 +5,47 @@ locals {
     region     = var.state_region
     key_prefix = var.state_key_prefix
   }
+
+  # [NEW] Generate name and tags locally
+  # [NEW] Generate name and tags locally
+  # Naming Convention: {env}-{project}-{workload}-{resource}-{suffix}
+  workload  = "network"
+  base_name = "${var.env}-${var.project}-${local.workload}"
+
+  tags = {
+    ManagedBy   = "terraform"
+    Project     = var.project
+    Environment = var.env
+  }
 }
 
 
 module "vpc" {
   source = "../../../modules/vpc"
-  name   = var.name
+  name   = "${local.base_name}-vpc"
   cidr   = var.vpc_cidr
   tags   = local.tags
 }
 
 module "igw" {
   source = "../../../modules/igw"
-  name   = var.name
+  name   = "${local.base_name}-igw"
   vpc_id = module.vpc.vpc_id
   tags   = local.tags
 }
 
 module "subnets" {
   source  = "../../../modules/subnets"
-  name    = var.name
+  name    = "${local.base_name}-subnet"
   vpc_id  = module.vpc.vpc_id
   subnets = var.subnets
   tags    = local.tags
 }
 
 locals {
-  tags = merge(var.tags, {
-    Environment = var.env
-    Project     = var.project
-  })
+  # tags는 위에서 이미 선언했으나, 기존 로직 호환성을 위해 유지 (중복 병합 형태)
+  combined_tags = local.tags
+
   subnet_ids = module.subnets.subnet_ids
 
   public_subnet_ids = [for k, v in var.subnets : local.subnet_ids[k] if v.tier == "public"]
@@ -62,14 +73,14 @@ locals {
 
 module "nat" {
   source                 = "../../../modules/nat"
-  name                   = var.name
+  name                   = "${local.base_name}-nat"
   public_subnet_id_by_az = var.enable_nat ? local.public_subnet_id_by_az : {}
   tags                   = local.tags
 }
 
 module "routing" {
   source = "../../../modules/routing"
-  name   = var.name
+  name   = "${local.base_name}-rt"
   vpc_id = module.vpc.vpc_id
   igw_id = module.igw.igw_id
 
@@ -103,7 +114,7 @@ resource "aws_vpc_endpoint" "gateway" {
   route_table_ids   = local.gateway_route_table_ids
 
   tags = merge(local.tags, {
-    Name    = "${var.name}-vpce-gw-${each.value}"
+    Name    = "${local.base_name}-vpce-gw-${each.value}"
     Type    = "gateway"
     Service = each.value
   })

@@ -295,4 +295,16 @@ fi
 
 echo "Tools Setup Completed."
 
+# -----------------------------------------------------------------------------
+# [추가] RKE2 Health Check 스크립트 배포 (Bootstrap 노드용)
+# -----------------------------------------------------------------------------
+%{ if is_bootstrap }
+mkdir -p /opt/rke2
+cat > /opt/rke2/check-health.sh << 'HEALTHCHECK'
+${health_check_script}
+HEALTHCHECK
+chmod +x /opt/rke2/check-health.sh
+echo "[rke2] Health check script installed: /opt/rke2/check-health.sh"
+%{ endif }
+
 echo "[rke2] bootstrap done (server)"

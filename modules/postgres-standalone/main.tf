@@ -9,10 +9,13 @@ locals {
     harbor_project           = var.harbor_project
     harbor_insecure          = var.harbor_insecure
   })
+
+  # Name Format: {env}-{project}-{workload}-{resource}-{suffix}
+  name_prefix = "${var.env}-${var.project}-${var.name}"
 }
 
 resource "aws_security_group" "this" {
-  name_prefix = "${var.name}-postgres-"
+  name        = "${local.name_prefix}-sg"
   description = "Postgres standalone SG"
   vpc_id      = var.vpc_id
 
@@ -47,23 +50,25 @@ resource "aws_security_group" "this" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.name}-postgres-sg"
+    Name = "${local.name_prefix}-sg"
   })
 }
 
 module "instance" {
   source = "../ec2-instance"
 
-  name                   = "${var.name}-postgres"
+  name                   = var.name
+  env                    = var.env
+  project                = var.project
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.this.id]
-  associate_public_ip    = false
+  # associate_public_ip    = false # Not supported variable
 
   ami_id = var.ami_id
 
-  instance_type       = var.instance_type
-  root_volume_size_gb = var.root_volume_size_gb
-  user_data           = local.user_data
+  instance_type    = var.instance_type
+  root_volume_size = var.root_volume_size_gb
+  user_data        = local.user_data
 
-  tags = var.tags
+  # tags는 ec2-instance 내부에서 처리됨
 }

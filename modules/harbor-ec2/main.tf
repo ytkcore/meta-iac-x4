@@ -8,6 +8,8 @@
 
 locals {
   use_s3 = var.storage_type == "s3"
+  # Name Format: {env}-{project}-{workload}-{resource}-{suffix}
+  name_prefix = "${var.env}-${var.project}-${var.name}"
 }
 
 # -----------------------------------------------------------------------------
@@ -36,7 +38,7 @@ locals {
 #  - SSH는 allow_ssh_cidrs를 지정한 경우에만 오픈 (SSM 접속 권장)
 # -----------------------------------------------------------------------------
 resource "aws_security_group" "harbor" {
-  name        = "${var.name}-${var.env}-sg"
+  name        = "${local.name_prefix}-sg"
   description = "Security Group for Harbor Registry"
   vpc_id      = var.vpc_id
 
@@ -78,7 +80,7 @@ resource "aws_security_group" "harbor" {
   }
 
   tags = {
-    Name        = "${var.name}-${var.env}-sg"
+    Name        = "${local.name_prefix}-sg"
     Environment = var.env
   }
 }
@@ -96,19 +98,20 @@ module "ec2" {
 
   name                   = var.name
   env                    = var.env
+  project                = var.project
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.harbor.id]
   key_name               = var.key_name
   root_volume_size       = var.root_volume_size
 
-  user_data = templatefile("${path.module}/user_data.sh.tftpl", {
+  user_data_base64 = base64gzip(templatefile("${path.module}/user_data.sh.tftpl", {
     harbor_version = var.harbor_version
     hostname       = var.harbor_hostname
     enable_tls     = tostring(var.enable_tls)
     admin_password = var.admin_password
     db_password    = var.db_password
-    alb_dns_name  = try(aws_lb.harbor[0].dns_name, "")
+    alb_dns_name   = try(aws_lb.harbor[0].dns_name, "")
 
     //s3_region    = data.aws_region.current.name
     storage_type = var.storage_type
@@ -125,7 +128,12 @@ module "ec2" {
     argocd_chart_version      = var.argocd_chart_version
     certmanager_chart_version = var.certmanager_chart_version
     rancher_chart_version     = var.rancher_chart_version
-  })
+
+    # Scripts (single source of truth)
+    bootstrap_script   = file("${path.module}/../../scripts/harbor/bootstrap.sh")
+    proxy_cache_script = file("${path.module}/../../scripts/harbor/setup-proxy-cache.sh")
+    helm_seed_script   = file("${path.module}/../../scripts/harbor/seed-helm-charts.sh")
+  }))
 }
 
 # -----------------------------------------------------------------------------
@@ -180,7 +188,7 @@ resource "aws_iam_role_policy" "harbor_permissions" {
 resource "aws_security_group" "alb" {
   count = var.enable_alb ? 1 : 0
 
-  name        = "${var.name}-${var.env}-alb-sg"
+  name        = "${local.name_prefix}-alb-sg"
   description = "Security Group for Harbor ALB"
   vpc_id      = var.vpc_id
 
@@ -211,7 +219,7 @@ resource "aws_security_group" "alb" {
   }
 
   tags = {
-    Name        = "${var.name}-${var.env}-alb-sg"
+    Name        = "${local.name_prefix}-alb-sg"
     Environment = var.env
   }
 }
@@ -232,7 +240,7 @@ resource "aws_security_group_rule" "harbor_from_alb" {
 resource "aws_lb" "harbor" {
   count = var.enable_alb ? 1 : 0
 
-  name               = "${var.name}-${var.env}-alb"
+  name               = "${local.name_prefix}-alb"
   internal           = var.alb_internal
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb[0].id]
@@ -241,7 +249,7 @@ resource "aws_lb" "harbor" {
   enable_deletion_protection = false
 
   tags = {
-    Name        = "${var.name}-${var.env}-alb"
+    Name        = "${local.name_prefix}-alb"
     Environment = var.env
   }
 }
@@ -249,7 +257,7 @@ resource "aws_lb" "harbor" {
 resource "aws_lb_target_group" "harbor" {
   count = var.enable_alb ? 1 : 0
 
-  name     = "${var.name}-${var.env}-tg"
+  name     = "${local.name_prefix}-tg-80"
   port     = 80
   protocol = "HTTP"
   vpc_id   = var.vpc_id
@@ -267,7 +275,7 @@ resource "aws_lb_target_group" "harbor" {
   }
 
   tags = {
-    Name        = "${var.name}-${var.env}-tg"
+    Name        = "${local.name_prefix}-tg-80"
     Environment = var.env
   }
 }

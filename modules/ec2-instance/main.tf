@@ -9,9 +9,17 @@ data "aws_ami" "al2023" {
   }
 }
 
+locals {
+  # Name Format: {env}-{project}-{workload}-{resource}-{suffix}
+  name_prefix = "${var.env}-${var.project}-${var.name}"
+
+  # AMI selection
+  final_ami_id = var.ami_id != null ? var.ami_id : data.aws_ami.al2023.id
+}
+
 # 2. IAM Role (기본 신뢰 관계 설정)
 resource "aws_iam_role" "this" {
-  name = "${var.name}-${var.env}-role"
+  name = "${local.name_prefix}-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -27,13 +35,13 @@ resource "aws_iam_role" "this" {
   })
 
   tags = {
-    Name        = "${var.name}-${var.env}-role"
+    Name        = "${local.name_prefix}-role"
     Environment = var.env
   }
 }
 
 resource "aws_iam_instance_profile" "this" {
-  name = "${var.name}-${var.env}-profile"
+  name = "${local.name_prefix}-profile"
   role = aws_iam_role.this.name
 }
 
@@ -45,14 +53,14 @@ resource "aws_iam_role_policy_attachment" "ssm_core" {
 
 # 3. EC2 Instance
 resource "aws_instance" "this" {
-  ami           = data.aws_ami.al2023.id
+  ami           = local.final_ami_id
   instance_type = var.instance_type
   subnet_id     = var.subnet_id
 
   vpc_security_group_ids = var.vpc_security_group_ids
   iam_instance_profile   = aws_iam_instance_profile.this.name
   key_name               = var.key_name
-  user_data_base64       = var.user_data != null ? base64encode(var.user_data) : null
+  user_data_base64       = var.user_data_base64 != null ? var.user_data_base64 : (var.user_data != null ? base64encode(var.user_data) : null)
 
   root_block_device {
     volume_type = "gp3"
@@ -61,7 +69,7 @@ resource "aws_instance" "this" {
   }
 
   tags = {
-    Name        = "${var.name}-${var.env}"
+    Name        = "${local.name_prefix}-ec2"
     Environment = var.env
     ManagedBy   = "terraform"
   }

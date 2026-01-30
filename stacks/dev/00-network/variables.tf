@@ -1,5 +1,6 @@
 variable "region" {
-  type = string
+  type    = string
+  default = "ap-northeast-2"
 }
 
 variable "env" {
@@ -10,13 +11,8 @@ variable "project" {
   type = string
 }
 
-variable "name" {
-  type = string
-}
-
-variable "tags" {
-  type = map(string)
-}
+# name 제거 (locals에서 생성)
+# tags 제거 (locals에서 생성 혹은 default 처리)
 
 # Shared remote state settings used by downstream stacks via terraform_remote_state.
 # (This stack itself does not consume remote state, but it declares these variables
@@ -69,49 +65,49 @@ variable "subnets" {
   }))
 
   default = {
-    "public-a" = {
+    "pub-a" = {
       cidr   = "10.0.201.0/24"
       az     = "ap-northeast-2a"
       tier   = "public"
       public = true
     }
-    "public-c" = {
+    "pub-c" = {
       cidr   = "10.0.202.0/24"
       az     = "ap-northeast-2c"
       tier   = "public"
       public = true
     }
-    "k8s-dp-a" = {
+    "k8s-dp-pri-a" = {
       cidr   = "10.0.21.0/24"
       az     = "ap-northeast-2a"
       tier   = "k8s_dp"
       public = false
     }
-    "k8s-dp-c" = {
+    "k8s-dp-pri-c" = {
       cidr   = "10.0.22.0/24"
       az     = "ap-northeast-2c"
       tier   = "k8s_dp"
       public = false
     }
-    "k8s-cp-a" = {
+    "k8s-cp-pri-a" = {
       cidr   = "10.0.11.0/24"
       az     = "ap-northeast-2a"
       tier   = "k8s_cp"
       public = false
     }
-    "k8s-cp-c" = {
+    "k8s-cp-pri-c" = {
       cidr   = "10.0.12.0/24"
       az     = "ap-northeast-2c"
       tier   = "k8s_cp"
       public = false
     }
-    "db-a" = {
+    "db-pri-a" = {
       cidr   = "10.0.1.0/24"
       az     = "ap-northeast-2a"
       tier   = "db"
       public = false
     }
-    "db-c" = {
+    "db-pri-c" = {
       cidr   = "10.0.2.0/24"
       az     = "ap-northeast-2c"
       tier   = "db"
@@ -119,13 +115,13 @@ variable "subnets" {
     }
 
     # 공통 private 서브넷 (SSM 기반 Bastion/Harbor 등 공용 인프라 워크로드)
-    "common-private-a" = {
+    "common-pri-a" = {
       cidr   = "10.0.101.0/24"
       az     = "ap-northeast-2a"
       tier   = "common"
       public = false
     }
-    "common-private-c" = {
+    "common-pri-c" = {
       cidr   = "10.0.102.0/24"
       az     = "ap-northeast-2c"
       tier   = "common"
@@ -150,4 +146,16 @@ variable "state_key_prefix" {
   type        = string
   description = "Remote state key prefix (used by Makefile/terraform init backend-config). Kept here to avoid tfvars undeclared warnings."
   default     = null
+}
+
+# [NEW] Optional: user defined base_domain (not used in network but to avoid undeclared variable error)
+variable "base_domain" {
+  type        = string
+  description = "Base domain (not used in network stack but present in global env.tfvars)"
+  default     = null
+
+  validation {
+    condition     = can(regex("^[a-z0-9.-]+$", var.base_domain))
+    error_message = "도메인 형식은 소문자, 숫자, 점(.), 하이픈(-)만 허용됩니다."
+  }
 }

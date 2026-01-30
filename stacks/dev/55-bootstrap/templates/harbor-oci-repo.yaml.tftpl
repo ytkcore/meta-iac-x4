@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${name}
+  namespace: ${namespace}
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  name: ${name}
+  url: ${url}
+  type: helm
+  enableOCI: "true"
+  username: admin
+  password: ${password}
