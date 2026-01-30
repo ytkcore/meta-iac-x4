@@ -46,14 +46,14 @@ locals {
   # tags는 위에서 이미 선언했으나, 기존 로직 호환성을 위해 유지 (중복 병합 형태)
   combined_tags = local.tags
 
-  subnet_ids = module.subnets.subnet_ids
+  subnet_ids = try(module.subnets.subnet_ids, {})
 
-  public_subnet_ids = [for k, v in var.subnets : local.subnet_ids[k] if v.tier == "public"]
+  public_subnet_ids = [for k, v in var.subnets : try(local.subnet_ids[k], null) if v.tier == "public" && try(local.subnet_ids[k], null) != null]
 
   public_subnet_id_by_az = {
     for k, v in var.subnets :
-    v.az => local.subnet_ids[k]
-    if v.tier == "public"
+    v.az => try(local.subnet_ids[k], null)
+    if v.tier == "public" && try(local.subnet_ids[k], null) != null
   }
 
   # NOTE:
@@ -62,12 +62,12 @@ locals {
   # - 따라서 public=false 이면서 tier!=db 인 서브넷은 모두 NAT egress 대상입니다.
   private_subnet_ids_by_az = {
     for az in var.azs :
-    az => [for k, v in var.subnets : local.subnet_ids[k] if v.az == az && v.public == false && v.tier != "db"]
+    az => [for k, v in var.subnets : try(local.subnet_ids[k], null) if v.az == az && v.public == false && v.tier != "db" && try(local.subnet_ids[k], null) != null]
   }
 
   db_subnet_ids_by_az = {
     for az in var.azs :
-    az => [for k, v in var.subnets : local.subnet_ids[k] if v.az == az && v.tier == "db"]
+    az => [for k, v in var.subnets : try(local.subnet_ids[k], null) if v.az == az && v.tier == "db" && try(local.subnet_ids[k], null) != null]
   }
 }
 

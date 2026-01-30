@@ -5,7 +5,7 @@
 # -----------------------------------------------------------------------------
 # Initialization
 # -----------------------------------------------------------------------------
-.PHONY: env-init tf-init init-upgrade
+.PHONY: env-init tf-init init-upgrade versions-gen
 
 env-init:
 	@bash scripts/common/ensure-base-domain.sh "$(ENV)"
@@ -15,7 +15,6 @@ tf-init: env-init versions-gen
 
 init-upgrade: versions-gen
 	@$(TF_STACK) init -upgrade $(BACKEND_OPTS) -reconfigure
-
 
 # -----------------------------------------------------------------------------
 # Core Operations
@@ -38,4 +37,9 @@ destroy: tf-init tunnel-check
 refresh: tf-init tunnel-check
 	@$(TF_STACK) apply -refresh-only $(TF_VAR_FILES) $(TF_OPTS)
 
-
+# -----------------------------------------------------------------------------
+# Import Resources (Recovery / Adoption)
+# -----------------------------------------------------------------------------
+import: tf-init
+	@./scripts/terraform/import-stack.sh $(STACK) "$(TF_VAR_FILES)"
+	@$(MAKE) plan STACK=$(STACK)

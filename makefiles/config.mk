@@ -5,6 +5,13 @@
 ENV   ?= dev
 STACK ?= 00-network
 
+# Auto-detect Kubeconfig for RKE2
+# If the environment-specific kubeconfig exists, use it.
+KUBECONFIG_RKE2 := $(HOME)/.kube/config-rke2-$(ENV)
+ifneq ("$(wildcard $(KUBECONFIG_RKE2))","")
+    export KUBECONFIG := $(KUBECONFIG_RKE2)
+endif
+
 STACK_DIR := stacks/$(ENV)/$(STACK)
 BOOT_DIR  := stacks/bootstrap-backend
 
@@ -20,19 +27,19 @@ STATE_KEY_PREFIX := iac
 BACKEND_OPTS := -backend-config="../../../$(BACKEND_CONFIG_FILE)" \
                 -backend-config="key=$(STATE_KEY_PREFIX)/$(ENV)/$(STACK).tfstate"
 
-STACK_ORDER := 00-network 10-security 20-endpoints 30-db 40-bastion 50-rke2 55-bootstrap 60-db
+STACK_ORDER := $(strip 00-network 10-security 20-endpoints 30-db 40-bastion 45-harbor 50-rke2 55-bootstrap 60-db)
 
 # -----------------------------------------------------------------------------
 # Harbor Stack Configuration
 # -----------------------------------------------------------------------------
 HARBOR_STACK_NAME  := 45-harbor
-# Read bucket name from env.tfvars
-HARBOR_BUCKET_NAME := $(shell grep 'target_bucket_name' stacks/$(ENV)/env.tfvars 2>/dev/null | cut -d'"' -f2)
+# Read bucket name from env.tfvars (handle potential missing value)
+HARBOR_BUCKET_NAME := $(shell grep 'target_bucket_name' stacks/$(ENV)/env.tfvars 2>/dev/null | cut -d'"' -f2 | tr -d ' ')
 
 ifeq ($(STACK),$(HARBOR_STACK_NAME))
-    # Check if bucket exists: Success(0) -> Exists -> create=false | Failure -> Missing -> create=true
-    # Note: Requires HARBOR_BUCKET_NAME to be set in env.tfvars
-    SHOULD_CREATE_BUCKET := $(shell aws s3api head-bucket --bucket $(HARBOR_BUCKET_NAME) 2>/dev/null && echo "false" || echo "true")
-    
-    TF_OPTS += -var='create_bucket=$(SHOULD_CREATE_BUCKET)'
+    ifneq ($(HARBOR_BUCKET_NAME),)
+        # Check if bucket exists: Success(0) -> Exists -> create=false | Failure -> Missing -> create=true
+        SHOULD_CREATE_BUCKET := $(shell aws s3api head-bucket --bucket $(HARBOR_BUCKET_NAME) 2>/dev/null && echo "false" || echo "true")
+        TF_OPTS += -var='create_bucket=$(SHOULD_CREATE_BUCKET)'
+    endif
 endif

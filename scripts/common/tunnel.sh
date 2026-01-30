@@ -50,13 +50,33 @@ start_tunnel() {
     if [ ! -d ".terraform" ]; then
          terraform init -reconfigure > /dev/null
     fi
+    # Use -raw for plain string output if possible, but output is list
     INSTANCE_IDS_JSON=$(terraform output -json control_plane_instance_ids 2>/dev/null || echo "[]")
     popd > /dev/null
     
     INSTANCE_ID=$(echo "${INSTANCE_IDS_JSON}" | grep -o 'i-[a-zA-Z0-9]*' | head -n 1)
 
+    # Fallback: If Terraform output is empty (e.g. state not fully populated/applied yet), try AWS CLI
     if [ -z "${INSTANCE_ID}" ]; then
-        echo -e "${RED}Error: Could not find Control Plane instance ID in ${STACK}.${NC}"
+        echo -e "${YELLOW}[SSM Tunnel] Terraform output empty. Falling back to AWS CLI search...${NC}"
+        # Assume standard naming convention: {ENV}-meta-k8s-cp-*
+        # We need to know PROJECT. Default to 'meta'.
+        # Or parse from env.tfvars?
+        PROJECT="meta"
+        if [ -f "stacks/${ENV}/env.tfvars" ]; then
+             PROJECT=$(grep 'project' "stacks/${ENV}/env.tfvars" | cut -d'"' -f2 | tr -d ' ' || echo "meta")
+        fi
+        
+        # Search for any cp instance
+        # Pattern: ${ENV}-${PROJECT}-k8s-cp-*
+        INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=${ENV}-${PROJECT}-k8s-cp-*" "Name=instance-state-name,Values=running" \
+            --query "Reservations[].Instances[].InstanceId" \
+            --output text | awk '{print $1}')
+    fi
+
+    if [ -z "${INSTANCE_ID}" ]; then
+        echo -e "${RED}Error: Could not find Control Plane instance ID in ${STACK} (Terraform output & AWS CLI both failed).${NC}"
         # Do not exit with error to avoid blocking CI pipes where tunnel might be handled externally
         # But for local dev, this is critical.
         return 1

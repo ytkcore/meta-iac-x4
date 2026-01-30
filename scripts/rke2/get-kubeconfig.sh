@@ -54,6 +54,29 @@ sed -i '' 's/127.0.0.1/127.0.0.1/g' "$TARGET_KUBECONFIG" # No-op but checks file
 
 echo "Kubeconfig saved to: $TARGET_KUBECONFIG"
 echo ""
+# Update env.tfvars
+TFVARS_FILE="stacks/${ENV}/env.tfvars"
+if [ -f "$TFVARS_FILE" ]; then
+    echo "Updating $TFVARS_FILE with kubeconfig_path..."
+    
+    # Check if the correct path is already set
+    if grep -Fq "kubeconfig_path = \"${TARGET_KUBECONFIG}\"" "$TFVARS_FILE"; then
+        echo "  -> Already set to ${TARGET_KUBECONFIG}. Skipping."
+    elif grep -q "kubeconfig_path" "$TFVARS_FILE"; then
+        # If set but different, update it
+        sed "s|kubeconfig_path.*|kubeconfig_path = \"${TARGET_KUBECONFIG}\"|g" "$TFVARS_FILE" > "${TFVARS_FILE}.tmp" && mv "${TFVARS_FILE}.tmp" "$TFVARS_FILE"
+        echo "  -> Updated to ${TARGET_KUBECONFIG}."
+    else
+        # If not present, append it
+        echo "" >> "$TFVARS_FILE"
+        echo "kubeconfig_path = \"${TARGET_KUBECONFIG}\"" >> "$TFVARS_FILE"
+        echo "  -> Appended ${TARGET_KUBECONFIG}."
+    fi
+else
+    echo "Warning: $TFVARS_FILE not found. Skipping update."
+fi
+
+echo ""
 echo "To access the cluster WITHOUT Bastion:"
 echo "1. Start SSM Port Forwarding directly to CP Node:"
 echo "   aws ssm start-session --target $CP_ID \\"

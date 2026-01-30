@@ -54,7 +54,7 @@ variable "azs" {
 variable "kubeconfig_path" {
   description = "kubeconfig 파일 경로 (Bastion에서 복사한 파일)"
   type        = string
-  default     = "~/.kube/config"
+  default     = null
 }
 
 variable "kubeconfig_context" {

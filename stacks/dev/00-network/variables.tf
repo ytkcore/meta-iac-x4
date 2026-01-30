@@ -65,13 +65,13 @@ variable "subnets" {
   }))
 
   default = {
-    "pub-a" = {
+    "common-pub-a" = {
       cidr   = "10.0.201.0/24"
       az     = "ap-northeast-2a"
       tier   = "public"
       public = true
     }
-    "pub-c" = {
+    "common-pub-c" = {
       cidr   = "10.0.202.0/24"
       az     = "ap-northeast-2c"
       tier   = "public"
