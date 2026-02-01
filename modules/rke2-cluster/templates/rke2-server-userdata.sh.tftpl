@@ -50,7 +50,8 @@ YAML
 cat >/etc/rancher/rke2/config.yaml <<'YAML'
 token: "${token}"
 write-kubeconfig-mode: "0644"
-node-name: "${node_name}"
+# node-name: "${node_name}" # [REMOVED] AWS CCM expects hostname/private-dns
+node-name-from-cloud-provider-metadata: true
 %{ if tls_san != null }
 tls-san:
   - "${tls_san}"
@@ -61,8 +62,9 @@ cluster-init: true
 server: "${server_url}"
 %{ endif }
 %{ if disable_default_registry_fallback }
-disable-default-registry-endpoint: true
+# disable-default-registry-endpoint: true # [REMOVED] Fallback needed for bootstrap images
 %{ endif }
+cloud-provider-name: "external"
 YAML
 
 # -----------------------------------------------------------------------------

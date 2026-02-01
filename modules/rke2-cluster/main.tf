@@ -60,11 +60,13 @@ locals {
   ingress_backend_protocol = var.enable_acm_tls_termination ? "TCP" : "TCP"
 
   # Tags
+  cluster_name = "${var.project}-${var.env}-k8s"
   common_tags = merge(
     var.tags,
     {
-      Project = var.project
-      Env     = var.env
+      Project                                       = var.project
+      Env                                           = var.env
+      "kubernetes.io/cluster/${local.cluster_name}" = "shared"
     }
   )
 }
@@ -98,6 +100,44 @@ resource "aws_iam_role_policy_attachment" "extra" {
   for_each   = toset(var.extra_policy_arns)
   role       = aws_iam_role.nodes.name
   policy_arn = each.value
+}
+
+# AWS Cloud Provider (RKE2) permissions for ELB management
+resource "aws_iam_policy" "nodes_elb" {
+  name        = "${local.name_prefix}-elb-policy"
+  description = "Permissions for RKE2 nodes to manage AWS Load Balancers"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:*",
+          "ec2:DescribeAccountAttributes",
+          "ec2:DescribeAddresses",
+          "ec2:DescribeInternetGateways",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs",
+          "ec2:DescribeInstances",
+          "ec2:ModifyNetworkInterfaceAttribute",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DescribeInstanceStatus",
+          "ec2:DescribeAvailabilityZones",
+          "ec2:DescribeTags",
+          "acm:DescribeCertificate",
+          "acm:ListCertificates"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "nodes_elb" {
+  role       = aws_iam_role.nodes.name
+  policy_arn = aws_iam_policy.nodes_elb.arn
 }
 
 resource "aws_iam_instance_profile" "nodes" {
@@ -231,6 +271,9 @@ resource "aws_instance" "control_plane" {
   # [추가] API를 통한 종료 허용 (Terraform destroy 가능하게)
   disable_api_termination = false
 
+  # [추가] user_data 변경 시 인스턴스 재생성 강제 (Cloud Provider 설정 반영용)
+  user_data_replace_on_change = true
+
   metadata_options {
     http_endpoint = "enabled"
     http_tokens   = "required"
@@ -298,6 +341,9 @@ resource "aws_instance" "worker" {
 
   # [최적화 유지] Worker는 CP와 독립적으로 삭제되며, 삭제 잠금 없음
   disable_api_termination = false
+
+  # [추가] user_data 변경 시 인스턴스 재생성 강제
+  user_data_replace_on_change = true
 
   metadata_options {
     http_endpoint = "enabled"

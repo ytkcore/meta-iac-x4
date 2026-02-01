@@ -23,10 +23,12 @@ mkdir -p /etc/rancher/rke2
 cat >/etc/rancher/rke2/config.yaml <<'YAML'
 token: "${token}"
 server: "${server_url}"
-node-name: "${node_name}"
+# node-name: "${node_name}" # [REMOVED]
+node-name-from-cloud-provider-metadata: true
 %{ if disable_default_registry_fallback }
-disable-default-registry-endpoint: true
+# disable-default-registry-endpoint: true # [REMOVED]
 %{ endif }
+cloud-provider-name: "external"
 YAML
 
 # ----------------------------------------------------------------------------

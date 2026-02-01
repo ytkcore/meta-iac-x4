@@ -30,4 +30,5 @@ module "network" {
   enable_nat_for_db        = var.enable_nat_for_db
   enable_gateway_endpoints = var.enable_gateway_endpoints
   gateway_services         = var.gateway_services
+  kubernetes_cluster_name  = "${var.project}-${var.env}-k8s"
 }
