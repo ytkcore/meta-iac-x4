@@ -19,7 +19,7 @@ spec:
           - --v=2
           - --cloud-provider=aws
           - --configure-cloud-routes=false
-          - --cluster-name=meta-dev-k8s
+          - --cluster-name=dev-meta-k8s
         nodeSelector:
           node-role.kubernetes.io/control-plane: "true"
         hostNetwork: true
