@@ -42,7 +42,7 @@ spec:
             use-forwarded-headers: "true"
             compute-full-forwarded-for: "true"
             use-proxy-protocol: "false"
-            allow-snippet-annotations: "false"
+            allow-snippet-annotations: "true"
           
           resources:
             requests:
