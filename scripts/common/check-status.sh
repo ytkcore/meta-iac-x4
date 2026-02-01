@@ -92,6 +92,15 @@ if [[ "$STACK" == "55-bootstrap" ]]; then
         done
     fi
 
+    # NEW: Webhook Connectivity Check
+    WEBHOOK_ERR_APPS=$(kubectl get applications -n argocd -o json | jq -r '.items[] | select(.status.conditions[]?.message | tostring | contains("failed calling webhook")) | .metadata.name' | sort -u || echo "")
+    if [ -n "$WEBHOOK_ERR_APPS" ]; then
+        echo -e "\n${RED}⚠ Webhook Deadlock Detected! (웹후크 연결 실패):${NC}"
+        for app in $WEBHOOK_ERR_APPS; do
+            echo -e "  - ${YELLOW}$app${NC}"
+        done
+    fi
+
     echo -e "\n${BOLD}>>> 5. External Traffic (Ingress - 외부 접속 주소)${NC}"
     INGRESSES=$(kubectl get ingress -A --no-headers 2>/dev/null || echo "")
     if [ -z "$INGRESSES" ]; then
@@ -119,6 +128,15 @@ if [[ "$STACK" == "55-bootstrap" ]]; then
         for app in $STUCK_APPS; do
             echo -e "  ${CYAN}kubectl patch application $app -n argocd --type merge -p '{\"metadata\":{\"finalizers\":[]}}'${NC}"
         done
+    fi
+
+    # 2.1 Action for Webhook Deadlock
+    if [ -n "$WEBHOOK_ERR_APPS" ]; then
+        echo -e "${RED}[필수 조치] 유령 웹후크로 인한 삭제 고착 (Webhook Deadlock)${NC}"
+        echo -e "  삭제된 컨트롤러(Ingress 등)의 ValidatingWebhookConfiguration이 남아있어 삭제가 차단되었습니다."
+        echo -e "  다음 명령어로 범인을 찾아 삭제하세요:"
+        echo -e "  ${CYAN}kubectl get validatingwebhookconfigurations${NC}"
+        echo -e "  ${CYAN}kubectl delete validatingwebhookconfiguration <의심되는-이름>${NC} (예: rke2-ingress-nginx-admission)"
     fi
 
     # 3. Action for Unknown Status
