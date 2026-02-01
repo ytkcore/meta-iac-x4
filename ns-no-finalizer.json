@@ -1,0 +1,65 @@
+{
+  "apiVersion": "v1",
+  "kind": "Namespace",
+  "metadata": {
+    "annotations": {
+      "cattle.io/status": "{\"Conditions\":[{\"Type\":\"ResourceQuotaInit\",\"Status\":\"True\",\"Message\":\"\",\"LastUpdateTime\":\"2026-02-01T09:13:32Z\"},{\"Type\":\"InitialRolesPopulated\",\"Status\":\"True\",\"Message\":\"\",\"LastUpdateTime\":\"2026-02-01T09:13:37Z\"}]}",
+      "field.cattle.io/projectId": "local:p-655pn",
+      "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Namespace\",\"metadata\":{\"annotations\":{},\"creationTimestamp\":null,\"name\":\"ingress-nginx\"},\"spec\":{},\"status\":{}}\n",
+      "lifecycle.cattle.io/create.namespace-auth": "true",
+      "management.cattle.io/no-default-sa-token": "true"
+    },
+    "creationTimestamp": "2026-02-01T09:13:31Z",
+    "deletionTimestamp": "2026-02-01T10:20:05Z",
+    "labels": {
+      "field.cattle.io/projectId": "p-655pn",
+      "kubernetes.io/metadata.name": "ingress-nginx"
+    },
+    "name": "ingress-nginx",
+    "resourceVersion": "63598",
+    "uid": "3b36c6be-a45e-4498-b42c-a622eade2cf6"
+  },
+  "spec": {
+    "finalizers": []
+  },
+  "status": {
+    "conditions": [
+      {
+        "lastTransitionTime": "2026-02-01T10:20:10Z",
+        "message": "Discovery failed for some groups, 1 failing: unable to retrieve the complete list of server APIs: ext.cattle.io/v1: stale GroupVersion discovery: ext.cattle.io/v1",
+        "reason": "DiscoveryFailed",
+        "status": "True",
+        "type": "NamespaceDeletionDiscoveryFailure"
+      },
+      {
+        "lastTransitionTime": "2026-02-01T10:20:12Z",
+        "message": "All legacy kube types successfully parsed",
+        "reason": "ParsedGroupVersions",
+        "status": "False",
+        "type": "NamespaceDeletionGroupVersionParsingFailure"
+      },
+      {
+        "lastTransitionTime": "2026-02-01T10:20:12Z",
+        "message": "All content successfully deleted, may be waiting on finalization",
+        "reason": "ContentDeleted",
+        "status": "False",
+        "type": "NamespaceDeletionContentFailure"
+      },
+      {
+        "lastTransitionTime": "2026-02-01T10:20:23Z",
+        "message": "All content successfully removed",
+        "reason": "ContentRemoved",
+        "status": "False",
+        "type": "NamespaceContentRemaining"
+      },
+      {
+        "lastTransitionTime": "2026-02-01T10:20:12Z",
+        "message": "All content-preserving finalizers finished",
+        "reason": "ContentHasNoFinalizers",
+        "status": "False",
+        "type": "NamespaceFinalizersRemaining"
+      }
+    ],
+    "phase": "Terminating"
+  }
+}

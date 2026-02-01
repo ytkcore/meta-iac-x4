@@ -14,6 +14,9 @@ include makefiles/utils.mk
 init:
 	@scripts/common/init-env.sh
 
+status:
+	@scripts/common/check-status.sh $(ENV) $(STACK)
+
 help:
 	@echo 'Usage:'
 	@echo ''
@@ -23,6 +26,7 @@ help:
 	@echo '  (2) Terraform Operations:'
 	@echo '      make plan  ENV=dev STACK=00-network'
 	@echo '      make apply ENV=dev STACK=00-network'
+	@echo '      make status ENV=dev STACK=00-network # Check resource status'
 	@echo ''
 	@echo '  (3) Code Quality:'
 	@echo '      make check       # Format check'
