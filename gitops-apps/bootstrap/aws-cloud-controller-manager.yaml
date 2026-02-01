@@ -11,7 +11,7 @@ spec:
   project: default
   source:
     repoURL: https://kubernetes.github.io/cloud-provider-aws
-    targetRevision: 0.1.10
+    targetRevision: 0.0.10
     chart: aws-cloud-controller-manager
     helm:
       values: |
