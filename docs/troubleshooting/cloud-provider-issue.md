@@ -96,6 +96,15 @@ RKE2가 `external` 모드로 실행되면 클라우드 관련 컨트롤러 루�
 *   **원인**: 인프라(EC2)에 태깅된 클러스터 이름(`kubernetes.io/cluster/<name>`)과 CCM 실행 인자(`--cluster-name`)가 다를 경우, CCM은 자신의 관리 대상 리소스를 식별하지 못함.
 *   **해결**: Terraform 변수(`local.cluster_name`)와 ArgoCD Application의 `helm.values` 내 `--cluster-name` 파라미터를 정확히 일치시킴 (예: `meta-dev-k8s`).
 
+### 4.4. Webhook Deadlock (유령 웹후크로 인한 삭제/생성 고착)
+*   **증상**: ArgoCD의 특정 Application(예: `rancher`)이 삭제 중(`Terminating`) 또는 생성 중(`Progressing`) 멈춤. 상세 에러에 `failed calling webhook "validate.nginx.ingress.kubernetes.io": Post ... no endpoints available` 메시지 발생.
+*   **원인**: RKE2 기본 Ingress를 제거했음에도 불구하고, 해당 컨트롤러가 등록해둔 `ValidatingWebhookConfiguration`이 클러스터에 남아있어 Ingress 리소스의 변경(삭제/수정)을 검증하려 시도하다가 실패함.
+*   **해결**: 응답하지 않는 유령 웹후크 설정을 찾아 삭제함.
+    ```bash
+    kubectl get validatingwebhookconfigurations
+    kubectl delete validatingwebhookconfiguration rke2-ingress-nginx-admission
+    ```
+
 ---
 
 ## 5. 검증 (Verification)
