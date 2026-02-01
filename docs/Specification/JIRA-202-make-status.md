@@ -12,7 +12,8 @@
 3.  **지능형 장애 진단 (Operational Intelligence)**:
     *   **Stuck Namespace**: Finalizer로 인해 삭제가 멈춘 네임스페이스 탐색 및 해결 명령어 제시.
     *   **Stuck Application**: ArgoCD 앱 삭제가 멈춘 경우 강제 정리 명령어 제시.
-    *   **Unknown Sync**: ArgoCD 내부 통신 장애 상황 인지 및 가이드 제시.
+    *   **Unknown Sync**: ArgoCD 내부 통신 장애 상황 인지 및 가이드 제시 (OOM 진단 포함).
+    *   **Image Pull Error**: 이미지 태그/레지스트리 오류 탐색 및 조치 가이드.
 4.  **한글화 지원**: 한국어 헤더 및 상황별 해석 가이드 제공.
 
 ## Acceptance Criteria

@@ -18,9 +18,9 @@
 
 ### 2.3. 운영 지능 (Operational Intelligence)
 본 도구의 정수로, 단순 조회를 넘어 **장애 패턴을 분석하고 해결책을 제시**합니다.
-- **Stuck Namespace**: 네임스페이스가 `Terminating`에서 멈춘 경우, stale한 API group이나 Finalizer가 원인임을 인지하고 즉시 처리 명령어를 생성합니다.
-- **Stuck Application**: ArgoCD 앱이 삭제 중에 멈춘 경우, Finalizer 제거 명령어를 생성합니다.
-- **Sync Status Unknown**: 내부 통신 부하나 재시작 상황을 인지하여 불필요한 공포(Panic)를 방지하고 대기 조치를 안내합니다.
+- **Stuck Namespace/Application**: 네임스페이스나 앱이 삭제 중에 멈춘 경우, Finalizer 제거 명령어를 통해 즉각적인 복구가 가능하도록 가이드합니다.
+- **Unknown Sync**: ArgoCD 내부 통신 장애 상황이나 `repo-server`의 과부하(OOM) 상황을 인지하여 대기 조치 및 리소스 상향을 제안합니다.
+- **Container Health**: `OOMKilled`(메모리 부족)나 `ImagePullError`(이미지 주소 오류)를 실시간 감지하여 원인과 해결책을 제시합니다.
 
 ---
 
@@ -43,8 +43,12 @@ aws-vault exec devops -- make status ENV=dev STACK=55-bootstrap
 - **조치**: 화면 하단에 출력된 `kubectl replace --raw ...` 명령어를 복사하여 실행합니다.
 
 #### 상황 C: `Unknown` 상태 + `권장 조치` 안내
-- **해석**: ArgoCD 컴포넌트가 일시적으로 사용 불가능한 상태입니다.
-- **조치**: 1~2분 대기 후 다시 `make status`를 실행합니다.
+- **해석**: ArgoCD 컴포넌트(`repo-server`)가 일시적으로 사용 불가능하거나 메모리 부족으로 재시작 중입니다.
+- **조치**: 1~2분 대기 후에도 지속된다면 `repo_server.limits.memory`를 상향(예: 1Gi) 조정합니다.
+
+#### 상황 D: `ImagePullBackOff` 또는 `OOMKilled` 경고
+- **해석**: 컨테이너가 이미지를 가져오지 못하거나 실행 중 메모리 부족으로 다운되었습니다.
+- **조치**: `make status` 하단의 가이드에 따라 이미지 주소를 수정하거나 리소스 제한을 상향합니다.
 
 ---
 

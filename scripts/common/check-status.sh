@@ -126,7 +126,32 @@ if [[ "$STACK" == "55-bootstrap" ]]; then
         echo -e "${YELLOW}[권장 조치] 'Unknown' 상태 감지 (Sync Status Unknown)${NC}"
         echo -e "  ArgoCD 내부 통신 장애(repo-server 재시작 등)가 의심됩니다."
         echo -e "  - 1~2분 정도 대기하면 자동으로 해결됩니다."
+        echo -e "  - 만약 지속된다면 'argocd-repo-server'의 메모리 부족(OOM)을 의심해보세요."
         echo -e "  - 즉시 해결을 원하시면 해당 앱을 'Refresh' 하세요."
+    fi
+
+    # 4. Action for Image Pull Errors
+    IMAGE_PULL_ERRS=$(kubectl get pods -A -o json | jq -r '.items[] | select(.status.containerStatuses[].state.waiting.reason | . == "ImagePullBackOff" or . == "ErrImagePull") | "\(.metadata.namespace)/\(.metadata.name)"' | sort -u || echo "")
+    if [ -n "$IMAGE_PULL_ERRS" ]; then
+        echo -e "${RED}[필수 조치] 이미지 풀링 에러 감지 (Image Pull Error)${NC}"
+        echo -e "  다음 포드들이 이미지를 가져오지 못하고 있습니다:"
+        for pod in $IMAGE_PULL_ERRS; do
+            echo -e "  - ${YELLOW}$pod${NC}"
+        done
+        echo -e "  - 해결책: 이미지 태그가 정확한지, registry(docker.io, public.ecr.aws 등) 주소가 맞는지 확인하세요."
+        echo -e "  - 프라이빗 레지스트리인 경우 ImagePullSecret이 설정되었는지 확인하세요."
+    fi
+
+    # 5. Action for OOMKilled Pods
+    OOM_PODS=$(kubectl get pods -A -o json | jq -r '.items[] | select(.status.containerStatuses[].lastState.terminated.reason == "OOMKilled") | "\(.metadata.namespace)/\(.metadata.name)"' | sort -u || echo "")
+    if [ -n "$OOM_PODS" ]; then
+        echo -e "${RED}[필수 조치] 메모리 부족 종료 감지 (OOMKilled)${NC}"
+        echo -e "  다음 포드들이 메모리 부족으로 인해 재시작되었습니다:"
+        for pod in $OOM_PODS; do
+            echo -e "  - ${YELLOW}$pod${NC}"
+        done
+        echo -e "  - 해결책: Terraform 또는 Helm Values에서 해당 컴포넌트의 'memory limit'을 늘려주세요."
+        echo -e "  - 예: argo-cd의 경우 'repo_server.limits.memory' 값을 1Gi 등으로 상향 조정."
     fi
 
     # 4. Action for Apps Sync
