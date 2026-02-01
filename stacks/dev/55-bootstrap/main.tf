@@ -184,235 +184,40 @@ resource "helm_release" "argocd" {
   repository_username = local.harbor_oci_available ? "admin" : null
   repository_password = local.harbor_oci_available ? var.harbor_admin_password : null
 
-  # Global settings
-  set {
-    name  = "global.domain"
-    value = local.argocd_hostname
-  }
+  values = [
+    templatefile("${path.module}/templates/argocd-values.yaml.tftpl", {
+      argocd_hostname = local.argocd_hostname
+      argocd_url      = local.argocd_hostname != "" ? "https://${local.argocd_hostname}" : ""
 
-  # UI/Redirect URL (NLB+ACM TLS 종료 전제)
-  dynamic "set" {
-    for_each = local.argocd_hostname != "" ? [1] : []
-    content {
-      name  = "configs.cm.url"
-      value = "https://${local.argocd_hostname}"
-    }
-  }
+      server_replicas = var.argocd_ha_enabled ? 2 : var.argocd_server_replicas
+      server_req_cpu  = var.argocd_resources.server.requests.cpu
+      server_req_mem  = var.argocd_resources.server.requests.memory
+      server_lim_cpu  = var.argocd_resources.server.limits.cpu
+      server_lim_mem  = var.argocd_resources.server.limits.memory
+      server_insecure = var.argocd_server_insecure
 
-  # Server configuration
-  set {
-    name  = "server.replicas"
-    value = var.argocd_ha_enabled ? "2" : tostring(var.argocd_server_replicas)
-  }
+      service_type           = var.argocd_enable_ingress ? "ClusterIP" : "NodePort"
+      service_nodeport_http  = var.argocd_enable_ingress ? "" : tostring(var.argocd_nodeport_http)
+      service_nodeport_https = var.argocd_enable_ingress ? "" : tostring(var.argocd_nodeport_https)
 
-  # Service exposure mode
-  dynamic "set" {
-    for_each = var.argocd_enable_ingress ? [1] : []
-    content {
-      name  = "server.service.type"
-      value = "ClusterIP"
-    }
-  }
+      ingress_enabled    = var.argocd_enable_ingress
+      ingress_class_name = var.argocd_ingress_class_name
 
-  dynamic "set" {
-    for_each = var.argocd_enable_ingress ? [1] : []
-    content {
-      name  = "server.ingress.enabled"
-      value = "true"
-    }
-  }
+      controller_replicas = var.argocd_ha_enabled ? 2 : 1
+      controller_req_cpu  = var.argocd_resources.controller.requests.cpu
+      controller_req_mem  = var.argocd_resources.controller.requests.memory
+      controller_lim_cpu  = var.argocd_resources.controller.limits.cpu
+      controller_lim_mem  = var.argocd_resources.controller.limits.memory
 
-  dynamic "set" {
-    for_each = var.argocd_enable_ingress && local.argocd_hostname != "" ? [1] : []
-    content {
-      name  = "server.ingress.ingressClassName"
-      value = var.argocd_ingress_class_name
-    }
-  }
+      repo_server_replicas = var.argocd_ha_enabled ? 2 : 1
+      repo_server_req_cpu  = var.argocd_resources.repo_server.requests.cpu
+      repo_server_req_mem  = var.argocd_resources.repo_server.requests.memory
+      repo_server_lim_cpu  = var.argocd_resources.repo_server.limits.cpu
+      repo_server_lim_mem  = var.argocd_resources.repo_server.limits.memory
 
-  dynamic "set" {
-    for_each = var.argocd_enable_ingress && local.argocd_hostname != "" ? [1] : []
-    content {
-      name  = "server.ingress.hosts[0]"
-      value = local.argocd_hostname
-    }
-  }
-
-  # External TLS termination (NLB+ACM): disable SSL redirect and pass https headers to upstream
-  dynamic "set" {
-    for_each = var.argocd_enable_ingress ? [1] : []
-    content {
-      name  = "server.ingress.annotations.nginx.ingress.kubernetes.io/ssl-redirect"
-      value = "false"
-    }
-  }
-
-  dynamic "set" {
-    for_each = var.argocd_enable_ingress ? [1] : []
-    content {
-      name  = "server.ingress.annotations.nginx.ingress.kubernetes.io/force-ssl-redirect"
-      value = "false"
-    }
-  }
-
-  dynamic "set" {
-    for_each = var.argocd_enable_ingress ? [1] : []
-    content {
-      name  = "server.ingress.annotations.nginx.ingress.kubernetes.io/backend-protocol"
-      value = "HTTP"
-    }
-  }
-
-  dynamic "set" {
-    for_each = var.argocd_enable_ingress ? [1] : []
-    content {
-      name  = "server.ingress.annotations.nginx.ingress.kubernetes.io/proxy-buffer-size"
-      value = "16k"
-    }
-  }
-
-  dynamic "set" {
-    for_each = var.argocd_enable_ingress ? [1] : []
-    content {
-      name  = "server.ingress.annotations.nginx.ingress.kubernetes.io/proxy-body-size"
-      value = "0"
-    }
-  }
-
-  # If Ingress is disabled, expose NodePort directly (optional)
-  dynamic "set" {
-    for_each = var.argocd_enable_ingress ? [] : [1]
-    content {
-      name  = "server.service.type"
-      value = "NodePort"
-    }
-  }
-
-  dynamic "set" {
-    for_each = var.argocd_enable_ingress ? [] : [1]
-    content {
-      name  = "server.service.nodePortHttp"
-      value = tostring(var.argocd_nodeport_http)
-    }
-  }
-
-  dynamic "set" {
-    for_each = var.argocd_enable_ingress ? [] : [1]
-    content {
-      name  = "server.service.nodePortHttps"
-      value = tostring(var.argocd_nodeport_https)
-    }
-  }
-  # Insecure mode (for external TLS termination at NLB)
-  dynamic "set" {
-    for_each = var.argocd_server_insecure ? [1] : []
-    content {
-      name  = "server.extraArgs[0]"
-      value = "--insecure"
-    }
-  }
-
-  # Server Resources
-  set {
-    name  = "server.resources.requests.cpu"
-    value = var.argocd_resources.server.requests.cpu
-  }
-
-  set {
-    name  = "server.resources.requests.memory"
-    value = var.argocd_resources.server.requests.memory
-  }
-
-  set {
-    name  = "server.resources.limits.cpu"
-    value = var.argocd_resources.server.limits.cpu
-  }
-
-  set {
-    name  = "server.resources.limits.memory"
-    value = var.argocd_resources.server.limits.memory
-  }
-
-  # Controller configuration (HA)
-  set {
-    name  = "controller.replicas"
-    value = var.argocd_ha_enabled ? "2" : "1"
-  }
-
-  set {
-    name  = "controller.resources.requests.cpu"
-    value = var.argocd_resources.controller.requests.cpu
-  }
-
-  set {
-    name  = "controller.resources.requests.memory"
-    value = var.argocd_resources.controller.requests.memory
-  }
-
-  set {
-    name  = "controller.resources.limits.cpu"
-    value = var.argocd_resources.controller.limits.cpu
-  }
-
-  set {
-    name  = "controller.resources.limits.memory"
-    value = var.argocd_resources.controller.limits.memory
-  }
-
-  # Repo Server configuration (HA)
-  set {
-    name  = "repoServer.replicas"
-    value = var.argocd_ha_enabled ? "2" : "1"
-  }
-
-  set {
-    name  = "repoServer.resources.requests.cpu"
-    value = var.argocd_resources.repo_server.requests.cpu
-  }
-
-  set {
-    name  = "repoServer.resources.requests.memory"
-    value = var.argocd_resources.repo_server.requests.memory
-  }
-
-  set {
-    name  = "repoServer.resources.limits.cpu"
-    value = var.argocd_resources.repo_server.limits.cpu
-  }
-
-  set {
-    name  = "repoServer.resources.limits.memory"
-    value = var.argocd_resources.repo_server.limits.memory
-  }
-
-  # Redis HA (for HA mode)
-  set {
-    name  = "redis-ha.enabled"
-    value = var.argocd_ha_enabled ? "true" : "false"
-  }
-
-  set {
-    name  = "redis.enabled"
-    value = var.argocd_ha_enabled ? "false" : "true"
-  }
-
-  # Dex (SSO) - disabled by default
-  set {
-    name  = "dex.enabled"
-    value = "false"
-  }
-
-  # Notifications - disabled by default
-  set {
-    name  = "notifications.enabled"
-    value = "false"
-  }
-
-  # ApplicationSet - enabled
-  set {
-    name  = "applicationSet.enabled"
-    value = "true"
-  }
+      ha_enabled = var.argocd_ha_enabled
+    })
+  ]
 
   wait          = true
   wait_for_jobs = true
@@ -429,41 +234,16 @@ resource "helm_release" "argocd" {
 # Data Lookup: Ingress NLB (Recovery / Fallback)
 # Remote state가 복구 중이거나 불완전할 경우, 실제 AWS 리소스를 직접 조회합니다.
 # ------------------------------------------------------------------------------
-locals {
-  # Remote state에서 값 가져오기 (없으면 null)
-  remote_nlb_dns     = try(data.terraform_remote_state.rke2.outputs.ingress_public_nlb_dns, null)
-  remote_nlb_zone_id = try(data.terraform_remote_state.rke2.outputs.ingress_public_nlb_zone_id, null)
+# (Redundant block removed - moved to bottom)
 
-  # NLB 이름 추론 (modules/rke2-cluster/main.tf 로직 참조)
-  # name_prefix = "${env}-${project}-${name}" where name="k8s"
-  # nlb_name    = substr("${name_prefix}-nlb-ingress", 0, 32)
-  target_nlb_name = substr("${var.env}-${var.project}-k8s-nlb-ingress", 0, 32)
-}
-
-data "aws_lb" "ingress" {
-  # Remote state에 값이 없고, ingress가 활성화된 경우에만 조회 시도
-  count = (local.remote_nlb_dns == null || local.remote_nlb_dns == "") ? 1 : 0
-  name  = local.target_nlb_name
-}
-
-locals {
-  # 최종 사용할 NLB 정보 (Remote State > AWS Lookup > null)
-  final_nlb_dns = (
-    local.remote_nlb_dns != null && local.remote_nlb_dns != "" ? local.remote_nlb_dns :
-    try(data.aws_lb.ingress[0].dns_name, null)
-  )
-  final_nlb_zone_id = (
-    local.remote_nlb_zone_id != null && local.remote_nlb_zone_id != "" ? local.remote_nlb_zone_id :
-    try(data.aws_lb.ingress[0].zone_id, null)
-  )
-
-  # 레코드 생성 가능 여부 확인
-  can_create_dns_record = local.final_nlb_dns != null && local.final_nlb_zone_id != null
-}
 
 # ------------------------------------------------------------------------------
-# Route53 Alias Record for ArgoCD
+# Route53 Alias Record: REMOVED
+# - In Pure GitOps, Terraform cannot wait for the Ingress Controller (managed by ArgoCD)
+#   to create the NLB and retrieve its hostname in the same `apply` run.
+# - Recommendation: Use ExternalDNS or create DNS records manually after bootstrap.
 # ------------------------------------------------------------------------------
+/*
 resource "aws_route53_record" "argocd" {
   count = var.enable_route53_argocd_alias && local.argocd_hostname != "" && local.can_create_dns_record ? 1 : 0
 
@@ -477,10 +257,9 @@ resource "aws_route53_record" "argocd" {
     evaluate_target_health = true
   }
 }
+*/
 
-# ------------------------------------------------------------------------------
-# Route53 Alias Record for Rancher
-# ------------------------------------------------------------------------------
+/*
 resource "aws_route53_record" "rancher" {
   count = var.enable_route53_argocd_alias && local.rancher_hostname != "" && local.can_create_dns_record ? 1 : 0
 
@@ -494,6 +273,7 @@ resource "aws_route53_record" "rancher" {
     evaluate_target_health = true
   }
 }
+*/
 
 
 
@@ -569,4 +349,195 @@ resource "kubectl_manifest" "argocd_root_app" {
     kubectl_manifest.argocd_harbor_oci_repo,
     kubernetes_secret.argocd_repo_creds
   ]
+}
+# ------------------------------------------------------------------------------
+# Auto-discovery of ACM Certificate
+# ------------------------------------------------------------------------------
+locals {
+  # ACM 자동 탐색을 위한 도메인 결정 (부트스트랩 단계에서 동적 할당)
+  acm_search_domain = (
+    var.base_domain != "" ? "*.${var.base_domain}" :
+    var.domain != "" ? "*.${var.domain}" :
+    null
+  )
+}
+
+data "aws_acm_certificate" "wildcard" {
+  # remote_state에서 ARN을 못 찾았을 때만 로컬 탐색 시도
+  count = (
+    try(data.terraform_remote_state.rke2.outputs.effective_acm_certificate_arn, null) == null &&
+    local.acm_search_domain != null
+  ) ? 1 : 0
+
+  domain      = local.acm_search_domain
+  statuses    = ["ISSUED"]
+  most_recent = true
+}
+
+locals {
+  # Final ACM ARN Resolution:
+  # 1. 50-rke2 (Network/Var) - Primary source
+  # 2. AWS Lookup (Discovery) - Secondary source
+  final_acm_arn = coalesce(
+    try(data.terraform_remote_state.rke2.outputs.effective_acm_certificate_arn, null),
+    try(data.aws_acm_certificate.wildcard[0].arn, null),
+    ""
+  )
+}
+
+# ------------------------------------------------------------------------------
+# 7. ArgoCD Core Add-ons: NGINX Ingress Controller
+# - Put the manifest in GitOps repository for synchronization
+# ------------------------------------------------------------------------------
+# 7. Infrastructure Context for GitOps (Day 2 Operations)
+# - Stores dynamic infrastructure values in a Secret (Security Best Practice).
+# - Future GitOps workflows (Helm Lookup, Kyverno) can consume this.
+# ------------------------------------------------------------------------------
+resource "kubernetes_secret" "infra_context" {
+  metadata {
+    name      = "infra-context"
+    namespace = "kube-system" # Globally accessible location
+    labels = {
+      "app.kubernetes.io/managed-by" = "terraform"
+      "component"                    = "infra-context"
+    }
+  }
+
+  data = {
+    base_domain         = local.effective_base_domain
+    acm_certificate_arn = local.final_acm_arn
+    vpc_id              = try(data.terraform_remote_state.rke2.outputs.vpc_id, "")
+    environment         = var.env
+    project             = var.project
+    region              = var.region
+  }
+
+  type = "Opaque"
+}
+
+# ------------------------------------------------------------------------------
+# 8. ArgoCD Core Add-ons: Direct Apply (Disabled for Pure GitOps)
+# - Moved to Git Repository (GitOps).
+# - Terraform only bootstraps ArgoCD, Repository Secret, and Root App.
+# ------------------------------------------------------------------------------
+
+/*
+locals {
+  # Helm Chart Repositories (Public vs Harbor OCI)
+  # If Harbor OCI is available, pointing to "harbor.domain/helm-charts"
+  # Note: ArgoCD expects OCI repoURL without `oci://` prefix if it's treated as Helm repo,
+  # BUT for OCI registries, standard is `registry/project`.
+  # We use `local.harbor_oci_repo_argocd` which was defined at line 81.
+  
+  # Cert Manager
+  cert_manager_repo    = local.harbor_oci_available ? local.harbor_oci_repo_argocd : "https://charts.jetstack.io"
+  cert_manager_version = "v1.13.3"
+  
+  # Nginx Ingress
+  nginx_ingress_repo    = local.harbor_oci_available ? local.harbor_oci_repo_argocd : "https://kubernetes.github.io/ingress-nginx"
+  nginx_ingress_version = "4.11.3"
+
+  # Rancher
+  rancher_repo    = local.harbor_oci_available ? local.harbor_oci_repo_argocd : "https://releases.rancher.com/server-charts/stable"
+  rancher_version = "2.13.2"
+}
+
+resource "kubectl_manifest" "argocd_app_cert_manager" {
+  count = var.argocd_enable_ingress ? 1 : 0
+
+  yaml_body = templatefile("${path.module}/templates/cert-manager.yaml.tftpl", {
+    argocd_namespace = var.argocd_namespace
+    repo_url         = local.cert_manager_repo
+    target_revision  = local.cert_manager_version
+  })
+
+  depends_on = [helm_release.argocd]
+}
+
+resource "kubectl_manifest" "argocd_app_nginx_ingress" {
+  count = var.argocd_enable_ingress ? 1 : 0
+
+  yaml_body = templatefile("${path.module}/templates/nginx-ingress.yaml.tftpl", {
+    namespace       = var.argocd_namespace
+    acm_arn         = local.final_acm_arn
+    repo_url        = local.nginx_ingress_repo
+    target_revision = local.nginx_ingress_version
+  })
+
+  depends_on = [helm_release.argocd, kubectl_manifest.argocd_app_cert_manager]
+}
+
+resource "kubectl_manifest" "argocd_app_rancher" {
+  count = var.argocd_enable_ingress ? 1 : 0
+
+  yaml_body = templatefile("${path.module}/templates/rancher.yaml.tftpl", {
+    argocd_namespace = var.argocd_namespace
+    rancher_hostname = local.rancher_hostname
+    repo_url         = local.rancher_repo
+    target_revision  = local.rancher_version
+  })
+
+  depends_on = [helm_release.argocd, kubectl_manifest.argocd_app_nginx_ingress] # Wave 2
+}
+*/
+
+# ------------------------------------------------------------------------------
+# Ingress Service Lookup (for Route53 Alias)
+# ------------------------------------------------------------------------------
+# Note: The service uses `depends_on` to wait for Helm release, but typically
+# the LoadBalancer is provisioned asynchronously.
+# On the FIRST apply, this might fail or return empty if not careful.
+# We CANNOT force Terraform to wait for the LB to be provisioned during `apply`.
+# The standard solution is to separate `apply` into two stages or use a specialized
+# wait script/resource.
+# However, to support a single `make apply` logic, we will attempt to look it up
+# only if we think it exists, or just accept that DNS update requires a second apply.
+#
+# ------------------------------------------------------------------------------
+# Ingress Service Lookup: REMOVED
+# - Causes "Invalid count argument" error because `depends_on` makes the result
+#   unknown at plan time.
+# ------------------------------------------------------------------------------
+/*
+data "kubernetes_service" "ingress_nginx" {
+  count = var.argocd_enable_ingress ? 1 : 0
+  metadata {
+    name      = "nginx-ingress-controller"
+    namespace = "ingress-nginx"
+  }
+  depends_on = [helm_release.argocd]
+}
+*/
+
+locals {
+  # Service Managed NLB DNS (Dynamic)
+  # - Disabled service lookup to fix Plan error.
+  service_nlb_dns = null
+
+
+  remote_nlb_dns     = try(data.terraform_remote_state.rke2.outputs.ingress_public_nlb_dns, null)
+  remote_nlb_zone_id = try(data.terraform_remote_state.rke2.outputs.ingress_public_nlb_zone_id, null)
+
+  # NLB Name lookup (Fallback)
+  target_nlb_name = substr("${var.env}-${var.project}-k8s-nlb-ingress", 0, 32)
+}
+
+# AWS LB Data Source Removed
+# We rely on `kubernetes_service` (post-apply) or `remote_state` (pre-existing)
+# The Zone ID is handled via static mapping or remote state.
+
+locals {
+  _nlb_dns_candidates = compact([
+    local.service_nlb_dns,
+    local.remote_nlb_dns
+  ])
+  final_nlb_dns = length(local._nlb_dns_candidates) > 0 ? local._nlb_dns_candidates[0] : ""
+
+  _nlb_zone_candidates = compact([
+    local.service_nlb_dns != null ? "ZWK97P98S7624" : null, # Fixed AZ for APN2 if service DNS exists
+    local.remote_nlb_zone_id
+  ])
+  final_nlb_zone_id = length(local._nlb_zone_candidates) > 0 ? local._nlb_zone_candidates[0] : ""
+
+  can_create_dns_record = local.final_nlb_dns != ""
 }

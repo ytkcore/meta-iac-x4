@@ -28,9 +28,11 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-# Utility: Check if port 6443 is valid
+# Utility: Check if port 6443 is valid and accepting connections
 check_port() {
-    if lsof -i :6443 -sTCP:LISTEN -t >/dev/null ; then
+    # lsof only checks if a process is listening.
+    # nc (netcat) checks if we can actually connect to the port.
+    if nc -z 127.0.0.1 6443; then
         return 0
     else
         return 1
@@ -96,7 +98,7 @@ start_tunnel() {
     
     # Wait for port to open
     echo -n "Waiting for tunnel..."
-    for i in {1..10}; do
+    for i in {1..30}; do
         if check_port; then
             echo -e " ${GREEN}Connected!${NC}"
             return 0
@@ -105,7 +107,7 @@ start_tunnel() {
         echo -n "."
     done
     
-    echo -e " ${RED}Timeout!${NC}"
+    echo -e " ${RED}Timeout! Tunnel process started but port 6443 is not accepting connections.${NC}"
     kill $PID
     rm "${PID_FILE}"
     return 1

@@ -76,13 +76,21 @@ while true; do
   get_input "Enter Base Domain" "unifiedmeta.net" BASE_DOMAIN
   [[ -n "$BASE_DOMAIN" ]] && break
   fail "Base Domain is required"
+  get_input "Enter Base Domain" "unifiedmeta.net" BASE_DOMAIN
+  [[ -n "$BASE_DOMAIN" ]] && break
+  fail "Base Domain is required"
 done
+
+get_input "Enter VPC CIDR" "10.0.0.0/16" VPC_CIDR
 
 get_input "Enter Project Name" "meta" PROJECT
 
 #AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "000000")
 DEFAULT_BUCKET="${ENV}-${PROJECT}-tfstate"
 get_input "Enter S3 State Bucket Name" "${DEFAULT_BUCKET}" STATE_BUCKET
+
+DEFAULT_HARBOR_BUCKET="${ENV}-${PROJECT}-harbor-storage"
+get_input "Enter Harbor S3 Bucket Name" "${DEFAULT_HARBOR_BUCKET}" HARBOR_BUCKET
 
 # Smart SSH Key Detection
 DEFAULT_SSH_KEY="~/.ssh/id_rsa"
@@ -111,6 +119,16 @@ env          = "${ENV}"
 state_bucket     = "${STATE_BUCKET}"
 state_region     = "ap-northeast-2"
 state_key_prefix = "iac"
+
+# -----------------------------------------------------------------------------
+# Network Topology
+# -----------------------------------------------------------------------------
+vpc_cidr = "${VPC_CIDR}"
+
+# -----------------------------------------------------------------------------
+# Harbor Configuration
+# -----------------------------------------------------------------------------
+target_bucket_name = "${HARBOR_BUCKET}"
 
 # -----------------------------------------------------------------------------
 # Optional Overrides (Uncomment to change defaults)

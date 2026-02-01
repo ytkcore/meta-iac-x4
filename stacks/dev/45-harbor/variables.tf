@@ -122,11 +122,13 @@ variable "storage_type" {
 variable "target_bucket_name" {
   description = "S3 bucket name for Harbor storage"
   type        = string
+  default     = null # Will be auto-generated if null
 }
 
 variable "create_bucket" {
   description = "Create S3 bucket"
   type        = bool
+  default     = true
 }
 
 # -----------------------------------------------------------------------------

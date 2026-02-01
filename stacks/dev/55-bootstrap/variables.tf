@@ -286,3 +286,15 @@ variable "argocd_resources" {
     }
   }
 }
+
+variable "enable_public_ingress_nlb" {
+  description = "Ignored variable (legacy from 50-rke2)"
+  type        = bool
+  default     = false
+}
+
+variable "enable_acm_tls_termination" {
+  description = "Ignored variable (legacy from 50-rke2)"
+  type        = bool
+  default     = false
+}

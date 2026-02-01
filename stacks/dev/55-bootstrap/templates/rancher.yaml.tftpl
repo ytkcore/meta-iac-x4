@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: rancher
-  namespace: argocd
+  namespace: ${argocd_namespace}
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
@@ -10,12 +10,12 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://releases.rancher.com/server-charts/stable
-    targetRevision: 2.13.2
+    repoURL: ${repo_url}
+    targetRevision: ${target_revision}
     chart: rancher
     helm:
       values: |
-        hostname: rancher.unifiedmeta.net
+        hostname: ${rancher_hostname}
         replicas: 1
         tls: "external"
         ingress:
@@ -26,7 +26,6 @@ spec:
             nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
             nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"
         
-        # startup probe 설정 추가
         livenessProbe:
           httpGet:
             path: /healthz
@@ -47,8 +46,7 @@ spec:
           successThreshold: 1
           failureThreshold: 3
         
-        # bootstrapPassword 설정 (선택사항)
-        bootstrapPassword: "admin"  # 첫 로그인용 비밀번호
+        bootstrapPassword: "admin"
         
         resources:
           requests:

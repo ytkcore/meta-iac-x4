@@ -44,58 +44,21 @@ locals {
   effective_use_harbor = var.use_harbor || (var.auto_use_harbor_if_state_exists && local.harbor_tfstate_found)
 }
 
-################################################################################
-# ACM auto-discovery (Harbor 방식 + network remote state)
-################################################################################
+# ################################################################################
+# # ACM Configuration (Simplified)
+# # - Manual ARN input or Network stack ARN only.
+# # - Auto-discovery logic removed as it's redundant with 55-bootstrap Ingress.
+# ################################################################################
 
 locals {
   # 네트워크 스택에서 ACM 인증서 ARN 가져오기
   network_acm_certificate_arn = try(data.terraform_remote_state.network.outputs.acm_certificate_arn, null)
 
-  # 조회 도메인 우선순위: acm_cert_domain > acm_cert_search_domain(호환) > "*.<base_domain>"
-  acm_lookup_domain = (
-    var.acm_cert_domain != null ? var.acm_cert_domain :
-    var.acm_cert_search_domain != null ? var.acm_cert_search_domain :
-    var.base_domain != null ? "*.${var.base_domain}" :
-    null
-  )
-}
-
-# ACM 인증서 조회 (조건부)
-# NOTE: data.aws_acm_certificate는 결과가 0개면 "empty result"로 즉시 에러가 납니다.
-# 따라서 아래 조건(스택 ARN/네트워크 output이 모두 없을 때)에서만 lookup을 수행합니다.
-data "aws_acm_certificate" "wildcard" {
-  count = (
-    var.enable_acm_tls_termination &&
-    var.acm_certificate_arn == null &&
-    local.network_acm_certificate_arn == null &&
-    local.acm_lookup_domain != null
-  ) ? 1 : 0
-
-  domain      = local.acm_lookup_domain
-  statuses    = ["ISSUED"]
-  most_recent = true
-}
-
-locals {
-  discovered_acm_certificate_arn = try(data.aws_acm_certificate.wildcard[0].arn, null)
-
-  # 최종 인증서 ARN (스택 변수 > 네트워크 remote state > AWS lookup)
-  effective_acm_certificate_arn = (
-    var.acm_certificate_arn != null ? var.acm_certificate_arn :
-    local.network_acm_certificate_arn != null ? local.network_acm_certificate_arn :
-    local.discovered_acm_certificate_arn
-  )
+  # 최종 인증서 ARN (스택 변수 > 네트워크 remote state)
+  effective_acm_certificate_arn = coalesce(var.acm_certificate_arn, local.network_acm_certificate_arn, "null") == "null" ? null : coalesce(var.acm_certificate_arn, local.network_acm_certificate_arn)
 
   # 디폴트로 ACM 적용을 "시도"하되, ARN을 확보할 수 있을 때만 최종 활성화
   effective_enable_acm_tls_termination = var.enable_acm_tls_termination && (local.effective_acm_certificate_arn != null)
-
-  acm_cert_source = (
-    var.acm_certificate_arn != null ? "stack_var" :
-    local.network_acm_certificate_arn != null ? "network_remote_state" :
-    local.discovered_acm_certificate_arn != null ? "aws_acm_lookup" :
-    "none"
-  )
 }
 
 # Harbor remote state (선택적)

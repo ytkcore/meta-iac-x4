@@ -1,0 +1,79 @@
+global:
+  domain: "${argocd_hostname}"
+
+configs:
+  cm:
+    url: "${argocd_url}"
+
+server:
+  replicas: ${server_replicas}
+  resources:
+    requests:
+      cpu: "${server_req_cpu}"
+      memory: "${server_req_mem}"
+    limits:
+      cpu: "${server_lim_cpu}"
+      memory: "${server_lim_mem}"
+  
+  %{ if server_insecure }
+  extraArgs:
+    - --insecure
+  %{ endif }
+
+  service:
+    type: "${service_type}"
+    %{ if service_nodeport_http != "" }
+    nodePortHttp: ${service_nodeport_http}
+    %{ endif }
+    %{ if service_nodeport_https != "" }
+    nodePortHttps: ${service_nodeport_https}
+    %{ endif }
+
+  ingress:
+    enabled: ${ingress_enabled}
+    %{ if ingress_enabled }
+    ingressClassName: "${ingress_class_name}"
+    hosts:
+      - "${argocd_hostname}"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+      nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    %{ endif }
+
+controller:
+  replicas: ${controller_replicas}
+  resources:
+    requests:
+      cpu: "${controller_req_cpu}"
+      memory: "${controller_req_mem}"
+    limits:
+      cpu: "${controller_lim_cpu}"
+      memory: "${controller_lim_mem}"
+
+repoServer:
+  replicas: ${repo_server_replicas}
+  resources:
+    requests:
+      cpu: "${repo_server_req_cpu}"
+      memory: "${repo_server_req_mem}"
+    limits:
+      cpu: "${repo_server_lim_cpu}"
+      memory: "${repo_server_lim_mem}"
+
+redis:
+  enabled: ${!ha_enabled}
+
+redis-ha:
+  enabled: ${ha_enabled}
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+applicationSet:
+  enabled: true

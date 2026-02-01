@@ -42,20 +42,7 @@ output "acm_certificate_arn" {
 # ACM / Ingress NLB debug outputs
 ################################################################################
 
-output "acm_lookup_domain" {
-  description = "ACM 자동 조회에 사용된 도메인"
-  value       = local.acm_lookup_domain
-}
 
-output "acm_cert_source" {
-  description = "ACM 인증서 ARN 소스 (stack_var / network_remote_state / aws_acm_lookup / none)"
-  value       = local.acm_cert_source
-}
-
-output "discovered_acm_certificate_arn" {
-  description = "AWS ACM lookup으로 발견된 인증서 ARN"
-  value       = local.discovered_acm_certificate_arn
-}
 
 output "effective_acm_certificate_arn" {
   description = "Ingress Public NLB(TLS)에 적용되는 최종 ACM 인증서 ARN"
