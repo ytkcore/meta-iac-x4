@@ -45,9 +45,8 @@ locals {
 }
 
 # ################################################################################
-# # ACM Configuration (Simplified)
-# # - Manual ARN input or Network stack ARN only.
-# # - Auto-discovery logic removed as it's redundant with 55-bootstrap Ingress.
+# # ACM Configuration
+# # - ACM Certificate ARN from Network stack or Var
 # ################################################################################
 
 locals {
@@ -160,7 +159,7 @@ module "rke2" {
   rke2_version        = var.rke2_version
   rke2_token          = var.rke2_token
 
-  # ExternalDNS 정책을 기존 extra_policy_arns에 병합
+  # 외부에서 주입된 추가 정책 ARN (Note: ExternalDNS 등은 별도 리소스로 부착됨)
   extra_policy_arns = var.extra_policy_arns
 
   ami_id    = var.ami_id

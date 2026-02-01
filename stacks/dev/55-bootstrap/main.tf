@@ -243,37 +243,6 @@ resource "helm_release" "argocd" {
 #   to create the NLB and retrieve its hostname in the same `apply` run.
 # - Recommendation: Use ExternalDNS or create DNS records manually after bootstrap.
 # ------------------------------------------------------------------------------
-/*
-resource "aws_route53_record" "argocd" {
-  count = var.enable_route53_argocd_alias && local.argocd_hostname != "" && local.can_create_dns_record ? 1 : 0
-
-  zone_id = var.route53_zone_id != "" ? var.route53_zone_id : data.aws_route53_zone.selected[0].zone_id
-  name    = local.argocd_hostname
-  type    = "A"
-
-  alias {
-    name                   = local.final_nlb_dns
-    zone_id                = local.final_nlb_zone_id
-    evaluate_target_health = true
-  }
-}
-*/
-
-/*
-resource "aws_route53_record" "rancher" {
-  count = var.enable_route53_argocd_alias && local.rancher_hostname != "" && local.can_create_dns_record ? 1 : 0
-
-  zone_id = var.route53_zone_id != "" ? var.route53_zone_id : data.aws_route53_zone.selected[0].zone_id
-  name    = local.rancher_hostname
-  type    = "A"
-
-  alias {
-    name                   = local.final_nlb_dns
-    zone_id                = local.final_nlb_zone_id
-    evaluate_target_health = true
-  }
-}
-*/
 
 
 
@@ -423,65 +392,6 @@ resource "kubernetes_secret" "infra_context" {
 # - Terraform only bootstraps ArgoCD, Repository Secret, and Root App.
 # ------------------------------------------------------------------------------
 
-/*
-locals {
-  # Helm Chart Repositories (Public vs Harbor OCI)
-  # If Harbor OCI is available, pointing to "harbor.domain/helm-charts"
-  # Note: ArgoCD expects OCI repoURL without `oci://` prefix if it's treated as Helm repo,
-  # BUT for OCI registries, standard is `registry/project`.
-  # We use `local.harbor_oci_repo_argocd` which was defined at line 81.
-  
-  # Cert Manager
-  cert_manager_repo    = local.harbor_oci_available ? local.harbor_oci_repo_argocd : "https://charts.jetstack.io"
-  cert_manager_version = "v1.13.3"
-  
-  # Nginx Ingress
-  nginx_ingress_repo    = local.harbor_oci_available ? local.harbor_oci_repo_argocd : "https://kubernetes.github.io/ingress-nginx"
-  nginx_ingress_version = "4.11.3"
-
-  # Rancher
-  rancher_repo    = local.harbor_oci_available ? local.harbor_oci_repo_argocd : "https://releases.rancher.com/server-charts/stable"
-  rancher_version = "2.13.2"
-}
-
-resource "kubectl_manifest" "argocd_app_cert_manager" {
-  count = var.argocd_enable_ingress ? 1 : 0
-
-  yaml_body = templatefile("${path.module}/templates/cert-manager.yaml.tftpl", {
-    argocd_namespace = var.argocd_namespace
-    repo_url         = local.cert_manager_repo
-    target_revision  = local.cert_manager_version
-  })
-
-  depends_on = [helm_release.argocd]
-}
-
-resource "kubectl_manifest" "argocd_app_nginx_ingress" {
-  count = var.argocd_enable_ingress ? 1 : 0
-
-  yaml_body = templatefile("${path.module}/templates/nginx-ingress.yaml.tftpl", {
-    namespace       = var.argocd_namespace
-    acm_arn         = local.final_acm_arn
-    repo_url        = local.nginx_ingress_repo
-    target_revision = local.nginx_ingress_version
-  })
-
-  depends_on = [helm_release.argocd, kubectl_manifest.argocd_app_cert_manager]
-}
-
-resource "kubectl_manifest" "argocd_app_rancher" {
-  count = var.argocd_enable_ingress ? 1 : 0
-
-  yaml_body = templatefile("${path.module}/templates/rancher.yaml.tftpl", {
-    argocd_namespace = var.argocd_namespace
-    rancher_hostname = local.rancher_hostname
-    repo_url         = local.rancher_repo
-    target_revision  = local.rancher_version
-  })
-
-  depends_on = [helm_release.argocd, kubectl_manifest.argocd_app_nginx_ingress] # Wave 2
-}
-*/
 
 # ------------------------------------------------------------------------------
 # Ingress Service Lookup (for Route53 Alias)
@@ -500,46 +410,3 @@ resource "kubectl_manifest" "argocd_app_rancher" {
 # - Causes "Invalid count argument" error because `depends_on` makes the result
 #   unknown at plan time.
 # ------------------------------------------------------------------------------
-/*
-data "kubernetes_service" "ingress_nginx" {
-  count = var.argocd_enable_ingress ? 1 : 0
-  metadata {
-    name      = "nginx-ingress-controller"
-    namespace = "ingress-nginx"
-  }
-  depends_on = [helm_release.argocd]
-}
-*/
-
-locals {
-  # Service Managed NLB DNS (Dynamic)
-  # - Disabled service lookup to fix Plan error.
-  service_nlb_dns = null
-
-
-  remote_nlb_dns     = try(data.terraform_remote_state.rke2.outputs.ingress_public_nlb_dns, null)
-  remote_nlb_zone_id = try(data.terraform_remote_state.rke2.outputs.ingress_public_nlb_zone_id, null)
-
-  # NLB Name lookup (Fallback)
-  target_nlb_name = substr("${var.env}-${var.project}-k8s-nlb-ingress", 0, 32)
-}
-
-# AWS LB Data Source Removed
-# We rely on `kubernetes_service` (post-apply) or `remote_state` (pre-existing)
-# The Zone ID is handled via static mapping or remote state.
-
-locals {
-  _nlb_dns_candidates = compact([
-    local.service_nlb_dns,
-    local.remote_nlb_dns
-  ])
-  final_nlb_dns = length(local._nlb_dns_candidates) > 0 ? local._nlb_dns_candidates[0] : ""
-
-  _nlb_zone_candidates = compact([
-    local.service_nlb_dns != null ? "ZWK97P98S7624" : null, # Fixed AZ for APN2 if service DNS exists
-    local.remote_nlb_zone_id
-  ])
-  final_nlb_zone_id = length(local._nlb_zone_candidates) > 0 ? local._nlb_zone_candidates[0] : ""
-
-  can_create_dns_record = local.final_nlb_dns != ""
-}
