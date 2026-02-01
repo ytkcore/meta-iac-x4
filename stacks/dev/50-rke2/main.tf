@@ -61,6 +61,44 @@ locals {
   effective_enable_acm_tls_termination = var.enable_acm_tls_termination && (local.effective_acm_certificate_arn != null)
 }
 
+# ################################################################################
+# # ExternalDNS Scoped Policy (Global Standard: Least Privilege)
+# # - Allows updating only the specific Hosted Zone (base_domain).
+# # ################################################################################
+
+data "aws_route53_zone" "selected" {
+  count = var.base_domain != "" ? 1 : 0
+  name  = var.base_domain
+}
+
+resource "aws_iam_policy" "external_dns" {
+  count       = var.base_domain != "" ? 1 : 0
+  name        = "${var.env}-${var.project}-external-dns-policy"
+  description = "Scoped permissions for ExternalDNS to manage specific Route53 zone"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["route53:ChangeResourceRecordSets"]
+        Resource = "arn:aws:route53:::hostedzone/${data.aws_route53_zone.selected[0].zone_id}"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["route53:ListHostedZones", "route53:ListResourceRecordSets"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "external_dns" {
+  count      = var.base_domain != "" ? 1 : 0
+  role       = module.rke2.iam_role_name
+  policy_arn = aws_iam_policy.external_dns[0].arn
+}
+
 # Harbor remote state (선택적)
 data "terraform_remote_state" "harbor" {
   count   = local.effective_use_harbor ? 1 : 0
@@ -121,7 +159,9 @@ module "rke2" {
   enable_internal_nlb = var.enable_internal_nlb
   rke2_version        = var.rke2_version
   rke2_token          = var.rke2_token
-  extra_policy_arns   = var.extra_policy_arns
+
+  # ExternalDNS 정책을 기존 extra_policy_arns에 병합
+  extra_policy_arns = var.extra_policy_arns
 
   ami_id    = var.ami_id
   os_family = var.os_family

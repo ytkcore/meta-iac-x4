@@ -57,9 +57,9 @@ data "terraform_remote_state" "harbor" {
   }
 }
 
-# Route53 Hosted Zone 자동 탐색
+# Route53 Hosted Zone 자동 탐색 (ExternalDNS 등에서 참조)
 data "aws_route53_zone" "selected" {
-  count        = var.enable_route53_argocd_alias && var.route53_zone_id == "" ? 1 : 0
+  count        = var.base_domain != "" ? 1 : 0
   name         = "${local.effective_base_domain}."
   private_zone = var.route53_private_zone
 }
@@ -410,6 +410,8 @@ resource "kubernetes_secret" "infra_context" {
     environment         = var.env
     project             = var.project
     region              = var.region
+    # ExternalDNS 등에서 사용할 Zone ID 주입
+    route53_zone_id = var.route53_zone_id != "" ? var.route53_zone_id : try(data.aws_route53_zone.selected[0].zone_id, "")
   }
 
   type = "Opaque"

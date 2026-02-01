@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    chart: external-dns
+    repoURL: https://charts.bitnami.com/bitnami
+    targetRevision: 8.0.0
+    helm:
+      values: |
+        provider: aws
+        aws:
+          region: ap-northeast-2
+          zoneType: public
+        # Scoped IAM Policy가 부착된 Node Role을 사용하므로 별도 IRSA 설정 불필요
+        serviceAccount:
+          create: true
+          name: external-dns
+        domainFilters:
+          - unifiedmeta.net
+        policy: sync
+        txtOwnerId: external-dns-bootstrap
+        interval: 1m
+        logLevel: info
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

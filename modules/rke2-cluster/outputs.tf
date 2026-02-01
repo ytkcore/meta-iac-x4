@@ -69,3 +69,8 @@ output "acm_certificate_arn" {
   description = "사용된 ACM 인증서 ARN (enable_acm_tls_termination=true 일 때)"
   value       = var.enable_acm_tls_termination ? var.acm_certificate_arn : null
 }
+
+output "iam_role_name" {
+  description = "IAM Role name associated with RKE2 nodes"
+  value       = aws_iam_role.nodes.name
+}
