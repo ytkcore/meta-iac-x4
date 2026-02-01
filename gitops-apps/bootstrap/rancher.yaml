@@ -22,6 +22,8 @@ spec:
           enabled: true
           ingressClassName: nginx
           extraAnnotations:
+            nginx.ingress.kubernetes.io/configuration-snippet: |
+              proxy_set_header X-Forwarded-Proto https;
             nginx.ingress.kubernetes.io/proxy-body-size: "0"
             nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
             nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"
