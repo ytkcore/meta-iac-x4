@@ -282,7 +282,7 @@ variable "argocd_resources" {
     }
     repo_server = {
       requests = { cpu = "100m", memory = "128Mi" }
-      limits   = { cpu = "500m", memory = "512Mi" }
+      limits   = { cpu = "500m", memory = "1Gi" }
     }
   }
 }

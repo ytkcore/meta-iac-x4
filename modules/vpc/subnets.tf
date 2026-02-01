@@ -53,7 +53,10 @@ resource "aws_subnet" "this" {
     Name = "${local.subnet_name_prefix}-${each.key}"
     Tier = each.value.tier
     AZ   = each.value.az
-  })
+    },
+    var.kubernetes_cluster_name != "" ? { "kubernetes.io/cluster/${var.kubernetes_cluster_name}" = "shared" } : {},
+    each.value.public ? { "kubernetes.io/role/elb" = "1" } : { "kubernetes.io/role/internal-elb" = "1" }
+  )
 }
 
 # ------------------------------------------------------------------------------

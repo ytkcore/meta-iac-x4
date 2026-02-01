@@ -60,3 +60,9 @@ variable "gateway_services" {
   description = "List of services for Gateway Endpoints."
   default     = ["s3", "dynamodb"]
 }
+
+variable "kubernetes_cluster_name" {
+  type        = string
+  description = "The name of the Kubernetes cluster for cloud-provider tagging. If provided, subnets will be tagged."
+  default     = ""
+}

@@ -61,16 +61,57 @@ RKE2가 `external` 모드로 실행되면 클라우드 관련 컨트롤러 루�
 
 ---
 
-## 4. 검증 (Verification)
 
-1. **노드 ProviderID 확인**:
-   ```bash
-   kubectl get nodes -o custom-columns=NAME:.metadata.name,PROVIDERID:.spec.providerID
-   # 출력 예: aws:///ap-northeast-2a/i-0123456789abcdef0 (값이 있어야 함)
-   ```
+## 4. 주요 트러블슈팅 사례 (Common Issues & Fixes)
 
-2. **LoadBalancer 상태 확인**:
-   ```bash
-   kubectl get svc -n ingress-nginx
-   # EXTERNAL-IP에 AWS DNS 주소(예: *.elb.amazonaws.com)가 할당되어야 함.
-   ```
+이번 통합 과정에서 발생한 주요 문제와 해결 방법입니다.
+
+### 4.1. IAM 권한 부족 (403 UnauthorizedOperation)
+*   **증상**: CCM 파드 로그에 `UnauthorizedOperation: You are not authorized to perform this operation.` 에러 발생.
+*   **원인**: 기본 노드 IAM 역할에 Cloud Controller Manager가 필요로 하는 EC2 및 AutoScaling 조회/수정 권한이 부족함.
+*   **해결**: Terraform `rke2-cluster` 모듈의 IAM 정책(`nodes_elb`)에 다음 권한을 추가해야 함.
+    ```json
+    "autoscaling:DescribeAutoScalingGroups",
+    "autoscaling:DescribeLaunchConfigurations",
+    "autoscaling:DescribeTags",
+    "ec2:DescribeRegions",
+    "ec2:DescribeRouteTables",
+    "ec2:CreateSecurityGroup",
+    "ec2:CreateTags",
+    "ec2:CreateVolume",
+    "ec2:ModifyInstanceAttribute",
+    // ... (기타 EC2/ELB 관련 권한)
+    ```
+
+### 4.2. Taint Deadlock (파드 스케줄링 불가)
+*   **증상**: ArgoCD 및 CCM 파드가 `Pending` 상태로 멈춤. 노드 상태를 확인하면 `node.cloudprovider.kubernetes.io/uninitialized:NoSchedule` Taint가 존재함.
+*   **원인**: RKE2를 `external` 모드로 설정하면 노드는 초기화되지 않은 상태로 시작되며, CCM이 실행되어야만 이 Taint가 제거됨. 하지만 CCM 자체도 파드이므로 노드에 스케줄링되어야 하는데, Taint 때문에 스케줄링되지 못하는 순환 의존성(Deadlock) 발생.
+*   **해결**: 최초 1회, 수동으로 모든 노드의 Taint를 제거하여 CCM이 배포될 수 있도록 함.
+    ```bash
+    kubectl taint nodes --all node.cloudprovider.kubernetes.io/uninitialized-
+    ```
+
+### 4.3. Cluster Name 불일치
+*   **증상**: CCM 파드는 정상 실행 중이나, 노드의 `ProviderID`가 채워지지 않고 로그에 `AWS cloud filtering on ClusterID: ...` 메시지만 반복됨.
+*   **원인**: 인프라(EC2)에 태깅된 클러스터 이름(`kubernetes.io/cluster/<name>`)과 CCM 실행 인자(`--cluster-name`)가 다를 경우, CCM은 자신의 관리 대상 리소스를 식별하지 못함.
+*   **해결**: Terraform 변수(`local.cluster_name`)와 ArgoCD Application의 `helm.values` 내 `--cluster-name` 파라미터를 정확히 일치시킴 (예: `meta-dev-k8s`).
+
+---
+
+## 5. 검증 (Verification)
+
+### 5.1. 노드 ProviderID 확인
+CCM이 정상 동작하면 모든 노드에 `ProviderID`가 주입됩니다.
+```bash
+$ kubectl get nodes -o custom-columns=NAME:.metadata.name,PROVIDERID:.spec.providerID
+NAME                                             PROVIDERID
+ip-10-0-11-153.ap-northeast-2.compute.internal   aws:///ap-northeast-2a/i-0adf471792f2bce55
+```
+
+### 5.2. LoadBalancer 외부 IP 할당 확인
+Ingress Controller 서비스가 AWS ELB 주소를 획득했는지 확인합니다.
+```bash
+$ kubectl get svc -n kube-system rke2-ingress-nginx-controller
+NAME                            TYPE           EXTERNAL-IP                                          PORT(S)
+rke2-ingress-nginx-controller   LoadBalancer   xxxx.elb.ap-northeast-2.amazonaws.com   80:30080/TCP,443:30443/TCP
+```

@@ -1,0 +1,75 @@
+global:
+  domain: "argocd.unifiedmeta.net"
+
+configs:
+  cm:
+    url: "https://argocd.unifiedmeta.net"
+
+server:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  
+  
+  extraArgs:
+    - --insecure
+  
+
+  service:
+    type: "ClusterIP"
+    
+    
+
+  ingress:
+    enabled: true
+    
+    ingressClassName: "nginx"
+    hosts:
+      - "argocd.unifiedmeta.net"
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+      nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    
+
+controller:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+repoServer:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+redis:
+  enabled: true
+
+redis-ha:
+  enabled: false
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+applicationSet:
+  enabled: true

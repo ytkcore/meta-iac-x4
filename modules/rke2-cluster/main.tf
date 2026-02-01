@@ -126,7 +126,28 @@ resource "aws_iam_policy" "nodes_elb" {
           "ec2:DescribeAvailabilityZones",
           "ec2:DescribeTags",
           "acm:DescribeCertificate",
-          "acm:ListCertificates"
+          "acm:ListCertificates",
+          # CCM Required Permissions
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeLaunchConfigurations",
+          "autoscaling:DescribeTags",
+          "ec2:DescribeRegions",
+          "ec2:DescribeRouteTables",
+          "ec2:DescribeVolumes",
+          "ec2:CreateSecurityGroup",
+          "ec2:CreateTags",
+          "ec2:CreateVolume",
+          "ec2:ModifyInstanceAttribute",
+          "ec2:ModifyVolume",
+          "ec2:AttachVolume",
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:CreateRoute",
+          "ec2:DeleteRoute",
+          "ec2:DeleteSecurityGroup",
+          "ec2:DeleteVolume",
+          "ec2:DetachVolume",
+          "ec2:RevokeSecurityGroupIngress",
+          "ec2:DescribeInstanceTopology"
         ]
         Resource = "*"
       }
