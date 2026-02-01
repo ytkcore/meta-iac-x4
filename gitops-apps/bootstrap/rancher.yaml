@@ -17,15 +17,15 @@ spec:
       values: |
         hostname: rancher.unifiedmeta.net
         replicas: 1
-        tls: "external"
+        tls: "ingress"
         ingress:
           enabled: true
           ingressClassName: nginx
+          tls:
+            source: secret
+            secretName: tls-rancher-ingress
           extraAnnotations:
-            nginx.ingress.kubernetes.io/configuration-snippet: |
-              proxy_set_header X-Forwarded-Proto https;
-              proxy_set_header X-Forwarded-Port 443;
-              proxy_set_header X-Forwarded-Host $host;
+            cert-manager.io/cluster-issuer: "letsencrypt-prod"
             nginx.ingress.kubernetes.io/proxy-body-size: "0"
             nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
             nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"
