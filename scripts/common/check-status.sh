@@ -109,82 +109,52 @@ if [[ "$STACK" == "55-bootstrap" ]]; then
         kubectl get ingress -A
     fi
     
-    # Interpretation & Advice
-    echo -e "\n${BOLD}>>> 💡 Interpretation & Required Actions (상태 해석 및 필수 조치)${NC}"
+elif [[ "$STACK" == "60-database" ]]; then
+    echo -e "\n${BOLD}>>> 1. Database Instance Status (From External Local - via SSM)${NC}"
     
-    # 1. Action for Stuck Namespaces
-    if [ -n "$TERMINATING_NS" ]; then
-        echo -e "${RED}[필수 조치] 네임스페이스 삭제 고착 해결 (Stuck Namespace)${NC}"
-        echo -e "  다음 명령어를 실행하여 멈춘 네임스페이스를 강제 정리하세요:"
-        for ns in $TERMINATING_NS; do
-            echo -e "  ${CYAN}kubectl get ns $ns -o json | jq '.spec.finalizers = []' | kubectl replace --raw \"/api/v1/namespaces/$ns/finalize\" -f -${NC}"
-        done
-    fi
+    # Get Instance IDs from Terraform Output
+    OUTPUT_JSON=$(terraform -chdir=stacks/$ENV/$STACK output -json 2>/dev/null || echo "{}")
+    PG_INSTANCE_ID=$(echo "$OUTPUT_JSON" | jq -r '.postgres_instance_id.value // ""')
+    NEO_INSTANCE_ID=$(echo "$OUTPUT_JSON" | jq -r '.neo4j_instance_id.value // ""')
 
-    # 2. Action for Stuck Apps
-    if [ -n "$STUCK_APPS" ]; then
-        echo -e "${RED}[필수 조치] ArgoCD 애플리케이션 삭제 고착 해결 (Stuck Application)${NC}"
-        echo -e "  다음 명령어를 실행하여 멈춘 앱의 Finalizer를 강제 제거하세요:"
-        for app in $STUCK_APPS; do
-            echo -e "  ${CYAN}kubectl patch application $app -n argocd --type merge -p '{\"metadata\":{\"finalizers\":[]}}'${NC}"
-        done
-    fi
+    if [ -z "$PG_INSTANCE_ID" ] || [ "$PG_INSTANCE_ID" == "null" ]; then
+        echo -e "${RED}Error: Could not retrieve Instance IDs. (Terraform output missing)${NC}"
+    else
+        check_instance_status() {
+            local INSTANCE_ID=$1
+            local NAME=$2
+            echo -e "${YELLOW}Checking $NAME ($INSTANCE_ID)...${NC}"
+            
+            # Check SSM Connection
+            SSM_STATUS=$(aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$INSTANCE_ID" --query "InstanceInformationList[0].PingStatus" --output text 2>/dev/null || echo "Unknown")
+            
+            if [ "$SSM_STATUS" == "Online" ]; then
+                 echo -e "${GREEN}✓ SSM Agent Online${NC}"
+                 # Run Docker PS
+                 echo -e "  > Executing 'docker ps' via SSM..."
+                 CMD_ID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" --document-name "AWS-RunShellScript" --parameters 'commands=["docker ps --format \"table {{.Names}}\\t{{.Status}}\\t{{.Ports}}\""]' --query "Command.CommandId" --output text)
+                 
+                 # Wait for result
+                 for i in {1..10}; do
+                    STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query "Status" --output text 2>/dev/null || echo "Pending")
+                    if [[ "$STATUS" == "Success" || "$STATUS" == "Failed" ]]; then
+                        break
+                    fi
+                    echo -n "."
+                    sleep 1
+                 done
+                 echo ""
+                 
+                 aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query "StandardOutputContent" --output text
+            else
+                 echo -e "${RED}⚠ SSM Agent Offline. Status: $SSM_STATUS${NC}"
+                 echo -e "  (인스턴스가 부팅 중이거나, Outbound 인터넷/VPC Endpoint가 없어 SSM 연결이 실패했을 수 있습니다)"
+            fi
+        }
 
-    # 2.1 Action for Webhook Deadlock
-    if [ -n "$WEBHOOK_ERR_APPS" ]; then
-        echo -e "${RED}[필수 조치] 유령 웹후크로 인한 삭제 고착 (Webhook Deadlock)${NC}"
-        echo -e "  삭제된 컨트롤러(Ingress 등)의 ValidatingWebhookConfiguration이 남아있어 삭제가 차단되었습니다."
-        echo -e "  다음 명령어로 범인을 찾아 삭제하세요:"
-        echo -e "  ${CYAN}kubectl get validatingwebhookconfigurations${NC}"
-        echo -e "  ${CYAN}kubectl delete validatingwebhookconfiguration <의심되는-이름>${NC} (예: rke2-ingress-nginx-admission)"
-    fi
-
-    # 3. Action for Unknown Status
-    if echo "$APPS" | grep -q "Unknown"; then
-        echo -e "${YELLOW}[권장 조치] 'Unknown' 상태 감지 (Sync Status Unknown)${NC}"
-        echo -e "  ArgoCD 내부 통신 장애(repo-server 재시작 등)가 의심됩니다."
-        echo -e "  - 1~2분 정도 대기하면 자동으로 해결됩니다."
-        echo -e "  - 만약 지속된다면 'argocd-repo-server'의 메모리 부족(OOM)을 의심해보세요."
-        echo -e "  - 즉시 해결을 원하시면 해당 앱을 'Refresh' 하세요."
-    fi
-
-    # 4. Action for Image Pull Errors
-    IMAGE_PULL_ERRS=$(kubectl get pods -A -o json | jq -r '.items[] | select(.status.containerStatuses[].state.waiting.reason | . == "ImagePullBackOff" or . == "ErrImagePull") | "\(.metadata.namespace)/\(.metadata.name)"' | sort -u || echo "")
-    if [ -n "$IMAGE_PULL_ERRS" ]; then
-        echo -e "${RED}[필수 조치] 이미지 풀링 에러 감지 (Image Pull Error)${NC}"
-        echo -e "  다음 포드들이 이미지를 가져오지 못하고 있습니다:"
-        for pod in $IMAGE_PULL_ERRS; do
-            echo -e "  - ${YELLOW}$pod${NC}"
-        done
-        echo -e "  - 해결책: 이미지 태그가 정확한지, registry(docker.io, public.ecr.aws 등) 주소가 맞는지 확인하세요."
-        echo -e "  - 프라이빗 레지스트리인 경우 ImagePullSecret이 설정되었는지 확인하세요."
-    fi
-
-    # 5. Action for OOMKilled Pods
-    OOM_PODS=$(kubectl get pods -A -o json | jq -r '.items[] | select(.status.containerStatuses[].lastState.terminated.reason == "OOMKilled") | "\(.metadata.namespace)/\(.metadata.name)"' | sort -u || echo "")
-    if [ -n "$OOM_PODS" ]; then
-        echo -e "${RED}[필수 조치] 메모리 부족 종료 감지 (OOMKilled)${NC}"
-        echo -e "  다음 포드들이 메모리 부족으로 인해 재시작되었습니다:"
-        for pod in $OOM_PODS; do
-            echo -e "  - ${YELLOW}$pod${NC}"
-        done
-        echo -e "  - 해결책: Terraform 또는 Helm Values에서 해당 컴포넌트의 'memory limit'을 늘려주세요."
-        echo -e "  - 예: argo-cd의 경우 'repo_server.limits.memory' 값을 1Gi 등으로 상향 조정."
-    fi
-
-    # 4. Action for Apps Sync
-    if [ -z "$TERMINATING_NS" ] && [ -z "$STUCK_APPS" ]; then
-        if echo "$APPS" | grep -q "OutOfSync"; then
-            echo -e "- ${CYAN}정보: ArgoCD가 동기화 중입니다. (일반적으로 2~3분 소요)${NC}"
-        fi
-
-        if echo "$APPS" | grep -q "Missing"; then
-             echo -e "- ${YELLOW}정보: 앱 리소스가 생성 대기 중입니다. 비정상 포드가 없다면 잠시만 기다려 주세요.${NC}"
-        fi
-
-        if ! echo "$APPS" | grep -qE "OutOfSync|Missing|Unknown"; then
-            echo -e "- ${GREEN}상태: 모든 시스템이 안정적입니다. 정상 이용 가능합니다.${NC}"
-        fi
+        check_instance_status "$PG_INSTANCE_ID" "PostgreSQL"
+        echo "---------------------------------------------------"
+        check_instance_status "$NEO_INSTANCE_ID" "Neo4j"
     fi
 
 else

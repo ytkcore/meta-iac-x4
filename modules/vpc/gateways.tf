@@ -79,3 +79,55 @@ resource "aws_vpc_endpoint" "gateway" {
     Service = each.value
   })
 }
+# ------------------------------------------------------------------------------
+# VPC Endpoints (Interface) - Integrated for Foundation Management
+# ------------------------------------------------------------------------------
+
+resource "aws_security_group" "vpce" {
+  count       = var.enable_interface_endpoints ? 1 : 0
+  name        = "${local.base_prefix}-vpce-sg"
+  description = "Security group for VPC Endpoints (HTTPS)"
+  vpc_id      = aws_vpc.this.id
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(local.tags, {
+    Name = "${local.base_prefix}-vpce-sg"
+  })
+}
+
+locals {
+  # Get actual subnet IDs for interface endpoints
+  interface_subnet_ids = flatten([
+    for t in var.interface_subnet_tiers : [
+      for k, v in local.final_subnets : aws_subnet.this[k].id if v.tier == t
+    ]
+  ])
+}
+
+module "endpoints" {
+  source = "../vpc-endpoints"
+  count  = var.enable_interface_endpoints ? 1 : 0
+
+  name                       = "${local.base_prefix}-mgmt"
+  region                     = var.region
+  vpc_id                     = aws_vpc.this.id
+  enable_interface_endpoints = true
+  interface_services         = var.interface_services
+  interface_subnet_ids       = local.interface_subnet_ids
+  security_group_ids         = [aws_security_group.vpce[0].id]
+
+  tags = local.tags
+}

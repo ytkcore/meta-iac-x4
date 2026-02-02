@@ -1,0 +1,102 @@
+#!/bin/bash
+set -e
+
+# Redirect logs
+exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+
+echo ">>> Initializing Database Node (Type: ${db_type})"
+
+# [STANDARD] AL2023 Golden Image already has Docker, AWS CLI, and SSM Agent installed.
+# We only perform configuration here.
+
+# 1. Setup Harbor Registry Mapping
+# Map my-harbor.local to the actual IP of harbor.unifiedmeta.net (Internal)
+HARBOR_REAL_HOST="harbor.unifiedmeta.net"
+HARBOR_IP=$(dig +short $HARBOR_REAL_HOST | tail -n 1)
+
+if [ -n "$HARBOR_IP" ]; then
+    echo "$HARBOR_IP my-harbor.local" >> /etc/hosts
+    echo "✅ Mapped my-harbor.local to $HARBOR_IP"
+else
+    echo "⚠️ Failed to resolve $HARBOR_REAL_HOST. Skipping /etc/hosts mapping."
+fi
+
+# Configure Docker Insecure Registry for my-harbor.local (Fallback if not in Golden Image)
+mkdir -p /etc/docker
+if ! grep -q "my-harbor.local" /etc/docker/daemon.json 2>/dev/null; then
+cat <<EOF > /etc/docker/daemon.json
+{
+  "insecure-registries" : ["my-harbor.local"]
+}
+EOF
+systemctl restart docker
+fi
+
+# 2. Prepare Directory Structure
+mkdir -p /opt/database/config/postgres
+mkdir -p /opt/database/config/neo4j
+
+cd /opt/database
+
+# 3. Inject Files
+cat <<'EOF' > docker-compose.yml
+${compose_yml}
+EOF
+
+cat <<'EOF' > setup.sh
+${setup_sh}
+EOF
+chmod +x setup.sh
+
+%{ if db_type == "postgres" }
+cat <<'EOF' > config/postgres/pg_hba.conf
+${pg_hba_conf}
+EOF
+export POSTGRES_PASSWORD='${db_password}'
+COMPOSE_SERVICE="postgres"
+%{ endif }
+
+%{ if db_type == "neo4j" }
+cat <<'EOF' > config/neo4j/neo4j.conf
+${neo4j_conf}
+EOF
+export NEO4J_PASSWORD='${db_password}'
+COMPOSE_SERVICE="neo4j"
+%{ endif }
+
+# 4. Run Setup
+echo ">>> Starting Service: $COMPOSE_SERVICE"
+
+# Fallback check for image
+if [ "$COMPOSE_SERVICE" == "postgres" ]; then
+    HUB_IMAGE="postgres:17-alpine"
+    LOCAL_IMAGE="my-harbor.local/library/postgres:17-alpine"
+elif [ "$COMPOSE_SERVICE" == "neo4j" ]; then
+    HUB_IMAGE="neo4j:5.26-enterprise"
+    LOCAL_IMAGE="my-harbor.local/library/neo4j:5.26-enterprise"
+fi
+
+echo ">>> Checking image availability..."
+# Try to pull from Harbor. If it fails, pull from Hub (Isolated subnet will fail here, which is expected behavior for security)
+if ! docker pull $LOCAL_IMAGE; then
+    echo "⚠️  Failed to pull from Harbor."
+    if docker image inspect $HUB_IMAGE &>/dev/null; then
+        echo "✅ Found $HUB_IMAGE locally, tagging as $LOCAL_IMAGE"
+        docker tag $HUB_IMAGE $LOCAL_IMAGE
+    else
+        echo "⚠️ Target image not found. If this is an isolated subnet, images must be pre-seeded in the Golden Image or Harbor."
+    fi
+else
+    echo "✅ Image successfully pulled from Harbor."
+fi
+
+# 5. Start Service
+docker compose up -d $COMPOSE_SERVICE
+
+# Wait and Check
+sleep 10
+if docker compose ps $COMPOSE_SERVICE | grep "Up"; then
+  echo "✅ $COMPOSE_SERVICE started successfully."
+else
+  echo "❌ $COMPOSE_SERVICE failed to start."
+fi

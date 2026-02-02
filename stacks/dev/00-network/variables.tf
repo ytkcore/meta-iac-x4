@@ -52,9 +52,29 @@ variable "enable_gateway_endpoints" {
 
 variable "gateway_services" {
   type        = list(string)
-  description = "Gateway endpoint 서비스 목록. 기본값은 [\"s3\",\"dynamodb\"] 입니다."
+  description = "List of services for Gateway Endpoints. 기본값은 [\"s3\",\"dynamodb\"] 입니다."
   default     = ["s3", "dynamodb"]
 }
+
+# [NEW] Interface VPC Endpoints (SSM, etc.)
+variable "enable_interface_endpoints" {
+  type        = bool
+  description = "Interface Endpoint 생성 여부. 기본값 false(비활성화)."
+  default     = false
+}
+
+variable "interface_services" {
+  type        = list(string)
+  description = "Interface endpoint 서비스 목록."
+  default     = ["ssm", "ssmmessages", "ec2messages"]
+}
+
+variable "interface_subnet_tiers" {
+  type        = list(string)
+  description = "인터페이스 엔드포인트가 배치될 서브넷 티어 목록."
+  default     = ["db", "common"]
+}
+
 variable "subnets" {
   description = "Subnet definitions keyed by name."
   type = map(object({

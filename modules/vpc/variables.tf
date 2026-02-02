@@ -61,6 +61,25 @@ variable "gateway_services" {
   default     = ["s3", "dynamodb"]
 }
 
+# Interface VPC Endpoints (SSM, etc.)
+variable "enable_interface_endpoints" {
+  type        = bool
+  description = "If true, create Interface VPC Endpoints for management (SSM)."
+  default     = false
+}
+
+variable "interface_services" {
+  type        = list(string)
+  description = "List of services for Interface Endpoints (e.g. ssm, ssmmessages)."
+  default     = ["ssm", "ssmmessages", "ec2messages"]
+}
+
+variable "interface_subnet_tiers" {
+  type        = list(string)
+  description = "List of subnet tiers where Interface Endpoints will be placed."
+  default     = ["db", "common"]
+}
+
 variable "kubernetes_cluster_name" {
   type        = string
   description = "The name of the Kubernetes cluster for cloud-provider tagging. If provided, subnets will be tagged."

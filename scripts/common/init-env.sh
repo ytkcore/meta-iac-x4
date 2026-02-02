@@ -185,6 +185,14 @@ else
   fi
 fi
 
+# AMI Check (Standardization)
+header 5 "Golden Image Check"
+if [[ -f "${ROOT_DIR}/scripts/common/check-ami.sh" ]]; then
+  bash "${ROOT_DIR}/scripts/common/check-ami.sh"
+else
+  warn "check-ami.sh 스크립트를 찾을 수 없습니다."
+fi
+
 # Summary
 echo -e "\n${BOLD}Init Complete${NC}"
 echo ""

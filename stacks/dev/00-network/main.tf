@@ -20,15 +20,18 @@ locals {
 module "network" {
   source = "../../../modules/vpc"
 
-  env                      = var.env
-  project                  = var.project
-  region                   = var.region
-  vpc_cidr                 = var.vpc_cidr
-  azs                      = var.azs
-  subnets                  = var.subnets
-  enable_nat               = var.enable_nat
-  enable_nat_for_db        = var.enable_nat_for_db
-  enable_gateway_endpoints = var.enable_gateway_endpoints
-  gateway_services         = var.gateway_services
-  kubernetes_cluster_name  = "${var.project}-${var.env}-k8s"
+  env                        = var.env
+  project                    = var.project
+  region                     = var.region
+  vpc_cidr                   = var.vpc_cidr
+  azs                        = var.azs
+  subnets                    = var.subnets
+  enable_nat                 = var.enable_nat
+  enable_nat_for_db          = var.enable_nat_for_db
+  enable_gateway_endpoints   = var.enable_gateway_endpoints
+  gateway_services           = var.gateway_services
+  enable_interface_endpoints = var.enable_interface_endpoints
+  interface_services         = var.interface_services
+  interface_subnet_tiers     = var.interface_subnet_tiers
+  kubernetes_cluster_name    = "${var.project}-${var.env}-k8s"
 }
