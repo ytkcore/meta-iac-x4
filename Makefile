@@ -14,6 +14,12 @@ include makefiles/utils.mk
 init:
 	@scripts/common/init-env.sh
 
+check-ami:
+	@scripts/common/check-ami.sh
+
+packer-build:
+	@aws-vault exec devops -- packer build ami/golden.pkr.hcl
+
 status:
 	@scripts/common/check-status.sh $(ENV) $(STACK)
 

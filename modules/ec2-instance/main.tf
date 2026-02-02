@@ -1,11 +1,11 @@
 # 1. AMI 조회 (Amazon Linux 2023)
-data "aws_ami" "al2023" {
+data "aws_ami" "golden" {
   most_recent = true
-  owners      = ["amazon"]
+  owners      = ["self"]
 
   filter {
-    name   = "name"
-    values = ["al2023-ami-2023.*-x86_64"]
+    name   = "tag:Role"
+    values = ["meta-golden-image"]
   }
 }
 
@@ -13,8 +13,8 @@ locals {
   # Name Format: {env}-{project}-{workload}-{resource}-{suffix}
   name_prefix = "${var.env}-${var.project}-${var.name}"
 
-  # AMI selection
-  final_ami_id = var.ami_id != null ? var.ami_id : data.aws_ami.al2023.id
+  # AMI selection: Override > Golden Image > AL2023 (Fallback)
+  final_ami_id = var.ami_id != null ? var.ami_id : data.aws_ami.golden.id
 }
 
 # 2. IAM Role (기본 신뢰 관계 설정)
@@ -59,7 +59,7 @@ resource "aws_instance" "this" {
 
   vpc_security_group_ids = var.vpc_security_group_ids
   iam_instance_profile   = aws_iam_instance_profile.this.name
-  key_name               = var.key_name
+  key_name               = var.key_name # Standardized to null in Keyless standard
   user_data_base64       = var.user_data_base64 != null ? var.user_data_base64 : (var.user_data != null ? base64encode(var.user_data) : null)
 
   root_block_device {
