@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: external-dns
+  name: external-dns-private
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
@@ -20,15 +20,15 @@ spec:
         provider: aws
         aws:
           region: ap-northeast-2
-          zoneType: public
+          zoneType: private
         # Scoped IAM Policy가 부착된 Node Role을 사용하므로 별도 IRSA 설정 불필요
         serviceAccount:
           create: true
-          name: external-dns
+          name: external-dns-private
         domainFilters:
           - unifiedmeta.net
         policy: sync
-        txtOwnerId: external-dns-bootstrap
+        txtOwnerId: external-dns-private
         interval: 1m
         logLevel: info
   destination:
