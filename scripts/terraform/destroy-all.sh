@@ -80,6 +80,125 @@ for STACK in $REVERSED; do
 done
 
 # -----------------------------------------------------------------------------
+# Cleanup AWS Resources Created Outside Terraform
+# (ExternalDNS records, K8s-provisioned ELBs, orphaned ENIs)
+# -----------------------------------------------------------------------------
+header "Cleanup" "AWS resources created by K8s controllers"
+
+# 1. Delete ELBs in the VPC (created by K8s LoadBalancer services)
+cleanup_elbs() {
+  local vpc_id="$1"
+  if [[ -z "$vpc_id" ]]; then return; fi
+  
+  info "Checking for Load Balancers in VPC $vpc_id..."
+  local elb_arns=$(aws elbv2 describe-load-balancers \
+    --query "LoadBalancers[?VpcId=='$vpc_id'].LoadBalancerArn" \
+    --output text 2>/dev/null)
+  
+  for arn in $elb_arns; do
+    if [[ -n "$arn" && "$arn" != "None" ]]; then
+      info "Deleting ELB: $arn"
+      aws elbv2 delete-load-balancer --load-balancer-arn "$arn" 2>/dev/null && \
+        ok "Deleted ELB" || warn "Failed to delete ELB"
+    fi
+  done
+  
+  # Wait for ENIs to be released (ELB deletion is async)
+  if [[ -n "$elb_arns" && "$elb_arns" != "None" ]]; then
+    info "Waiting 30s for ELB ENIs to be released..."
+    sleep 30
+  fi
+}
+
+# 2. Delete orphaned ENIs (network interfaces not attached to instances)
+cleanup_enis() {
+  local vpc_id="$1"
+  if [[ -z "$vpc_id" ]]; then return; fi
+  
+  info "Checking for orphaned ENIs in VPC $vpc_id..."
+  local eni_ids=$(aws ec2 describe-network-interfaces \
+    --filters "Name=vpc-id,Values=$vpc_id" "Name=status,Values=available" \
+    --query "NetworkInterfaces[].NetworkInterfaceId" \
+    --output text 2>/dev/null)
+  
+  for eni in $eni_ids; do
+    if [[ -n "$eni" && "$eni" != "None" ]]; then
+      info "Deleting orphaned ENI: $eni"
+      aws ec2 delete-network-interface --network-interface-id "$eni" 2>/dev/null && \
+        ok "Deleted ENI $eni" || warn "Failed to delete ENI $eni"
+    fi
+  done
+}
+
+# 3. Delete Route53 records created by ExternalDNS (in private zone)
+cleanup_route53_records() {
+  local zone_id="$1"
+  local domain="$2"
+  if [[ -z "$zone_id" ]]; then return; fi
+  
+  info "Checking for ExternalDNS records in zone $zone_id..."
+  
+  # Get all non-NS/SOA records that were created by external-dns
+  local records_json=$(aws route53 list-resource-record-sets \
+    --hosted-zone-id "$zone_id" \
+    --query "ResourceRecordSets[?Type!='NS' && Type!='SOA']" \
+    --output json 2>/dev/null)
+  
+  if [[ "$records_json" == "[]" || -z "$records_json" ]]; then
+    info "No custom DNS records found"
+    return
+  fi
+  
+  # Build batch delete request
+  local change_batch=$(echo "$records_json" | jq -c '{Changes: [.[] | {Action: "DELETE", ResourceRecordSet: .}]}')
+  
+  if [[ -n "$change_batch" && "$change_batch" != '{"Changes":[]}' ]]; then
+    info "Deleting ExternalDNS records..."
+    echo "$change_batch" > /tmp/dns-cleanup-batch.json
+    aws route53 change-resource-record-sets \
+      --hosted-zone-id "$zone_id" \
+      --change-batch file:///tmp/dns-cleanup-batch.json 2>/dev/null && \
+      ok "Deleted DNS records" || warn "Failed to delete some DNS records"
+    rm -f /tmp/dns-cleanup-batch.json
+  fi
+}
+
+# Get VPC ID from network state (before it's destroyed)
+VPC_ID=""
+ZONE_ID=""
+if [[ -f "$BACKEND_CONFIG" ]]; then
+  STATE_BUCKET=$(get_bucket)
+  STATE_REGION=$(get_region)
+  NETWORK_KEY="${STATE_PREFIX}/${ENV}/00-network.tfstate"
+  
+  # Try to extract VPC ID from state
+  if aws s3api head-object --bucket "$STATE_BUCKET" --key "$NETWORK_KEY" >/dev/null 2>&1; then
+    STATE_JSON=$(aws s3 cp "s3://$STATE_BUCKET/$NETWORK_KEY" - 2>/dev/null)
+    VPC_ID=$(echo "$STATE_JSON" | jq -r '.outputs.vpc_id.value // empty' 2>/dev/null)
+    ZONE_ID=$(echo "$STATE_JSON" | jq -r '.outputs.route53_zone_id.value // empty' 2>/dev/null)
+  fi
+  
+  # Fallback: try to find VPC by tag
+  if [[ -z "$VPC_ID" ]]; then
+    VPC_ID=$(aws ec2 describe-vpcs \
+      --filters "Name=tag:Project,Values=*" "Name=tag:Environment,Values=$ENV" \
+      --query "Vpcs[0].VpcId" --output text 2>/dev/null)
+    [[ "$VPC_ID" == "None" ]] && VPC_ID=""
+  fi
+fi
+
+if [[ -n "$VPC_ID" ]]; then
+  info "Found VPC: $VPC_ID"
+  cleanup_elbs "$VPC_ID"
+  cleanup_enis "$VPC_ID"
+fi
+
+if [[ -n "$ZONE_ID" ]]; then
+  info "Found Route53 Zone: $ZONE_ID"
+  cleanup_route53_records "$ZONE_ID"
+fi
+
+# -----------------------------------------------------------------------------
 # Destroy Backend
 # -----------------------------------------------------------------------------
 header "Final" "Destroying S3 Backend Bucket"

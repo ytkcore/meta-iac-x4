@@ -15,6 +15,14 @@ locals {
 
   # AMI selection: Override > Golden Image > AL2023 (Fallback)
   final_ami_id = var.ami_id != null ? var.ami_id : data.aws_ami.golden.id
+
+  # Common tags for all resources in this module
+  common_tags = {
+    Name        = local.name_prefix
+    Project     = var.project
+    Environment = var.env
+    ManagedBy   = "terraform"
+  }
 }
 
 # 2. IAM Role (기본 신뢰 관계 설정)
@@ -34,15 +42,18 @@ resource "aws_iam_role" "this" {
     ]
   })
 
-  tags = {
-    Name        = "${local.name_prefix}-role"
-    Environment = var.env
-  }
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-role"
+  })
 }
 
 resource "aws_iam_instance_profile" "this" {
   name = "${local.name_prefix}-profile"
   role = aws_iam_role.this.name
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-profile"
+  })
 }
 
 # [필수] SSM 접속을 위한 기본 정책 연결
@@ -68,11 +79,9 @@ resource "aws_instance" "this" {
     encrypted   = true
   }
 
-  tags = {
-    Name        = "${local.name_prefix}-ec2"
-    Environment = var.env
-    ManagedBy   = "terraform"
-  }
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-ec2"
+  })
 
   lifecycle {
     ignore_changes = [ami, user_data, user_data_base64]
