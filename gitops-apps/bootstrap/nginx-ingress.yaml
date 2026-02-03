@@ -18,6 +18,7 @@ spec:
         controller:
           publishService:
             enabled: true
+            pathOverride: "ingress-nginx/nginx-ingress-ingress-nginx-controller"
           service:
             type: LoadBalancer
             annotations:
