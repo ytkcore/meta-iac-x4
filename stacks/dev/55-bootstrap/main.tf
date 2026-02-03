@@ -35,12 +35,21 @@ data "terraform_remote_state" "rke2" {
   }
 }
 
+data "terraform_remote_state" "network" {
+  backend = "s3"
+  config = {
+    bucket = var.state_bucket
+    region = var.state_region
+    key    = "${var.state_key_prefix}/${var.env}/00-network.tfstate"
+  }
+}
+
 # ------------------------------------------------------------------------------
 # Remote State: Harbor (Optional)
 # ------------------------------------------------------------------------------
 data "aws_s3_objects" "harbor_tfstate" {
   bucket = var.state_bucket
-  prefix = "${var.state_key_prefix}/${var.env}/45-harbor.tfstate"
+  prefix = "${var.state_key_prefix}/${var.env}/40-harbor.tfstate"
 }
 
 locals {
@@ -53,7 +62,7 @@ data "terraform_remote_state" "harbor" {
   config = {
     bucket = var.state_bucket
     region = var.state_region
-    key    = "${var.state_key_prefix}/${var.env}/45-harbor.tfstate"
+    key    = "${var.state_key_prefix}/${var.env}/40-harbor.tfstate"
   }
 }
 
@@ -135,11 +144,6 @@ provider "helm" {
   kubernetes {
     config_path    = var.kubeconfig_path
     config_context = var.kubeconfig_context
-  }
-
-  # OCI 레지스트리 사용 시 실험적 기능 활성화
-  experiments {
-    manifest = true
   }
 }
 
@@ -319,6 +323,29 @@ resource "kubectl_manifest" "argocd_root_app" {
     kubernetes_secret.argocd_repo_creds
   ]
 }
+
+# [Enhancement] Graceful Cleanup Hook
+# Ensures child resources (ELBs, SGs) and blocking webhooks are removed BEFORE destruction.
+# Note: Destroy-time provisioners cannot reference external variables directly.
+# We use triggers to capture the required values.
+resource "null_resource" "graceful_cleanup" {
+  count = var.enable_gitops_apps ? 1 : 0
+
+  triggers = {
+    kubeconfig_path = pathexpand(coalesce(var.kubeconfig_path, "~/.kube/config-rke2-dev"))
+    cleanup_script  = "${path.module}/../../../scripts/kubernetes/graceful-cleanup.sh"
+  }
+
+  provisioner "local-exec" {
+    when       = destroy
+    command    = "${self.triggers.cleanup_script} ${self.triggers.kubeconfig_path}"
+    on_failure = continue
+  }
+
+  depends_on = [
+    kubectl_manifest.argocd_root_app
+  ]
+}
 # ------------------------------------------------------------------------------
 # Auto-discovery of ACM Certificate
 # ------------------------------------------------------------------------------
@@ -347,10 +374,9 @@ locals {
   # Final ACM ARN Resolution:
   # 1. 50-rke2 (Network/Var) - Primary source
   # 2. AWS Lookup (Discovery) - Secondary source
-  final_acm_arn = coalesce(
-    try(data.terraform_remote_state.rke2.outputs.effective_acm_certificate_arn, null),
-    try(data.aws_acm_certificate.wildcard[0].arn, null),
-    ""
+  final_acm_arn = (
+    try(data.terraform_remote_state.rke2.outputs.effective_acm_certificate_arn, "") != "" ? data.terraform_remote_state.rke2.outputs.effective_acm_certificate_arn :
+    try(data.aws_acm_certificate.wildcard[0].arn, "")
   )
 }
 
@@ -379,8 +405,11 @@ resource "kubernetes_secret" "infra_context" {
     environment         = var.env
     project             = var.project
     region              = var.region
-    # ExternalDNS 등에서 사용할 Zone ID 주입
-    route53_zone_id = var.route53_zone_id != "" ? var.route53_zone_id : try(data.aws_route53_zone.selected[0].zone_id, "")
+    route53_zone_id = (
+      var.route53_zone_id != "" ? var.route53_zone_id :
+      try(data.terraform_remote_state.network.outputs.route53_zone_id, "") != "" ? data.terraform_remote_state.network.outputs.route53_zone_id :
+      try(data.aws_route53_zone.selected[0].zone_id, "")
+    )
   }
 
   type = "Opaque"

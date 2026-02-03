@@ -13,7 +13,12 @@ IS_TUNNEL_STACK = $(if $(filter $(STACK),$(NEED_TUNNEL_STACKS)),true,false)
 kubeconfig-check:
 	@if [ "$(IS_TUNNEL_STACK)" = "true" ]; then \
 		echo "Checking Kubeconfig for $(STACK)..."; \
-		./scripts/rke2/get-kubeconfig.sh; \
+		./scripts/rke2/get-kubeconfig.sh || \
+		(if [[ "$(MAKECMDGOALS)" =~ "destroy" ]]; then \
+			echo "Warning: Cluster unreachable. Proceeding with destroy because cluster might be already gone."; \
+		else \
+			exit 1; \
+		fi); \
 	fi
 
 tunnel-check: kubeconfig-check

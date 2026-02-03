@@ -53,6 +53,18 @@ variable "allow_ssh_cidrs" {
   default     = []
 }
 
+variable "additional_ingress_sg_ids" {
+  description = "Additional Security Group IDs allowed to access Harbor (e.g., K8s Client SG)"
+  type        = list(string)
+  default     = []
+}
+
+variable "allowed_inbound_cidrs" {
+  description = "CIDR blocks allowed to access Harbor directly (default: 0.0.0.0/0)"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 variable "root_volume_size" {
   description = "Root EBS volume size in GB (Harbor needs space for images)"
   type        = number

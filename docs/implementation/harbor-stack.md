@@ -1,6 +1,6 @@
 # Harbor Stack Implementation Details
 
-This document outlines the architectural decisions and configuration details for the Harbor registry stack (`45-harbor`).
+This document outlines the architectural decisions and configuration details for the Harbor registry stack (`40-harbor`).
 
 ## Architecture
 

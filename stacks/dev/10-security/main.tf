@@ -20,17 +20,20 @@ data "terraform_remote_state" "network" {
 }
 
 locals {
+  workload_name = "security"
+  final_name    = coalesce(var.name, "${var.env}-${var.project}-${local.workload_name}")
   tags = merge(var.tags, {
     Environment = var.env
     Project     = var.project
+    ManagedBy   = "terraform"
   })
 }
 
 module "security_groups" {
   source   = "../../../modules/security-groups"
-  name     = var.name
-  vpc_id   = data.terraform_remote_state.network.outputs.vpc_id
-  vpc_cidr = data.terraform_remote_state.network.outputs.vpc_cidr
+  name     = local.final_name
+  vpc_id   = try(data.terraform_remote_state.network.outputs.vpc_id, "")
+  vpc_cidr = try(data.terraform_remote_state.network.outputs.vpc_cidr, "")
 
   admin_cidrs      = var.admin_cidrs
   lb_ingress_cidrs = var.lb_ingress_cidrs

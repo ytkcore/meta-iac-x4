@@ -1,5 +1,6 @@
 variable "region" {
-  type = string
+  type    = string
+  default = "ap-northeast-2"
 }
 variable "env" {
   type = string
@@ -8,10 +9,12 @@ variable "project" {
   type = string
 }
 variable "name" {
-  type = string
+  type    = string
+  default = null
 }
 variable "tags" {
-  type = map(string)
+  type    = map(string)
+  default = {}
 }
 
 variable "state_bucket" {

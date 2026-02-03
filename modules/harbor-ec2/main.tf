@@ -47,7 +47,7 @@ resource "aws_security_group" "harbor" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.allowed_inbound_cidrs
   }
 
   dynamic "ingress" {
@@ -57,7 +57,7 @@ resource "aws_security_group" "harbor" {
       from_port   = 443
       to_port     = 443
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      cidr_blocks = var.allowed_inbound_cidrs
     }
   }
 
@@ -235,6 +235,32 @@ resource "aws_security_group_rule" "harbor_from_alb" {
   security_group_id        = aws_security_group.harbor.id
   source_security_group_id = aws_security_group.alb[0].id
   description              = "Allow HTTP from ALB"
+}
+
+# Allow HTTP from additional SGs (e.g., K8s Client SG)
+resource "aws_security_group_rule" "harbor_from_additional_sgs" {
+  for_each = toset(var.additional_ingress_sg_ids)
+
+  type                     = "ingress"
+  from_port                = 80
+  to_port                  = 80
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.harbor.id
+  source_security_group_id = each.value
+  description              = "Allow HTTP from additional security group"
+}
+
+# Allow HTTPS from additional SGs (only if TLS is enabled)
+resource "aws_security_group_rule" "harbor_https_from_additional_sgs" {
+  for_each = var.enable_tls ? toset(var.additional_ingress_sg_ids) : []
+
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.harbor.id
+  source_security_group_id = each.value
+  description              = "Allow HTTPS from additional security group"
 }
 
 resource "aws_lb" "harbor" {

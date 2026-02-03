@@ -21,3 +21,18 @@ output "breakglass_ssh_sg_id" {
   description = "Security group id for break-glass SSH (no inbound by default)."
   value       = aws_security_group.breakglass_ssh.id
 }
+
+output "k8s_client_sg_id" {
+  description = "Logical security group id for K8s nodes."
+  value       = aws_security_group.k8s_client.id
+}
+
+output "ops_client_sg_id" {
+  description = "Logical security group id for OPs tools."
+  value       = aws_security_group.ops_client.id
+}
+
+output "monitoring_client_sg_id" {
+  description = "Logical security group id for Monitoring tools."
+  value       = aws_security_group.monitoring_client.id
+}

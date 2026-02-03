@@ -116,3 +116,38 @@ variable "base_domain" {
     error_message = "도메인 형식은 소문자, 숫자, 점(.), 하이픈(-)만 허용됩니다."
   }
 }
+
+variable "enable_gitops_apps" {
+  type    = bool
+  default = false
+}
+
+variable "gitops_apps_path" {
+  type    = string
+  default = ""
+}
+
+variable "gitops_repo_url" {
+  type    = string
+  default = ""
+}
+
+variable "gitops_ssh_key_path" {
+  type    = string
+  default = ""
+}
+
+variable "target_bucket_name" {
+  type    = string
+  default = ""
+}
+
+variable "longhorn_backup_bucket" {
+  type    = string
+  default = ""
+}
+
+variable "tags" {
+  type    = map(string)
+  default = {}
+}

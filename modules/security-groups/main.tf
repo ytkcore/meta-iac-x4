@@ -90,14 +90,7 @@ resource "aws_security_group" "k8s_cp" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  # etcd only from control-plane SG
-  ingress {
-    description     = "etcd"
-    from_port       = 2379
-    to_port         = 2380
-    protocol        = "tcp"
-    security_groups = [aws_security_group.k8s_cp.id]
-  }
+  # etcd: Moved to separate rule to avoid self-reference error
 
   # kubelet (from workers or cp)
   ingress {
@@ -147,7 +140,7 @@ resource "aws_security_group" "k8s_worker" {
   dynamic "ingress" {
     for_each = toset(var.lb_to_worker_tcp_ports)
     content {
-      description     = "LB -> worker tcp ${ingress.value}"
+      description     = "LB to worker tcp ${ingress.value}"
       from_port       = ingress.value
       to_port         = ingress.value
       protocol        = "tcp"
@@ -239,4 +232,44 @@ resource "aws_security_group" "vpce" {
   }
 
   tags = merge(var.tags, { Name = "${var.name}-vpce" })
+}
+
+# K8s Client (Logical) - No rules, just for identity
+resource "aws_security_group" "k8s_client" {
+  name        = "${var.name}-k8s-client"
+  description = "Logical SG for K8s nodes (identity-only)"
+  vpc_id      = var.vpc_id
+
+  # No ingress/egress rules - this SG is a 'tag' for traffic identification.
+
+  tags = merge(var.tags, { Name = "${var.name}-k8s-client" })
+}
+
+# Operations Client (Logical) - For Bastion/CI/CD
+resource "aws_security_group" "ops_client" {
+  name        = "${var.name}-ops-client"
+  description = "Logical SG for OPs/Admin tools (identity-only)"
+  vpc_id      = var.vpc_id
+  tags        = merge(var.tags, { Name = "${var.name}-ops-client" })
+}
+
+# Monitoring Client (Logical) - For Exporters/Prometheus scraping
+resource "aws_security_group" "monitoring_client" {
+  name        = "${var.name}-monitoring-client"
+  description = "Logical SG for Monitoring exporters (identity-only)"
+  vpc_id      = var.vpc_id
+  tags        = merge(var.tags, { Name = "${var.name}-monitoring-client" })
+}
+
+# ------------------------------------------------------------------------------
+# Separated rules for self-reference
+# ------------------------------------------------------------------------------
+resource "aws_security_group_rule" "k8s_cp_etcd_self" {
+  type                     = "ingress"
+  description              = "etcd self-reference"
+  from_port                = 2379
+  to_port                  = 2380
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.k8s_cp.id
+  source_security_group_id = aws_security_group.k8s_cp.id
 }

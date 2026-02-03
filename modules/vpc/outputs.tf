@@ -23,6 +23,16 @@ output "subnet_ids_by_tier" {
   }
 }
 
+output "subnet_cidrs_by_tier" {
+  description = "Map of subnet CIDR blocks grouped by tier"
+  value = {
+    for tier in distinct([for v in local.final_subnets : v.tier]) :
+    tier => [
+      for k, v in local.final_subnets : aws_subnet.this[k].cidr_block if v.tier == tier
+    ]
+  }
+}
+
 output "nat_gateway_id_by_az" {
   description = "Map of NAT Gateway IDs keyed by AZ"
   value       = { for k, v in aws_nat_gateway.this : k => v.id }
@@ -55,4 +65,9 @@ output "all_route_table_ids" {
 output "gateway_vpc_endpoint_ids" {
   description = "Map of Gateway VPC Endpoint IDs keyed by service name"
   value       = { for k, v in aws_vpc_endpoint.gateway : k => v.id }
+}
+
+output "route53_zone_id" {
+  description = "The ID of the created Route53 Private Hosted Zone."
+  value       = try(aws_route53_zone.private[0].zone_id, "")
 }

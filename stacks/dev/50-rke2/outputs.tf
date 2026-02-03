@@ -78,3 +78,8 @@ output "harbor_registry_hostport_effective" {
   description = "최종 적용된 Harbor registry host:port"
   value       = local.harbor_registry_hostport
 }
+
+output "iam_role_name" {
+  description = "RKE2 노드 IAM Role 이름"
+  value       = module.rke2.iam_role_name
+}

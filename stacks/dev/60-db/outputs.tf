@@ -1,11 +1,5 @@
-output "postgres_mode" {
-  value = var.postgres_mode
-}
-
-output "postgres_endpoint" {
-  value = var.postgres_mode == "self" ? try(module.postgres[0].private_ip, null) : (
-    var.postgres_mode == "rds" ? try(aws_db_instance.postgres[0].address, null) : try(aws_rds_cluster.aurora[0].endpoint, null)
-  )
+output "postgres_private_ip" {
+  value = module.postgres.private_ip
 }
 
 output "postgres_port" {

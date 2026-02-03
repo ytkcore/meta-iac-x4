@@ -34,4 +34,6 @@ module "network" {
   interface_services         = var.interface_services
   interface_subnet_tiers     = var.interface_subnet_tiers
   kubernetes_cluster_name    = "${var.project}-${var.env}-k8s"
+  base_domain                = var.base_domain
+  tags                       = var.tags
 }

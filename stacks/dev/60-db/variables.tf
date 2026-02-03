@@ -32,6 +32,7 @@ variable "state_key_prefix" {
 
 variable "azs" {
   type        = list(string)
+  default     = ["ap-northeast-2a", "ap-northeast-2c"]
   description = "Multi-AZ list (e.g., [\"ap-northeast-2a\",\"ap-northeast-2c\"])."
 }
 
@@ -104,40 +105,11 @@ variable "neo4j_password" {
 
 variable "require_rke2_state" {
   type        = bool
-  default     = true
-  description = "If true, this stack requires 50-rke2 state to exist to restrict DB ingress from node SG."
+  default     = false
+  description = "Deprecated: Now uses static k8s_client SG from 10-security. Default: false."
 }
 
-# Managed Postgres (RDS/Aurora) settings
-variable "rds_instance_class" {
-  type        = string
-  default     = "db.t4g.micro"
-  description = "RDS instance class when postgres_mode=rds."
-}
-
-variable "rds_engine_version" {
-  type        = string
-  default     = "18.1"
-  description = "RDS PostgreSQL engine version when postgres_mode=rds."
-}
-
-variable "aurora_engine_version" {
-  type        = string
-  default     = "17.7"
-  description = "Aurora PostgreSQL engine version when postgres_mode=aurora."
-}
-
-variable "aurora_instance_class" {
-  type        = string
-  default     = "db.t4g.medium"
-  description = "Aurora instance class for the single writer instance."
-}
-
-variable "backup_retention_days" {
-  type        = number
-  default     = 1
-  description = "Backup retention days for managed DB (dev-friendly default: 1)."
-}
+# Managed Postgres (RDS/Aurora) settings - REMOVED for Consolidation
 
 # [NEW] base_domain (global variable compatibility)
 variable "base_domain" {
@@ -146,7 +118,7 @@ variable "base_domain" {
   default     = null
 
   validation {
-    condition     = can(regex("^[a-z0-9.-]+$", var.base_domain))
+    condition     = var.base_domain == null || var.base_domain == "" || can(regex("^[a-z0-9.-]+$", var.base_domain))
     error_message = "도메인 형식은 소문자, 숫자, 점(.), 하이픈(-)만 허용됩니다."
   }
 }

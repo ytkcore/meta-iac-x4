@@ -85,3 +85,15 @@ variable "kubernetes_cluster_name" {
   description = "The name of the Kubernetes cluster for cloud-provider tagging. If provided, subnets will be tagged."
   default     = ""
 }
+
+variable "base_domain" {
+  type        = string
+  description = "The base domain for the Private Hosted Zone. (e.g. example.com)"
+  default     = ""
+}
+
+variable "tags" {
+  type        = map(string)
+  description = "A map of tags to add to all resources"
+  default     = {}
+}

@@ -22,24 +22,40 @@ init-upgrade: versions-gen
 .PHONY: plan apply apply-auto destroy refresh
 
 plan: tf-init tunnel-check
+	@bash scripts/common/log-op.sh "PLAN" "$(STACK)" "$(ENV)"
 	@$(TF_STACK) plan $(TF_VAR_FILES) $(TF_OPTS)
 
 apply: tf-init tunnel-check
+	@bash scripts/common/log-op.sh "APPLY" "$(STACK)" "$(ENV)"
 	@$(TF_STACK) apply $(TF_VAR_FILES) $(TF_OPTS)
+	@if [ "$(STACK)" = "00-network" ]; then \
+		$(MAKE) build-ami; \
+	fi
 
 apply-auto: tf-init tunnel-check
+	@bash scripts/common/log-op.sh "APPLY-AUTO" "$(STACK)" "$(ENV)"
 	@$(TF_STACK) apply -auto-approve $(TF_VAR_FILES) $(TF_OPTS)
+	@if [ "$(STACK)" = "00-network" ]; then \
+		$(MAKE) build-ami; \
+	fi
 
 destroy: tf-init tunnel-check
+	@bash scripts/common/log-op.sh "DESTROY" "$(STACK)" "$(ENV)"
 	@bash scripts/terraform/pre-destroy-hook.sh "$(STACK)"
 	@$(TF_STACK) destroy $(TF_VAR_FILES) $(TF_OPTS)
 
 refresh: tf-init tunnel-check
+	@bash scripts/common/log-op.sh "REFRESH" "$(STACK)" "$(ENV)"
 	@$(TF_STACK) apply -refresh-only $(TF_VAR_FILES) $(TF_OPTS)
 
 # -----------------------------------------------------------------------------
-# Import Resources (Recovery / Adoption)
+# Import / Adoption (Native 1.5+ Transition)
 # -----------------------------------------------------------------------------
 import: tf-init
-	@./scripts/terraform/import-stack.sh $(STACK) "$(TF_VAR_FILES)"
-	@$(MAKE) plan STACK=$(STACK)
+	@bash scripts/terraform/generate-imports.sh $(STACK) $(ENV)
+	@$(TF_STACK) plan $(TF_VAR_FILES) $(TF_OPTS)
+	@echo ""
+	@echo "⚠️  [IMPORTANT] Native imports detected in plan."
+	@echo "   If the plan looks correct (Adopting X resources), please run:"
+	@echo "   make apply STACK=$(STACK) ENV=$(ENV)"
+	@echo ""

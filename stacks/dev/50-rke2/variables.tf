@@ -119,7 +119,7 @@ variable "use_harbor" {
 }
 
 variable "auto_use_harbor_if_state_exists" {
-  description = "45-harbor.tfstate가 존재하면 Harbor 연동을 자동 활성화"
+  description = "40-harbor.tfstate가 존재하면 Harbor 연동을 자동 활성화"
   type        = bool
   default     = true
 }
@@ -207,18 +207,6 @@ variable "base_domain" {
   }
 }
 
-variable "acm_cert_domain" {
-  description = "ACM 자동 조회 도메인(하버 방식). 예: '*.dev.example.com'. 지정 시 base_domain보다 우선합니다."
-  type        = string
-  default     = null
-}
-
-# 호환용(이전 명칭)
-variable "acm_cert_search_domain" {
-  description = "ACM 자동 조회 도메인(호환용). acm_cert_domain이 없을 때 사용됩니다."
-  type        = string
-  default     = null
-}
 variable "acm_ssl_policy" {
   description = "NLB TLS 리스너에 적용할 SSL 정책"
   type        = string

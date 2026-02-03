@@ -16,8 +16,8 @@
 1. **모듈/리소스 간 참조를 명확히**
    - 예: `routing`이 `vpc_id`, `igw_id`, `nat_gateway_id_by_az` 등을 입력으로 받게 하여, Terraform 그래프가 자동으로 순서를 잡도록 함
 2. **스택을 기반→확장 순서로 분리**
-   - `00-network` → `10-security` → `20-endpoints` → `30-db` → `40-bastion
-45-harbor`
+   - `00-network` → `10-security` → `20-endpoints` → `30-db` → `30-bastion
+40-harbor`
 3. **시각화/리뷰로 “순서 예측 가능성” 확보**
    - `make graph`, `make plan-json` 활용
 4. 정말 필요할 때만 `depends_on`

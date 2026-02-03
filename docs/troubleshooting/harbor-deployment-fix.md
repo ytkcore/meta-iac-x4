@@ -5,7 +5,7 @@ This log documents the resolution of deployment issues encountered during the Ha
 ## Issue 1: ALB Subnet Discovery Failure
 - **Symptom:** `ValidationError: At least two subnets ... must be specified`
 - **Root Cause:** The `aws_subnets` filter was looking for `tag:Name = *public*`. The subnet naming convention had changed to use `-pub-` (e.g., `dev-meta-snet-pub-a`).
-- **Resolution:** Updated the filter in `stacks/dev/45-harbor/main.tf`:
+- **Resolution:** Updated the filter in `stacks/dev/40-harbor/main.tf`:
   ```hcl
   filter {
     name   = "tag:Name"
@@ -31,5 +31,5 @@ This log documents the resolution of deployment issues encountered during the Ha
 
 ## Verification
 The deployment was successfully verified with:
-- `make apply STACK=45-harbor`
+- `make apply STACK=40-harbor`
 - Health check of Harbor endpoint: `https://harbor.unifiedmeta.net`

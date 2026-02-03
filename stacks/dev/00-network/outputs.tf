@@ -11,6 +11,9 @@ output "subnet_ids" {
 output "subnet_ids_by_tier" {
   value = module.network.subnet_ids_by_tier
 }
+output "subnet_cidrs_by_tier" {
+  value = module.network.subnet_cidrs_by_tier
+}
 
 output "nat_gateway_id_by_az" {
   value = module.network.nat_gateway_id_by_az
@@ -31,4 +34,14 @@ output "all_route_table_ids" {
 
 output "gateway_vpc_endpoint_ids" {
   value = module.network.gateway_vpc_endpoint_ids
+}
+
+output "route53_zone_id" {
+  value       = module.network.route53_zone_id
+  description = "The ID of the created Route53 Private Hosted Zone."
+}
+
+output "base_domain" {
+  value       = var.base_domain
+  description = "The base domain used for the environment."
 }

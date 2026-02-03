@@ -183,7 +183,7 @@ variable "base_domain" {
   default     = ""
 
   validation {
-    condition     = can(regex("^[a-z0-9.-]+$", var.base_domain))
+    condition     = var.base_domain == "" || can(regex("^[a-z0-9.-]+$", var.base_domain))
     error_message = "도메인 형식은 소문자, 숫자, 점(.), 하이픈(-)만 허용됩니다."
   }
 }

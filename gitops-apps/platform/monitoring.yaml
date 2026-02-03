@@ -20,45 +20,50 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
-    # 배포 순서: 스토리지(Longhorn) 이후
     argocd.argoproj.io/sync-wave: "30"
+    # [UX] Deep Links (Sibling Domains)
+    link.argocd.argoproj.io/external-link: "https://grafana.unifiedmeta.net"
+    link.argocd.argoproj.io/prometheus: "https://prometheus.unifiedmeta.net"
+    link.argocd.argoproj.io/alertmanager: "https://alertmanager.unifiedmeta.net"
 spec:
   project: default
-  
   source:
     repoURL: https://prometheus-community.github.io/helm-charts
     chart: kube-prometheus-stack
     targetRevision: "65.1.0"
     helm:
       releaseName: monitoring
-      # CRD 설치 스킵 옵션 (ArgoCD 호환성)
       skipCrds: false
       valuesObject:
-        # ====================================================================
-        # 전역 설정
-        # ====================================================================
         fullnameOverride: monitoring
         
         # ====================================================================
-        # Prometheus
+        # 1. Prometheus (Performance & Stability)
         # ====================================================================
         prometheus:
           enabled: true
           prometheusSpec:
             replicas: 1
+            # [Optimization] Critical: Reduce I/O load on Longhorn
+            walCompression: true
             retention: 15d
-            retentionSize: "10GB"
+            retentionSize: "20Gi"
             
-            # 리소스
+            # [QoS] High Memory Request to prevent OOM
             resources:
               requests:
-                cpu: 200m
-                memory: 512Mi
+                cpu: 500m
+                memory: 1Gi
               limits:
                 cpu: 1000m
                 memory: 2Gi
             
-            # 스토리지 (Longhorn PVC)
+            # [Resiliency] Safe Drain Strategy
+            podDisruptionBudget:
+              enabled: true
+              minAvailable: 1
+            
+            # [Storage] Cloud Agnostic Persistence
             storageSpec:
               volumeClaimTemplate:
                 spec:
@@ -68,73 +73,19 @@ spec:
                     requests:
                       storage: 20Gi
             
-            # ServiceMonitor 선택자
             serviceMonitorSelectorNilUsesHelmValues: false
             podMonitorSelectorNilUsesHelmValues: false
-        
+
         # ====================================================================
-        # Grafana
-        # ====================================================================
-        grafana:
-          enabled: true
-          replicas: 1
-          
-          # 관리자 비밀번호 (변경 필요!)
-          adminPassword: "CHANGE_ME_GRAFANA_PASSWORD"
-          
-          # Ingress - 선택적
-          ingress:
-            enabled: false
-            # enabled: true
-            # ingressClassName: nginx
-            # hosts:
-            #   - grafana.example.com
-            # annotations:
-            #   nginx.ingress.kubernetes.io/ssl-redirect: "false"
-          
-          # 리소스
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-          
-          # 영구 스토리지
-          persistence:
-            enabled: true
-            storageClassName: longhorn
-            size: 5Gi
-          
-          # 기본 대시보드
-          defaultDashboardsEnabled: true
-          defaultDashboardsTimezone: Asia/Seoul
-          
-          # 사이드카 (대시보드 자동 로드)
-          sidecar:
-            dashboards:
-              enabled: true
-              searchNamespace: ALL
-            datasources:
-              enabled: true
-        
-        # ====================================================================
-        # Alertmanager
+        # 2. Alertmanager (High Availability)
         # ====================================================================
         alertmanager:
           enabled: true
           alertmanagerSpec:
-            replicas: 1
-            retention: 120h
-            
-            resources:
-              requests:
-                cpu: 50m
-                memory: 64Mi
-              limits:
-                cpu: 200m
-                memory: 256Mi
+            # [HA] 3-Node Cluster for reliability (Quorum)
+            replicas: 3
+            # [Resiliency] Force distribution across nodes
+            podAntiAffinityTopologyKey: kubernetes.io/hostname
             
             storage:
               volumeClaimTemplate:
@@ -144,40 +95,61 @@ spec:
                   resources:
                     requests:
                       storage: 5Gi
-        
+
         # ====================================================================
-        # Node Exporter (DaemonSet)
+        # 3. Grafana (Security, Network & UX)
         # ====================================================================
-        nodeExporter:
+        grafana:
           enabled: true
-        
+          
+          # [Security] No Hardcoded Passwords
+          admin:
+            existingSecret: "monitoring-grafana-secret"
+            userKey: admin-user
+            passwordKey: admin-password
+          
+          # [Security] Hardening Config
+          grafana.ini:
+            auth.anonymous:
+              enabled: false
+            server:
+              root_url: "https://grafana.unifiedmeta.net"
+
+          # [Network] Sibling Domain Strategy
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
+              # [Security] Clickjacking Protection
+              nginx.ingress.kubernetes.io/configuration-snippet: |
+                more_set_headers "X-Frame-Options: DENY";
+            hosts:
+              - grafana.unifiedmeta.net
+            tls:
+              - secretName: grafana-tls
+                hosts:
+                  - grafana.unifiedmeta.net
+
+          persistence:
+            enabled: true
+            storageClassName: longhorn
+            size: 5Gi
+
         # ====================================================================
-        # kube-state-metrics
+        # 4. RKE2 Tuning
         # ====================================================================
-        kubeStateMetrics:
-          enabled: true
+        kubeControllerManager: { enabled: false }
+        kubeScheduler: { enabled: false }
+        kubeEtcd: { enabled: false }
+        kubeProxy: { enabled: false }
         
-        # ====================================================================
-        # Kubelet / API Server 메트릭
-        # ====================================================================
-        kubelet:
-          enabled: true
-        
-        kubeApiServer:
-          enabled: true
-        
-        kubeControllerManager:
-          enabled: false  # RKE2에서는 접근 어려움
-        
-        kubeScheduler:
-          enabled: false  # RKE2에서는 접근 어려움
-        
-        kubeProxy:
-          enabled: false  # RKE2에서는 접근 어려움
-        
-        kubeEtcd:
-          enabled: false  # RKE2에서는 접근 어려움
-  
+        nodeExporter: { enabled: true }
+        kubeStateMetrics: { enabled: true }
+        kubelet: { enabled: true }
+        kubeApiServer: { enabled: true }
+
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
@@ -189,15 +161,15 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-      - Replace=true  # CRD 충돌 방지
+      - PrunePropagationPolicy=foreground
+    # [Stability] Robust Retry for large CRDs
     retry:
-      limit: 3
+      limit: 10
       backoff:
-        duration: 10s
+        duration: 30s
         factor: 2
-        maxDuration: 3m
+        maxDuration: 10m
   
-  # CRD 변경 무시 (ArgoCD 호환성)
   ignoreDifferences:
     - group: admissionregistration.k8s.io
       kind: MutatingWebhookConfiguration

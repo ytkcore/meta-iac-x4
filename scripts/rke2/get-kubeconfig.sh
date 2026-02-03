@@ -4,11 +4,16 @@ set -euo pipefail
 # 설정
 ENV="dev"
 PROJECT="meta"
+# Load common logging utility
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export LOG_FILE="${ROOT_DIR}/logs/ssm/get-kubeconfig-$(date +%Y%m%d).log"
+source "${ROOT_DIR}/scripts/common/logging.sh"
+
 # CP 노드 태그 패턴 (dev-meta-k8s-cp-*)
 CP_NAME_PATTERN="${ENV}-${PROJECT}-k8s-cp-*"
 
 # Control Plane 목록 조회 (InstanceId, PrivateIp)
-echo "Fetching Control Plane Nodes ($CP_NAME_PATTERN)..."
+header "Fetching Control Plane Nodes ($CP_NAME_PATTERN)..."
 # Read result into an array
 # Using process substitution to avoid subshell variable loss
 declare -a CP_IDS

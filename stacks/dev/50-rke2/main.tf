@@ -30,13 +30,22 @@ data "terraform_remote_state" "network" {
   }
 }
 
+data "terraform_remote_state" "security" {
+  backend = "s3"
+  config = {
+    bucket = var.state_bucket
+    region = var.state_region
+    key    = "${var.state_key_prefix}/${var.env}/10-security.tfstate"
+  }
+}
+
 ################################################################################
 # Harbor tfstate 존재 여부 자동 감지 (S3 key 존재 여부 기반)
 ################################################################################
 
 data "aws_s3_objects" "harbor_tfstate" {
   bucket = var.state_bucket
-  prefix = "${var.state_key_prefix}/${var.env}/45-harbor.tfstate"
+  prefix = "${var.state_key_prefix}/${var.env}/40-harbor.tfstate"
 }
 
 locals {
@@ -50,13 +59,10 @@ locals {
 # ################################################################################
 
 locals {
-  # 네트워크 스택에서 ACM 인증서 ARN 가져오기
-  network_acm_certificate_arn = try(data.terraform_remote_state.network.outputs.acm_certificate_arn, null)
+  # 최종 인증서 ARN 결정 (Priority: 스택 변수 > 네트워크 스택 출력)
+  network_acm_arn               = try(data.terraform_remote_state.network.outputs.acm_certificate_arn, "")
+  effective_acm_certificate_arn = coalesce(var.acm_certificate_arn, local.network_acm_arn, "null") == "null" ? null : coalesce(var.acm_certificate_arn, local.network_acm_arn)
 
-  # 최종 인증서 ARN (스택 변수 > 네트워크 remote state)
-  effective_acm_certificate_arn = coalesce(var.acm_certificate_arn, local.network_acm_certificate_arn, "null") == "null" ? null : coalesce(var.acm_certificate_arn, local.network_acm_certificate_arn)
-
-  # 디폴트로 ACM 적용을 "시도"하되, ARN을 확보할 수 있을 때만 최종 활성화
   effective_enable_acm_tls_termination = var.enable_acm_tls_termination && (local.effective_acm_certificate_arn != null)
 }
 
@@ -105,16 +111,16 @@ data "terraform_remote_state" "harbor" {
   config = {
     bucket = var.state_bucket
     region = var.state_region
-    key    = "${var.state_key_prefix}/${var.env}/45-harbor.tfstate"
+    key    = "${var.state_key_prefix}/${var.env}/40-harbor.tfstate"
   }
 }
 
 locals {
-  vpc_id   = data.terraform_remote_state.network.outputs.vpc_id
-  vpc_cidr = data.terraform_remote_state.network.outputs.vpc_cidr
+  vpc_id   = try(data.terraform_remote_state.network.outputs.vpc_id, "")
+  vpc_cidr = try(data.terraform_remote_state.network.outputs.vpc_cidr, "")
 
   # subnets 모듈에서 tier 별로 모아둔 값을 그대로 사용합니다.
-  subnet_ids_by_tier = data.terraform_remote_state.network.outputs.subnet_ids_by_tier
+  subnet_ids_by_tier = try(data.terraform_remote_state.network.outputs.subnet_ids_by_tier, {})
 
   # Harbor 설정 (선택적) - Harbor가 없으면 null 사용
   harbor_hostname      = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_hostname, null) : null
@@ -128,9 +134,9 @@ locals {
   harbor_registry_hostport = local.effective_use_harbor && length(data.terraform_remote_state.harbor) > 0 ? try(data.terraform_remote_state.harbor[0].outputs.harbor_registry_hostport_by_dns, null) : null
 
   # 00-network 기본 서브넷 tier는 public/db/k8s_cp/k8s_dp 입니다.
-  control_plane_subnet_ids = local.subnet_ids_by_tier["k8s_cp"]
-  worker_subnet_ids        = local.subnet_ids_by_tier["k8s_dp"]
-  public_subnet_ids        = local.subnet_ids_by_tier["public"]
+  control_plane_subnet_ids = try(local.subnet_ids_by_tier["k8s_cp"], [])
+  worker_subnet_ids        = try(local.subnet_ids_by_tier["k8s_dp"], [])
+  public_subnet_ids        = try(local.subnet_ids_by_tier["public"], [])
 }
 
 module "rke2" {
@@ -161,6 +167,14 @@ module "rke2" {
 
   # 외부에서 주입된 추가 정책 ARN (Note: ExternalDNS 등은 별도 리소스로 부착됨)
   extra_policy_arns = var.extra_policy_arns
+
+  # 10-security에서 정의된 정적 클라이언트 SG 주입 (Decoupling의 핵심)
+  # - k8s_client: DB/Harbor 접근용 신원
+  # - monitoring_client: Prometheus scraping 허용용 신원
+  additional_security_group_ids = [
+    try(data.terraform_remote_state.security.outputs.k8s_client_sg_id, ""),
+    try(data.terraform_remote_state.security.outputs.monitoring_client_sg_id, "")
+  ]
 
   ami_id    = var.ami_id
   os_family = var.os_family

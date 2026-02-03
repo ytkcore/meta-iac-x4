@@ -12,7 +12,7 @@ make env-init ENV=dev
 aws-vault exec devops -- make apply STACK=00-network
 
 # 3. Deploy Harbor
-aws-vault exec devops -- make apply STACK=45-harbor
+aws-vault exec devops -- make apply STACK=40-harbor
 ```
 
 ## Documentation

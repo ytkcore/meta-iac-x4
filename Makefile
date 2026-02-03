@@ -17,8 +17,9 @@ init:
 check-ami:
 	@scripts/common/check-ami.sh
 
-packer-build:
-	@aws-vault exec devops -- packer build ami/golden.pkr.hcl
+build-ami:
+	@chmod +x scripts/common/build-ami.sh
+	@scripts/common/build-ami.sh
 
 status:
 	@scripts/common/check-status.sh $(ENV) $(STACK)

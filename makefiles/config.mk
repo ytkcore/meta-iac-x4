@@ -27,12 +27,12 @@ STATE_KEY_PREFIX := iac
 BACKEND_OPTS := -backend-config="../../../$(BACKEND_CONFIG_FILE)" \
                 -backend-config="key=$(STATE_KEY_PREFIX)/$(ENV)/$(STACK).tfstate"
 
-STACK_ORDER := $(strip 00-network 10-security 20-endpoints 30-db 40-bastion 45-harbor 50-rke2 55-bootstrap 60-db)
+STACK_ORDER := $(strip 00-network 10-security 30-bastion 40-harbor 50-rke2 60-db 70-observability)
 
 # -----------------------------------------------------------------------------
 # Harbor Stack Configuration
 # -----------------------------------------------------------------------------
-HARBOR_STACK_NAME  := 45-harbor
+HARBOR_STACK_NAME  := 40-harbor
 # Read bucket name from env.tfvars (handle potential missing value)
 HARBOR_BUCKET_NAME := $(shell grep 'target_bucket_name' stacks/$(ENV)/env.tfvars 2>/dev/null | cut -d'"' -f2 | tr -d ' ')
 

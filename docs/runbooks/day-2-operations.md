@@ -55,10 +55,10 @@ aws-vault exec <profile> -- make apply ENV=dev STACK=30-db
 
 ### 2-5. Bastion(SSM only)
 ```bash
-aws-vault exec <profile> -- make plan  ENV=dev STACK=40-bastion
-- 45-harbor (Harbor EC2 레지스트리/캐시 노드)
-aws-vault exec <profile> -- make apply ENV=dev STACK=40-bastion
-- 45-harbor (Harbor EC2 레지스트리/캐시 노드)
+aws-vault exec <profile> -- make plan  ENV=dev STACK=30-bastion
+- 40-harbor (Harbor EC2 레지스트리/캐시 노드)
+aws-vault exec <profile> -- make apply ENV=dev STACK=30-bastion
+- 40-harbor (Harbor EC2 레지스트리/캐시 노드)
 ```
 
 ## 3) 전체 스택 일괄 적용
@@ -98,8 +98,8 @@ aws-vault exec <profile> -- ./scripts/empty-s3-bucket.sh <bucket>
 aws-vault exec <profile> -- make apply ENV=dev STACK=00-network
 
 # (선택) Bastion (SSM-only)
-aws-vault exec <profile> -- make apply ENV=dev STACK=40-bastion
-- 45-harbor (Harbor EC2 레지스트리/캐시 노드)
+aws-vault exec <profile> -- make apply ENV=dev STACK=30-bastion
+- 40-harbor (Harbor EC2 레지스트리/캐시 노드)
 
 # RKE2
 aws-vault exec <profile> -- make plan  ENV=dev STACK=50-rke2

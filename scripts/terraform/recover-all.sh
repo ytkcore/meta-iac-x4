@@ -11,7 +11,7 @@ ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 cd "$ROOT_DIR"
 
 # Full list of stacks
-ALL_STACKS=("00-network" "10-security" "20-endpoints" "30-db" "40-bastion" "45-harbor" "50-rke2" "55-bootstrap" "55-rancher" "60-db")
+ALL_STACKS=("00-network" "10-security" "20-endpoints" "30-bastion" "40-harbor" "50-rke2" "55-bootstrap" "55-rancher" "60-db")
 NEED_TUNNEL=("55-bootstrap" "60-apps" "99-gitops")
 
 # Determine which stacks to run
@@ -59,9 +59,9 @@ for STACK in "${STACKS[@]}"; do
         VAR_OPTS="$VAR_OPTS -var-file=../env.auto.tfvars"
     fi
      
-    # Config for 45-harbor
+    # Config for 40-harbor
     EXTRA_OPTS=""
-    if [[ "$STACK" == "45-harbor" ]]; then
+    if [[ "$STACK" == "40-harbor" ]]; then
          # Try parsing bucket from env.tfvars if it exists
          TF_VARS_PATH="stacks/${ENV}/env.tfvars"
          if [[ -f "$TF_VARS_PATH" ]]; then
@@ -74,7 +74,7 @@ for STACK in "${STACKS[@]}"; do
              # Import script will import it if it exists.
              EXTRA_OPTS="-var=create_bucket=true"
          else
-             echo " [Warn] 'target_bucket_name' not found in env.tfvars for 45-harbor"
+             echo " [Warn] 'target_bucket_name' not found in env.tfvars for 40-harbor"
          fi
     fi
 
@@ -93,7 +93,7 @@ for STACK in "${STACKS[@]}"; do
         ln -sf ../../../modules/common_versions.tf versions.tf
     fi
     
-    # Config for 45-harbor (ALREADY DONE ABOVE)
+    # Config for 40-harbor (ALREADY DONE ABOVE)
 
     # Init & Plan
     terraform init -upgrade=false -reconfigure \

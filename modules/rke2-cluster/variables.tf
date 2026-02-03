@@ -121,7 +121,7 @@ variable "enable_internal_nlb" {
 variable "rke2_version" {
   description = "설치할 RKE2 버전. Rancher 2.10.x(Stable) 호환: v1.28~v1.31"
   type        = string
-  default     = "v1.31.6+rke2r1"  # Rancher 2.10.x (stable) 호환 최신
+  default     = "v1.31.6+rke2r1" # Rancher 2.10.x (stable) 호환 최신
 }
 
 variable "rke2_token" {
@@ -133,6 +133,12 @@ variable "rke2_token" {
 
 variable "extra_policy_arns" {
   description = "노드 IAM Role에 추가로 부착할 Managed Policy ARN 목록(선택)"
+  type        = list(string)
+  default     = []
+}
+
+variable "additional_security_group_ids" {
+  description = "노드에 추가로 부착할 보안 그룹 ID 목록 (예: K8s Client SG)"
   type        = list(string)
   default     = []
 }
@@ -298,7 +304,7 @@ variable "acm_certificate_arn" {
 variable "acm_ssl_policy" {
   description = "NLB TLS 리스너에 적용할 SSL 정책"
   type        = string
-  default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"  # TLS 1.3 + TLS 1.2 권장
+  default     = "ELBSecurityPolicy-TLS13-1-2-2021-06" # TLS 1.3 + TLS 1.2 권장
 }
 
 variable "enable_http_to_https_redirect" {

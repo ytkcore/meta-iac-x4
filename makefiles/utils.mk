@@ -11,8 +11,14 @@ versions-gen:
 	@if [ ! -f "modules/common_versions.tf" ]; then \
 		echo "❌ Error: modules/common_versions.tf not found"; exit 1; \
 	fi
-	@mkdir -p stacks/$(ENV)/$(STACK)
+	@if [ ! -d "stacks/$(ENV)/$(STACK)" ]; then \
+		echo "❌ Error: Stack directory 'stacks/$(ENV)/$(STACK)' does not exist."; exit 1; \
+	fi
+	@if [ ! -f "stacks/$(ENV)/$(STACK)/main.tf" ]; then \
+		echo "❌ Error: 'main.tf' not found in stacks/$(ENV)/$(STACK). Is this a valid stack?"; exit 1; \
+	fi
 	@ln -sf ../../../modules/common_versions.tf stacks/$(ENV)/$(STACK)/versions.tf
+	@echo "✅ Validated stack: $(STACK) ($(ENV))"
 	@echo "✅ Linked versions.tf"
 
 # -----------------------------------------------------------------------------
