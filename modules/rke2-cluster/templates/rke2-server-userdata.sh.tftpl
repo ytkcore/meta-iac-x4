@@ -47,6 +47,55 @@ spec:
 YAML
 %{ endif }
 
+# -----------------------------------------------------------------------------
+# AWS Cloud Controller Manager (CCM) 통합
+# - cloud-provider-name: "external" 설정 시 필수
+# - RKE2 자동 배포 매니페스트 활용
+# -----------------------------------------------------------------------------
+%{ if enable_aws_ccm }
+mkdir -p /var/lib/rancher/rke2/server/manifests
+cat >/var/lib/rancher/rke2/server/manifests/aws-ccm.yaml <<YAML
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: aws-cloud-controller-manager
+  namespace: kube-system
+spec:
+  chart: aws-cloud-controller-manager
+  repo: https://kubernetes.github.io/cloud-provider-aws
+  targetNamespace: kube-system
+  version: ${aws_ccm_version}
+  jobTolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+    - key: node.cloudprovider.kubernetes.io/uninitialized
+      operator: Exists
+      effect: NoSchedule
+  valuesContent: |-
+    args:
+      - --v=2
+      - --cloud-provider=aws
+      - --cluster-name=${cluster_name}
+    hostNetworking: true
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: "true"
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node.cloudprovider.kubernetes.io/uninitialized
+        value: "true"
+        effect: NoSchedule
+YAML
+%{ endif }
+
 cat >/etc/rancher/rke2/config.yaml <<'YAML'
 token: "${token}"
 write-kubeconfig-mode: "0644"

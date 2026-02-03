@@ -105,12 +105,12 @@ locals {
 # ------------------------------------------------------------------------------
 resource "random_password" "postgres" {
   length  = 24
-  special = true
+  special = false
 }
 
 resource "random_password" "neo4j" {
   length  = 24
-  special = true
+  special = false
 }
 
 locals {
@@ -131,6 +131,7 @@ module "postgres" {
   project = var.project
 
   vpc_id    = local.vpc_id
+  vpc_cidr  = local.vpc_cidr
   subnet_id = local.postgres_subnet_id
 
   instance_type       = var.db_instance_type
@@ -163,6 +164,7 @@ module "neo4j" {
   project = var.project
 
   vpc_id    = local.vpc_id
+  vpc_cidr  = local.vpc_cidr
   subnet_id = local.neo4j_subnet_id
 
   instance_type       = var.db_instance_type

@@ -16,6 +16,8 @@ spec:
     helm:
       values: |
         controller:
+          publishService:
+            enabled: true
           service:
             type: LoadBalancer
             annotations:
