@@ -9,6 +9,16 @@ if [ -z "$ENV" ] || [ -z "$STACK" ]; then
     exit 1
 fi
 
+# Check if stack directory exists
+if [ ! -d "stacks/$ENV/$STACK" ]; then
+    RED='\033[0;31m'
+    YELLOW='\033[1;33m'
+    NC='\033[0m'
+    echo -e "${RED}Error: Stack '$STACK' not found in environment '$ENV'.${NC}"
+    echo -e "${YELLOW}오류: 'stacks/$ENV/$STACK' 디렉토리를 찾을 수 없습니다. 스택 이름 오타를 확인해 주세요.${NC}"
+    exit 1
+fi
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

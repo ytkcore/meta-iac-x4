@@ -337,6 +337,10 @@ resource "aws_instance" "control_plane" {
     ingress_external_traffic_policy = var.ingress_external_traffic_policy
     # Health Check Script (single source of truth)
     health_check_script = file("${path.module}/../../scripts/rke2/check-rke2-health.sh")
+    # AWS CCM
+    enable_aws_ccm  = var.enable_aws_ccm
+    aws_ccm_version = var.aws_ccm_version
+    cluster_name    = local.cluster_name
   }))
 
   tags = merge(local.common_tags, { Name = "${local.name_prefix}-${each.key}" })
@@ -401,7 +405,10 @@ resource "aws_instance" "worker" {
     harbor_password                   = var.harbor_password
   }))
 
-  tags = merge(local.common_tags, { Name = "${local.name_prefix}-${each.key}" })
+  tags = merge(local.common_tags, {
+    Name           = "${local.name_prefix}-${each.key}"
+    ReplaceTrigger = "ccm-integration-v2"
+  })
 
   # [추가] Control Plane이 먼저 생성된 후 Worker 생성
   depends_on = [aws_instance.control_plane]

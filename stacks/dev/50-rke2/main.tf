@@ -71,9 +71,16 @@ locals {
 # # - Allows updating only the specific Hosted Zone (base_domain).
 # # ################################################################################
 
-data "aws_route53_zone" "selected" {
-  count = var.base_domain != "" ? 1 : 0
-  name  = var.base_domain
+data "aws_route53_zone" "public" {
+  count        = var.base_domain != "" ? 1 : 0
+  name         = var.base_domain
+  private_zone = false
+}
+
+data "aws_route53_zone" "private" {
+  count        = var.base_domain != "" ? 1 : 0
+  name         = var.base_domain
+  private_zone = true
 }
 
 resource "aws_iam_policy" "external_dns" {
@@ -85,9 +92,12 @@ resource "aws_iam_policy" "external_dns" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["route53:ChangeResourceRecordSets"]
-        Resource = "arn:aws:route53:::hostedzone/${data.aws_route53_zone.selected[0].zone_id}"
+        Effect = "Allow"
+        Action = ["route53:ChangeResourceRecordSets"]
+        Resource = compact([
+          try("arn:aws:route53:::hostedzone/${data.aws_route53_zone.public[0].zone_id}", ""),
+          try("arn:aws:route53:::hostedzone/${data.aws_route53_zone.private[0].zone_id}", "")
+        ])
       },
       {
         Effect   = "Allow"
