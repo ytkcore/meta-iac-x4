@@ -312,3 +312,18 @@ variable "enable_http_to_https_redirect" {
   type        = bool
   default     = true
 }
+
+##############################
+# AWS Cloud Controller Manager (CCM)
+##############################
+variable "enable_aws_ccm" {
+  description = "AWS Cloud Controller Manager 자동 설치 여부"
+  type        = bool
+  default     = true
+}
+
+variable "aws_ccm_version" {
+  description = "AWS CCM Helm 차트 버전"
+  type        = string
+  default     = "v1.31.0"
+}
