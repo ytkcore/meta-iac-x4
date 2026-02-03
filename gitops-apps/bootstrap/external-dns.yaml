@@ -20,7 +20,7 @@ spec:
         provider: aws
         aws:
           region: ap-northeast-2
-          zoneType: public
+          zoneType: ""
         # Scoped IAM Policy가 부착된 Node Role을 사용하므로 별도 IRSA 설정 불필요
         serviceAccount:
           create: true
