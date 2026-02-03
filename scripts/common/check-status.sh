@@ -119,6 +119,90 @@ if [[ "$STACK" == "55-bootstrap" ]]; then
         kubectl get ingress -A
     fi
     
+elif [[ "$STACK" == "15-vpn" ]]; then
+    echo -e "\n${BOLD}>>> 1. VPN Endpoint Status (VPN 엔드포인트 상태)${NC}"
+    
+    # Get VPN Endpoint ID from Terraform Output
+    OUTPUT_JSON=$(terraform -chdir=stacks/$ENV/$STACK output -json 2>/dev/null || echo "{}")
+    VPN_ENDPOINT_ID=$(echo "$OUTPUT_JSON" | jq -r '.vpn_endpoint_id.value // ""')
+    
+    if [ -z "$VPN_ENDPOINT_ID" ] || [ "$VPN_ENDPOINT_ID" == "null" ]; then
+        echo -e "${YELLOW}Warning: VPN not deployed yet. Run 'make apply STACK=15-vpn' first.${NC}"
+        echo -e "${YELLOW}(VPN이 아직 배포되지 않았습니다. 'make apply STACK=15-vpn'을 먼저 실행하세요.)${NC}"
+    else
+        echo -e "  Endpoint ID: ${CYAN}$VPN_ENDPOINT_ID${NC}"
+        
+        # Get Endpoint Status
+        ENDPOINT_INFO=$(aws ec2 describe-client-vpn-endpoints \
+            --client-vpn-endpoint-ids "$VPN_ENDPOINT_ID" \
+            --query "ClientVpnEndpoints[0]" \
+            --output json 2>/dev/null || echo "{}")
+        
+        STATUS=$(echo "$ENDPOINT_INFO" | jq -r '.Status.Code // "unknown"')
+        DNS_NAME=$(echo "$ENDPOINT_INFO" | jq -r '.DnsName // "N/A"')
+        SPLIT_TUNNEL=$(echo "$ENDPOINT_INFO" | jq -r '.SplitTunnel // false')
+        
+        case $STATUS in
+            available)      status_color=$GREEN; status_kr="(정상)" ;;
+            pending-associate) status_color=$YELLOW; status_kr="(연결 대기)" ;;
+            *)              status_color=$RED; status_kr="(확인필요)" ;;
+        esac
+        
+        echo -e "  Status:       ${status_color}${STATUS}${NC} ${status_kr}"
+        echo -e "  DNS Name:     ${CYAN}${DNS_NAME}${NC}"
+        echo -e "  Split Tunnel: ${SPLIT_TUNNEL}"
+        
+        echo -e "\n${BOLD}>>> 2. Active VPN Connections (활성 연결)${NC}"
+        CONNECTIONS=$(aws ec2 describe-client-vpn-connections \
+            --client-vpn-endpoint-id "$VPN_ENDPOINT_ID" \
+            --query "Connections[?Status.Code=='active']" \
+            --output json 2>/dev/null || echo "[]")
+        
+        CONN_COUNT=$(echo "$CONNECTIONS" | jq 'length')
+        
+        if [ "$CONN_COUNT" -eq 0 ]; then
+            echo -e "  ${YELLOW}No active connections. (현재 연결된 클라이언트 없음)${NC}"
+        else
+            echo -e "  ${GREEN}Active Connections: $CONN_COUNT${NC}"
+            echo -e "\n  ${BOLD}USERNAME              CLIENT IP        CONNECTED AT${NC}"
+            echo "$CONNECTIONS" | jq -r '.[] | "  \(.CommonName // "N/A")            \(.ClientIp // "N/A")     \(.ConnectionEstablishedTime // "N/A")"'
+        fi
+        
+        echo -e "\n${BOLD}>>> 3. Recent Connection Events (최근 연결 이벤트)${NC}"
+        LOG_GROUP="/aws/vpn/${ENV}-*-client-vpn"
+        
+        # Try to get recent logs
+        RECENT_LOGS=$(aws logs filter-log-events \
+            --log-group-name-prefix "/aws/vpn/" \
+            --filter-pattern "connection" \
+            --limit 5 \
+            --query "events[*].message" \
+            --output text 2>/dev/null | head -5 || echo "")
+        
+        if [ -z "$RECENT_LOGS" ]; then
+            echo -e "  ${YELLOW}No recent connection logs found.${NC}"
+            echo -e "  (CloudWatch 로그가 아직 없거나 권한이 없습니다)"
+        else
+            echo -e "  (최근 5개 이벤트)"
+            echo "$RECENT_LOGS" | while read -r line; do
+                echo -e "  ${DIM}$line${NC}"
+            done
+        fi
+        
+        echo -e "\n${BOLD}>>> 4. Client Configuration (클라이언트 설정)${NC}"
+        CLIENT_KEY_PATH=$(echo "$OUTPUT_JSON" | jq -r '.client_key_path.value // ""')
+        
+        if [ -n "$CLIENT_KEY_PATH" ] && [ -f "$CLIENT_KEY_PATH" ]; then
+            echo -e "  ${GREEN}✓ Client certificates generated.${NC}"
+            echo -e "  Key:  $CLIENT_KEY_PATH"
+            echo -e "\n  ${BOLD}Generate .ovpn file:${NC}"
+            echo -e "  ${CYAN}cd stacks/$ENV/$STACK && ./generate-ovpn.sh${NC}"
+        else
+            echo -e "  ${YELLOW}Client certificates not found locally.${NC}"
+            echo -e "  Run 'terraform apply' to generate certificates."
+        fi
+    fi
+
 elif [[ "$STACK" == "60-database" ]]; then
     echo -e "\n${BOLD}>>> 1. Database Instance Status (From External Local - via SSM)${NC}"
     
