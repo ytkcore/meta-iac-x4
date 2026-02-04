@@ -43,7 +43,7 @@ data "terraform_remote_state" "security" {
   backend = "s3"
   config = {
     bucket  = var.state_bucket
-    key     = "${var.state_key_prefix}/${var.env}/10-security.tfstate"
+    key     = "${var.state_key_prefix}/${var.env}/05-security.tfstate"
     region  = var.state_region
     encrypt = true
   }
@@ -97,6 +97,12 @@ module "bastion" {
   subnet_id              = local.bastion_subnet_id
   vpc_security_group_ids = local.bastion_sg_ids
   instance_type          = var.instance_type
+  
+  # Golden Image (handled by ec2-instance module)
+  state_bucket     = var.state_bucket
+  state_region     = var.state_region
+  state_key_prefix = var.state_key_prefix
+  ami_id           = var.ami_id  # Optional override
 
   # SSM-only (SSH key 미사용)
   key_name = null

@@ -104,6 +104,13 @@ module "ec2" {
   vpc_security_group_ids = [aws_security_group.harbor.id]
   key_name               = var.key_name
   root_volume_size       = var.root_volume_size
+  ami_id                 = var.ami_id
+
+  # Golden Image State Configuration
+  state_bucket       = var.state_bucket
+  state_region       = var.state_region
+  state_key_prefix   = var.state_key_prefix
+  allow_ami_fallback = var.allow_ami_fallback
 
   user_data_base64 = base64gzip(templatefile("${path.module}/user_data.sh.tftpl", {
     harbor_version = var.harbor_version

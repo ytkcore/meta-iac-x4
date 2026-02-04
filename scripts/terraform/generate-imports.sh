@@ -80,7 +80,7 @@ case "$STACK" in
         done
         ;;
 
-    "10-security")
+    "05-security")
         SG_BASE="${ENV}-${PROJECT}-security"
         KEYS="bastion breakglass-ssh lb-public k8s-cp k8s-worker db vpce k8s-client ops-client monitoring-client"
         for KEY in $KEYS; do

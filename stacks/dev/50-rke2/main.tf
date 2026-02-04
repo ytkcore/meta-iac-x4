@@ -35,7 +35,7 @@ data "terraform_remote_state" "security" {
   config = {
     bucket = var.state_bucket
     region = var.state_region
-    key    = "${var.state_key_prefix}/${var.env}/10-security.tfstate"
+    key    = "${var.state_key_prefix}/${var.env}/05-security.tfstate"
   }
 }
 
@@ -81,6 +81,7 @@ data "aws_route53_zone" "private" {
   count        = var.base_domain != "" ? 1 : 0
   name         = var.base_domain
   private_zone = true
+  vpc_id       = data.terraform_remote_state.network.outputs.vpc_id
 }
 
 resource "aws_iam_policy" "external_dns" {
@@ -186,8 +187,13 @@ module "rke2" {
     try(data.terraform_remote_state.security.outputs.monitoring_client_sg_id, "")
   ]
 
-  ami_id    = var.ami_id
+  ami_id    = var.ami_id  # Optional override
   os_family = var.os_family
+  
+  # Golden Image (handled by rke2-cluster -> ec2-instance)
+  state_bucket     = var.state_bucket
+  state_region     = var.state_region
+  state_key_prefix = var.state_key_prefix
 
   # Harbor(내부 레지스트리) 연동 - 선택적
   harbor_registry_hostport          = local.harbor_registry_hostport

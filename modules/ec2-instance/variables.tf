@@ -59,7 +59,41 @@ variable "root_volume_size" {
 }
 
 variable "ami_id" {
-  description = "AMI ID Override (Optional)"
+  description = "AMI ID Override (Optional, bypasses Golden Image lookup if provided)"
   type        = string
   default     = null
 }
+
+# -----------------------------------------------------------------------------
+# Golden Image Configuration
+# -----------------------------------------------------------------------------
+variable "state_bucket" {
+  description = "Terraform state S3 bucket (required for Golden Image lookup)"
+  type        = string
+  default     = null
+}
+
+variable "state_region" {
+  description = "Terraform state region (required for Golden Image lookup)"
+  type        = string
+  default     = null
+}
+
+variable "state_key_prefix" {
+  description = "Terraform state key prefix (required for Golden Image lookup)"
+  type        = string
+  default     = null
+}
+
+variable "allow_ami_fallback" {
+  description = "Allow fallback to default AMI if Golden Image not found (default: false = error on missing Golden Image)"
+  type        = bool
+  default     = false
+}
+
+variable "iam_instance_profile" {
+  description = "External IAM instance profile name to use (if provided, skips internal IAM resource creation)"
+  type        = string
+  default     = null
+}
+

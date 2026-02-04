@@ -212,3 +212,18 @@ variable "acm_ssl_policy" {
   type        = string
   default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
 }
+
+variable "vpc_cidr" {
+  type    = string
+  default = "0.0.0.0/0" # Unused, suppresses warning
+}
+
+variable "longhorn_backup_bucket" {
+  type    = string
+  default = "" # Unused, suppresses warning
+}
+
+variable "interface_services" {
+  type    = any
+  default = {} # Unused, suppresses warning
+}

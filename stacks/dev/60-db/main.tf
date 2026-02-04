@@ -2,27 +2,9 @@ provider "aws" {
   region = var.region
 }
 
-# ------------------------------------------------------------------------------
-# Golden Image Lookup
-# ------------------------------------------------------------------------------
-data "aws_ami" "golden" {
-  most_recent = true
-  owners      = ["self"]
-
-  filter {
-    name   = "name"
-    values = ["meta-golden-image-al2023-*"]
-  }
-
-  filter {
-    name   = "state"
-    values = ["available"]
-  }
-}
-
 locals {
   stack_network  = "00-network"
-  stack_security = "10-security"
+  stack_security = "05-security"
   stack_rke2     = "50-rke2"
 
   key_network  = "${var.state_key_prefix}/${var.env}/${local.stack_network}.tfstate"
@@ -147,8 +129,12 @@ module "postgres" {
 
   tags = merge(local.common_tags, { Role = "postgres" })
 
-  # Use the custom Golden Image (AL2023 with Docker/SSM)
-  ami_id                   = data.aws_ami.golden.id
+  # Golden Image (handled by postgres-standalone -> ec2-instance)
+  state_bucket     = var.state_bucket
+  state_region     = var.state_region
+  state_key_prefix = var.state_key_prefix
+  ami_id           = var.ami_id  # Optional override
+  
   harbor_registry_hostport = local.harbor_registry_hostport
   harbor_scheme            = local.harbor_scheme
   harbor_project           = local.harbor_project
@@ -178,8 +164,12 @@ module "neo4j" {
 
   tags = merge(local.common_tags, { Role = "neo4j" })
 
-  # Use the custom Golden Image (AL2023 with Docker/SSM)
-  ami_id                   = data.aws_ami.golden.id
+  # Golden Image (handled by neo4j-standalone -> ec2-instance)
+  state_bucket     = var.state_bucket
+  state_region     = var.state_region
+  state_key_prefix = var.state_key_prefix
+  ami_id           = var.ami_id  # Optional override
+  
   harbor_registry_hostport = local.harbor_registry_hostport
   harbor_project           = local.harbor_project
   harbor_insecure          = true
@@ -191,17 +181,29 @@ module "neo4j" {
 resource "aws_route53_record" "postgres" {
   count   = local.route53_zone_id != "" ? 1 : 0
   zone_id = local.route53_zone_id
-  name    = "postgres.${var.env}.${var.project}"
+  name    = "postgres.${var.env}.${local.base_domain}"
   type    = "A"
   ttl     = 300
   records = [module.postgres.private_ip]
+
+  allow_overwrite = true
+
+  depends_on = [
+    module.postgres
+  ]
 }
 
 resource "aws_route53_record" "neo4j" {
   count   = local.route53_zone_id != "" ? 1 : 0
   zone_id = local.route53_zone_id
-  name    = "neo4j.${var.env}.${var.project}"
+  name    = "neo4j.${var.env}.${local.base_domain}"
   type    = "A"
   ttl     = 300
   records = [module.neo4j.private_ip]
+
+  allow_overwrite = true
+
+  depends_on = [
+    module.neo4j
+  ]
 }

@@ -8,6 +8,12 @@ variable "env" {
   type        = string
 }
 
+variable "region" {
+  description = "AWS Region"
+  type        = string
+  default     = "ap-northeast-2"
+}
+
 variable "name" {
   description = "리소스 네이밍 접두어"
   type        = string
@@ -18,6 +24,33 @@ variable "tags" {
   description = "공통 태그"
   type        = map(string)
   default     = {}
+}
+
+# -----------------------------------------------------------------------------
+# Golden Image Remote State
+# -----------------------------------------------------------------------------
+variable "state_bucket" {
+  description = "Terraform remote state S3 bucket"
+  type        = string
+  default     = null
+}
+
+variable "state_region" {
+  description = "Terraform remote state region"
+  type        = string
+  default     = null
+}
+
+variable "state_key_prefix" {
+  description = "Terraform remote state key prefix"
+  type        = string
+  default     = null
+}
+
+variable "allow_ami_fallback" {
+  description = "Allow fallback to default AMI if Golden Image not found"
+  type        = bool
+  default     = false
 }
 
 variable "vpc_id" {

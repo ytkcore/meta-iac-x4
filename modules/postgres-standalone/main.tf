@@ -62,13 +62,15 @@ module "instance" {
   project                = var.project
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.this.id]
-  # associate_public_ip    = false # Not supported variable
 
-  ami_id = var.ami_id
-
+  ami_id           = var.ami_id
   instance_type    = var.instance_type
   root_volume_size = var.root_volume_size_gb
   user_data        = local.user_data
 
-  # tags는 ec2-instance 내부에서 처리됨
+  # Golden Image State Configuration
+  state_bucket       = var.state_bucket
+  state_region       = var.state_region
+  state_key_prefix   = var.state_key_prefix
+  allow_ami_fallback = var.allow_ami_fallback
 }

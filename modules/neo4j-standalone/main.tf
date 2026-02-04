@@ -83,16 +83,14 @@ module "instance" {
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.this.id]
 
-  # associate_public_ip    = false # ec2-instance 모듈에 이 변수가 없음 (기본값 확인 필요하나 보통 public subnet 아니면 false)
-  # ec2-instance 모듈 코드를 보면 associate_public_ip_address 변수가 아예 없음. 
-  # aws_instance 리소스는 subnet 설정 따름.
-
-  ami_id = var.ami_id
-
+  ami_id           = var.ami_id
   instance_type    = var.instance_type
   root_volume_size = var.root_volume_size_gb
   user_data        = local.user_data
 
-  # tags는 ec2-instance 모듈 내부에서 처리됨 (Name, Environment)
-  # 만약 extra tags 지원한다면 추가해야 함. 현재 ec2-instance는 tags 변수 지원 안함.
+  # Golden Image State Configuration
+  state_bucket       = var.state_bucket
+  state_region       = var.state_region
+  state_key_prefix   = var.state_key_prefix
+  allow_ami_fallback = var.allow_ami_fallback
 }

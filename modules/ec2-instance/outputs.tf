@@ -14,6 +14,7 @@ output "private_ip" {
 }
 
 output "iam_role_name" {
-  description = "The name of the IAM role (for attaching extra policies)"
-  value       = aws_iam_role.this.name
+  description = "The name of the IAM role (for attaching extra policies) - null if using external profile"
+  value       = length(aws_iam_role.this) > 0 ? aws_iam_role.this[0].name : null
 }
+

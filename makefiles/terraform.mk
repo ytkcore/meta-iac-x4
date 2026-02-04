@@ -27,22 +27,36 @@ plan: tf-init tunnel-check
 
 apply: tf-init tunnel-check
 	@bash scripts/common/log-op.sh "APPLY" "$(STACK)" "$(ENV)"
+	@if [ "$(STACK)" = "10-golden-image" ]; then \
+		echo "==> Checking Golden Image..."; \
+		bash scripts/golden-image/build-if-needed.sh; \
+	fi
 	@$(TF_STACK) apply $(TF_VAR_FILES) $(TF_OPTS)
 	@if [ "$(STACK)" = "00-network" ]; then \
 		$(MAKE) build-ami; \
 	fi
+	@bash scripts/terraform/post-apply-hook.sh "$(STACK)"
 
 apply-auto: tf-init tunnel-check
 	@bash scripts/common/log-op.sh "APPLY-AUTO" "$(STACK)" "$(ENV)"
+	@if [ "$(STACK)" = "10-golden-image" ]; then \
+		echo "==> Checking Golden Image..."; \
+		bash scripts/golden-image/build-if-needed.sh; \
+	fi
 	@$(TF_STACK) apply -auto-approve $(TF_VAR_FILES) $(TF_OPTS)
 	@if [ "$(STACK)" = "00-network" ]; then \
 		$(MAKE) build-ami; \
 	fi
+	@bash scripts/terraform/post-apply-hook.sh "$(STACK)"
 
 destroy: tf-init tunnel-check
 	@bash scripts/common/log-op.sh "DESTROY" "$(STACK)" "$(ENV)"
 	@bash scripts/terraform/pre-destroy-hook.sh "$(STACK)"
 	@$(TF_STACK) destroy $(TF_VAR_FILES) $(TF_OPTS)
+	@if [ "$(STACK)" = "10-golden-image" ]; then \
+		echo "==> Cleaning up Golden Image AMIs..."; \
+		bash scripts/golden-image/cleanup-amis.sh "$(STACK)"; \
+	fi
 
 refresh: tf-init tunnel-check
 	@bash scripts/common/log-op.sh "REFRESH" "$(STACK)" "$(ENV)"

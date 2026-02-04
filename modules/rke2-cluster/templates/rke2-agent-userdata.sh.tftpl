@@ -5,6 +5,13 @@ set -euo pipefail
 # Log to both file and console for fast debugging
 exec > >(tee -a /var/log/rke2-bootstrap.log | logger -t rke2-bootstrap -s 2>/dev/console) 2>&1
 
+# [CRITICAL] Disable Docker if present (Golden Image conflict prevention)
+if systemctl is-active --quiet docker || systemctl is-enabled --quiet docker; then
+  echo "[rke2] Disabling Docker service to prevent conflict with RKE2 containerd..."
+  systemctl stop docker || true
+  systemctl disable docker || true
+fi
+
 echo "[rke2] bootstrap start (agent)"
 
 %{ if os_family == "ubuntu2204" }
