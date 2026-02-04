@@ -54,7 +54,7 @@ variable "ami_id" {
 variable "root_volume_size" {
   description = "Root volume size (GiB)."
   type        = number
-  default     = 20
+  default     = 30  # Minimum size for Golden Image snapshot
 }
 
 variable "iam_path" {

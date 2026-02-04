@@ -51,20 +51,12 @@ data "aws_ami" "al2023_base" {
   }
 }
 
-# 기존 Golden Image 조회 (있다면)
-data "aws_ami" "golden_existing" {
-  most_recent = true
-  owners      = ["self"]
-
-  filter {
-    name   = "name"
-    values = [local.ami_name_pattern]
-  }
-
-  filter {
-    name   = "state"
-    values = ["available"]
-  }
+# 기존 Golden Image 조회 (optional - 없으면 null)
+# Note: Outputs will use AWS CLI or accept null during destroy
+locals {
+  # Query for existing Golden Image AMI ID using AWS CLI
+  # This is safe during destroy as it doesn't error when AMI is missing
+  golden_ami_id = null  # Will be populated by outputs using try() with data source
 }
 
 # -----------------------------------------------------------------------------

@@ -5,6 +5,20 @@
 # -----------------------------------------------------------------------------
 # AMI Information
 # -----------------------------------------------------------------------------
+
+# Query existing Golden Image using external data (safe during destroy)
+data "external" "golden_ami" {
+  program = ["bash", "-c", <<-EOT
+    ami_id=$(aws ec2 describe-images \
+      --owners self \
+      --filters "Name=name,Values=${local.ami_name_pattern}" "Name=state,Values=available" \
+      --query 'Images | sort_by(@, &CreationDate) | [-1].{id:ImageId,name:Name}' \
+      --output json 2>/dev/null || echo '{"id":"","name":""}')
+    echo "$ami_id"
+  EOT
+  ]
+}
+
 output "base_ami_id" {
   description = "Base Amazon Linux 2023 AMI ID"
   value       = data.aws_ami.al2023_base.id
@@ -12,12 +26,12 @@ output "base_ami_id" {
 
 output "golden_ami_id" {
   description = "Current Golden Image AMI ID (if exists)"
-  value       = try(data.aws_ami.golden_existing.id, null)
+  value       = try(data.external.golden_ami.result.id, null) != "" ? try(data.external.golden_ami.result.id, null) : null
 }
 
 output "golden_ami_name" {
   description = "Current Golden Image AMI Name"
-  value       = try(data.aws_ami.golden_existing.name, null)
+  value       = try(data.external.golden_ami.result.name, null) != "" ? try(data.external.golden_ami.result.name, null) : null
 }
 
 # -----------------------------------------------------------------------------

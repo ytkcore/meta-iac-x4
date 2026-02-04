@@ -65,6 +65,7 @@ data "aws_route53_zone" "private" {
   count        = contains(["private", "both"], var.dns_scope) && var.route53_zone_id == "" ? 1 : 0
   name         = "${var.base_domain}."
   private_zone = true
+  vpc_id       = data.terraform_remote_state.network.outputs.vpc_id
 }
 
 # -----------------------------------------------------------------------------
@@ -113,14 +114,6 @@ locals {
   cloudwatch_enabled = false  # Dev: 비활성화
   teleport_enabled   = false  # K8s 관리
   ssh_port           = 22     # 기본 포트
-  
-  # Golden Image AMI with fallback logic
-  golden_ami_id = try(data.terraform_remote_state.golden_image.outputs.golden_ami_id, null)
-  
-  # AMI Selection: Golden Image 우선, fallback 설정에 따라 기본 AMI 사용 또는 에러
-  final_ami_id = local.golden_ami_id != null ? local.golden_ami_id : (
-    var.allow_ami_fallback ? null : "ERROR: Golden Image not found and fallback is disabled"
-  )
 }
 
 # -----------------------------------------------------------------------------

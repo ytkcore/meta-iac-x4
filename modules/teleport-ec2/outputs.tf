@@ -1,21 +1,21 @@
 output "instance_ids" {
   description = "Teleport instance IDs (list)"
-  value       = aws_instance.teleport[*].id
+  value       = [for i in module.instance : i.id]
 }
 
 output "instance_id" {
   description = "Primary Teleport instance ID (for backward compatibility)"
-  value       = aws_instance.teleport[0].id
+  value       = module.instance[0].id
 }
 
 output "private_ips" {
   description = "Teleport instance private IPs (list)"
-  value       = aws_instance.teleport[*].private_ip
+  value       = [for i in module.instance : i.private_ip]
 }
 
 output "private_ip" {
   description = "Primary Teleport instance private IP (for backward compatibility)"
-  value       = aws_instance.teleport[0].private_ip
+  value       = module.instance[0].private_ip
 }
 
 output "security_group_id" {
@@ -30,3 +30,7 @@ output "s3_bucket_name" {
   value = aws_s3_bucket.teleport_sessions.id
 }
 
+output "iam_role_names" {
+  description = "EC2 instance IAM role names"
+  value       = [for i in module.instance : i.iam_role_name]
+}

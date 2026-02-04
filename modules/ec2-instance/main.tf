@@ -61,11 +61,18 @@ locals {
     Environment = var.env
     ManagedBy   = "terraform"
   }
+  
+  # IAM: Use external profile if provided, otherwise create internal
+  use_internal_iam = var.iam_instance_profile == null
+  final_iam_instance_profile = var.iam_instance_profile != null ? var.iam_instance_profile : (
+    local.use_internal_iam ? aws_iam_instance_profile.this[0].name : null
+  )
 }
 
-# 2. IAM Role (기본 신뢰 관계 설정)
+# 2. IAM Role (기본 신뢰 관계 설정) - Only if no external profile provided
 resource "aws_iam_role" "this" {
-  name = "${local.name_prefix}-role"
+  count = local.use_internal_iam ? 1 : 0
+  name  = "${local.name_prefix}-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -86,17 +93,19 @@ resource "aws_iam_role" "this" {
 }
 
 resource "aws_iam_instance_profile" "this" {
-  name = "${local.name_prefix}-profile"
-  role = aws_iam_role.this.name
+  count = local.use_internal_iam ? 1 : 0
+  name  = "${local.name_prefix}-profile"
+  role  = aws_iam_role.this[0].name
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-profile"
   })
 }
 
-# [필수] SSM 접속을 위한 기본 정책 연결
+# [필수] SSM 접속을 위한 기본 정책 연결 - Only if no external profile
 resource "aws_iam_role_policy_attachment" "ssm_core" {
-  role       = aws_iam_role.this.name
+  count      = local.use_internal_iam ? 1 : 0
+  role       = aws_iam_role.this[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
@@ -107,7 +116,7 @@ resource "aws_instance" "this" {
   subnet_id     = var.subnet_id
 
   vpc_security_group_ids = var.vpc_security_group_ids
-  iam_instance_profile   = aws_iam_instance_profile.this.name
+  iam_instance_profile   = local.final_iam_instance_profile
   key_name               = var.key_name # Standardized to null in Keyless standard
   user_data_base64       = var.user_data_base64 != null ? var.user_data_base64 : (var.user_data != null ? base64encode(var.user_data) : null)
 

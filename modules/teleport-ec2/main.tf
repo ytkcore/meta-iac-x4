@@ -102,12 +102,6 @@ data "aws_iam_policy_document" "teleport_policy" {
   }
 }
 
-resource "aws_iam_role_policy" "teleport" {
-  name   = "${var.name}-policy"
-  role   = aws_iam_role.teleport.id
-  policy = data.aws_iam_policy_document.teleport_policy.json
-}
-
 resource "aws_iam_instance_profile" "teleport" {
   name = "${var.name}-profile"
   role = aws_iam_role.teleport.name
@@ -221,43 +215,50 @@ resource "aws_security_group" "teleport" {
 }
 
 # -----------------------------------------------------------------------------
-# 4. EC2 Instance
+# 4. EC2 Instance (using ec2-instance module for Golden Image support)
 # -----------------------------------------------------------------------------
 locals {
   instance_count = var.enable_ha ? 2 : 1
-}
-
-resource "aws_instance" "teleport" {
-  count = local.instance_count
-
-  ami           = var.ami_id
-  instance_type = var.instance_type
-  subnet_id     = var.subnet_ids[count.index % length(var.subnet_ids)]
-
-  iam_instance_profile   = aws_iam_instance_profile.teleport.name
-  vpc_security_group_ids = [aws_security_group.teleport.id]
-
-  # User Data (Teleport Install & Config)
-  user_data = base64encode(templatefile("${path.module}/user-data.sh", {
+  
+  # User data for Teleport installation
+  user_data = templatefile("${path.module}/user-data.sh", {
     cluster_name     = var.cluster_name
     region           = var.region
     dynamo_table     = aws_dynamodb_table.teleport_backend.name
     s3_bucket        = aws_s3_bucket.teleport_sessions.id
     email            = var.email
     teleport_version = var.teleport_version
-  }))
-
-  metadata_options {
-    http_tokens   = "required"
-    http_endpoint = "enabled"
-  }
-
-  root_block_device {
-    volume_size = 50
-    volume_type = "gp3"
-    encrypted   = true
-  }
-
-  tags = merge(var.tags, { Name = "${var.name}-instance-${count.index + 1}" })
+  })
 }
 
+module "instance" {
+  source = "../ec2-instance"
+  count  = local.instance_count
+
+  name    = "teleport-${count.index + 1}"
+  env     = var.env
+  project = var.project
+  region  = var.region
+
+  subnet_id              = var.subnet_ids[count.index % length(var.subnet_ids)]
+  vpc_security_group_ids = [aws_security_group.teleport.id]
+  instance_type          = var.instance_type
+  root_volume_size       = 50
+
+  user_data = local.user_data
+
+  # Golden Image State Configuration
+  state_bucket       = var.state_bucket
+  state_region       = var.state_region
+  state_key_prefix   = var.state_key_prefix
+  ami_id             = var.ami_id  # Optional override
+  allow_ami_fallback = var.allow_ami_fallback
+}
+
+# Attach Teleport policy to ec2-instance module's IAM role (inline policy)
+resource "aws_iam_role_policy" "teleport_to_ec2_instance" {
+  count  = local.instance_count
+  name   = "${var.name}-teleport-policy"
+  role   = module.instance[count.index].iam_role_name
+  policy = data.aws_iam_policy_document.teleport_policy.json
+}

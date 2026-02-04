@@ -81,6 +81,7 @@ data "aws_route53_zone" "private" {
   count        = var.base_domain != "" ? 1 : 0
   name         = var.base_domain
   private_zone = true
+  vpc_id       = data.terraform_remote_state.network.outputs.vpc_id
 }
 
 resource "aws_iam_policy" "external_dns" {

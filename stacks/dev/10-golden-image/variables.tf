@@ -74,6 +74,12 @@ variable "teleport_agent_enabled" {
   default     = false  # 스택별 user-data에서 제어
 }
 
+variable "build_if_needed" {
+  description = "Build new Golden Image only if none exists (true) or always rebuild (false)"
+  type        = bool
+  default     = true
+}
+
 # -----------------------------------------------------------------------------
 # Dummy Variables (env.tfvars 호환)
 # -----------------------------------------------------------------------------

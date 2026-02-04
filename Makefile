@@ -8,6 +8,7 @@ include makefiles/config.mk
 include makefiles/ssm.mk
 include makefiles/terraform.mk
 include makefiles/utils.mk
+include makefiles/packer.mk
 
 .PHONY: help whoami init
 

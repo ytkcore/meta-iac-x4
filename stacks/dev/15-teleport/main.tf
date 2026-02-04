@@ -178,6 +178,8 @@ module "teleport" {
   source = "../../../modules/teleport-ec2"
 
   name       = "${local.name_prefix}-teleport"
+  env        = var.env
+  project    = var.project
   region     = var.region
   vpc_id     = data.terraform_remote_state.network.outputs.vpc_id
   subnet_ids = data.terraform_remote_state.network.outputs.subnet_ids_by_tier["common"]

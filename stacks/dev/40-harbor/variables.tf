@@ -238,6 +238,12 @@ variable "seed_neo4j_tag" {
 # -----------------------------------------------------------------------------
 # Golden Image Configuration
 # -----------------------------------------------------------------------------
+variable "ami_id" {
+  description = "Optional AMI ID override (if not using Golden Image)"
+  type        = string
+  default     = null
+}
+
 variable "allow_ami_fallback" {
   description = "Allow fallback to default AMI if Golden Image not found (true=fallback, false=error)"
   type        = bool

@@ -277,35 +277,33 @@ resource "aws_lb_listener" "apiserver" {
 }
 
 ##############################
-# EC2 Instances
+# EC2 Instances (using ec2-instance module)
 ##############################
-resource "aws_instance" "control_plane" {
+
+# Control Plane Nodes
+module "control_plane" {
+  source   = "../ec2-instance"
   for_each = local.control_planes
 
-  ami                         = local.ami_id
-  instance_type               = var.instance_type
-  subnet_id                   = each.value.subnet_id
-  vpc_security_group_ids      = [aws_security_group.nodes.id]
-  iam_instance_profile        = aws_iam_instance_profile.nodes.name
-  associate_public_ip_address = false
+  name    = "${var.name}-${each.key}"
+  env     = var.env
+  project = var.project
+  region  = var.region
 
-  # [추가] API를 통한 종료 허용 (Terraform destroy 가능하게)
-  disable_api_termination = false
+  subnet_id              = each.value.subnet_id
+  vpc_security_group_ids = [aws_security_group.nodes.id]
+  instance_type          = var.instance_type
+  root_volume_size       = var.root_volume_size_gb
 
-  # [추가] user_data 변경 시 인스턴스 재생성 강제 (Cloud Provider 설정 반영용)
-  user_data_replace_on_change = true
+  # Use shared IAM instance profile (external)
+  iam_instance_profile = aws_iam_instance_profile.nodes.name
 
-  metadata_options {
-    http_endpoint = "enabled"
-    http_tokens   = "required"
-  }
-
-  root_block_device {
-    volume_type           = var.root_volume_type
-    volume_size           = var.root_volume_size_gb
-    encrypted             = true
-    delete_on_termination = true
-  }
+  # Golden Image Configuration
+  state_bucket       = var.state_bucket
+  state_region       = var.state_region
+  state_key_prefix   = var.state_key_prefix
+  ami_id             = var.ami_id
+  allow_ami_fallback = var.allow_ami_fallback
 
   user_data_base64 = base64gzip(templatefile("${path.module}/templates/rke2-server-userdata.sh.tftpl", {
     rke2_version = var.rke2_version
@@ -315,8 +313,6 @@ resource "aws_instance" "control_plane" {
     is_bootstrap = each.value.bootstrap
     node_name    = each.key
     os_family    = var.os_family
-    # templatefile() cannot interpolate null into strings.
-    # Use empty string to represent "not configured".
     harbor_registry_hostport          = var.harbor_registry_hostport != null ? var.harbor_registry_hostport : ""
     harbor_hostname                   = var.harbor_hostname != null ? var.harbor_hostname : ""
     harbor_private_ip                 = var.harbor_private_ip != null ? var.harbor_private_ip : ""
@@ -330,66 +326,50 @@ resource "aws_instance" "control_plane" {
     harbor_auth_enabled               = var.harbor_auth_enabled
     harbor_username                   = var.harbor_username
     harbor_password                   = var.harbor_password
-    # Ingress NodePort(Service) 보장용 HelmChartConfig
-    configure_ingress_nodeport      = var.configure_ingress_nodeport
-    ingress_http_nodeport           = var.ingress_http_nodeport
-    ingress_https_nodeport          = var.ingress_https_nodeport
-    ingress_external_traffic_policy = var.ingress_external_traffic_policy
-    # Health Check Script (single source of truth)
-    health_check_script = file("${path.module}/../../scripts/rke2/check-rke2-health.sh")
-    # AWS CCM
-    enable_aws_ccm  = var.enable_aws_ccm
-    aws_ccm_version = var.aws_ccm_version
-    cluster_name    = local.cluster_name
+    configure_ingress_nodeport        = var.configure_ingress_nodeport
+    ingress_http_nodeport             = var.ingress_http_nodeport
+    ingress_https_nodeport            = var.ingress_https_nodeport
+    ingress_external_traffic_policy   = var.ingress_external_traffic_policy
+    health_check_script               = file("${path.module}/../../scripts/rke2/check-rke2-health.sh")
+    enable_aws_ccm                    = var.enable_aws_ccm
+    aws_ccm_version                   = var.aws_ccm_version
+    cluster_name                      = local.cluster_name
   }))
-
-  tags = merge(local.common_tags, { Name = "${local.name_prefix}-${each.key}" })
 
   depends_on = [aws_lb.rke2]
-
-  # [추가] 삭제 시 타임아웃 설정
-  timeouts {
-    create = "10m"
-    delete = "20m"
-  }
 }
 
-resource "aws_instance" "worker" {
+# Worker Nodes
+module "worker" {
+  source   = "../ec2-instance"
   for_each = local.workers
 
-  ami                         = local.ami_id
-  instance_type               = var.instance_type
-  subnet_id                   = each.value.subnet_id
-  vpc_security_group_ids      = [aws_security_group.nodes.id]
-  iam_instance_profile        = aws_iam_instance_profile.nodes.name
-  associate_public_ip_address = false
+  name    = "${var.name}-${each.key}"
+  env     = var.env
+  project = var.project
+  region  = var.region
 
-  # [최적화 유지] Worker는 CP와 독립적으로 삭제되며, 삭제 잠금 없음
-  disable_api_termination = false
+  subnet_id              = each.value.subnet_id
+  vpc_security_group_ids = [aws_security_group.nodes.id]
+  instance_type          = var.instance_type
+  root_volume_size       = var.root_volume_size_gb
 
-  # [추가] user_data 변경 시 인스턴스 재생성 강제
-  user_data_replace_on_change = true
+  # Use shared IAM instance profile (external)
+  iam_instance_profile = aws_iam_instance_profile.nodes.name
 
-  metadata_options {
-    http_endpoint = "enabled"
-    http_tokens   = "required"
-  }
-
-  root_block_device {
-    volume_type           = var.root_volume_type
-    volume_size           = var.root_volume_size_gb
-    encrypted             = true
-    delete_on_termination = true
-  }
+  # Golden Image Configuration
+  state_bucket       = var.state_bucket
+  state_region       = var.state_region
+  state_key_prefix   = var.state_key_prefix
+  ami_id             = var.ami_id
+  allow_ami_fallback = var.allow_ami_fallback
 
   user_data_base64 = base64gzip(templatefile("${path.module}/templates/rke2-agent-userdata.sh.tftpl", {
-    rke2_version = var.rke2_version
-    token        = local.token
-    server_url   = local.server_url
-    node_name    = each.key
-    os_family    = var.os_family
-    # templatefile() cannot interpolate null into strings.
-    # Use empty string to represent "not configured".
+    rke2_version                      = var.rke2_version
+    token                             = local.token
+    server_url                        = local.server_url
+    node_name                         = each.key
+    os_family                         = var.os_family
     harbor_registry_hostport          = var.harbor_registry_hostport != null ? var.harbor_registry_hostport : ""
     harbor_hostname                   = var.harbor_hostname != null ? var.harbor_hostname : ""
     harbor_private_ip                 = var.harbor_private_ip != null ? var.harbor_private_ip : ""
@@ -405,35 +385,22 @@ resource "aws_instance" "worker" {
     harbor_password                   = var.harbor_password
   }))
 
-  tags = merge(local.common_tags, {
-    Name           = "${local.name_prefix}-${each.key}"
-    ReplaceTrigger = "ccm-integration-v2"
-  })
-
-  # [추가] Control Plane이 먼저 생성된 후 Worker 생성
-  depends_on = [aws_instance.control_plane]
-
-  # [추가] 삭제 시 타임아웃 설정
-  timeouts {
-    create = "10m"
-    delete = "20m"
-  }
+  depends_on = [module.control_plane]
 }
-
 ##############################
 # Target Attachments (CP)
 ##############################
 resource "aws_lb_target_group_attachment" "supervisor" {
   for_each         = local.control_planes
   target_group_arn = aws_lb_target_group.supervisor[0].arn
-  target_id        = aws_instance.control_plane[each.key].id
+  target_id        = module.control_plane[each.key].id
   port             = 9345
 }
 
 resource "aws_lb_target_group_attachment" "apiserver" {
   for_each         = local.control_planes
   target_group_arn = aws_lb_target_group.apiserver[0].arn
-  target_id        = aws_instance.control_plane[each.key].id
+  target_id        = module.control_plane[each.key].id
   port             = 6443
 }
 
@@ -544,7 +511,7 @@ resource "aws_lb_listener" "ingress_https_tls" {
 resource "aws_lb_target_group_attachment" "ingress_http" {
   for_each         = var.enable_public_ingress_nlb ? local.workers : {}
   target_group_arn = aws_lb_target_group.ingress_http[0].arn
-  target_id        = aws_instance.worker[each.key].id
+  target_id        = module.worker[each.key].id
   port             = var.ingress_http_nodeport
 }
 
@@ -552,7 +519,7 @@ resource "aws_lb_target_group_attachment" "ingress_http" {
 resource "aws_lb_target_group_attachment" "ingress_https" {
   for_each         = var.enable_public_ingress_nlb && !var.enable_acm_tls_termination ? local.workers : {}
   target_group_arn = aws_lb_target_group.ingress_https[0].arn
-  target_id        = aws_instance.worker[each.key].id
+  target_id        = module.worker[each.key].id
   port             = var.ingress_https_nodeport
 }
 

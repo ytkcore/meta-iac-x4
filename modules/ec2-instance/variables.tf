@@ -91,3 +91,9 @@ variable "allow_ami_fallback" {
   default     = false
 }
 
+variable "iam_instance_profile" {
+  description = "External IAM instance profile name to use (if provided, skips internal IAM resource creation)"
+  type        = string
+  default     = null
+}
+

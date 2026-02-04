@@ -25,8 +25,9 @@ variable "enable_ha" {
 }
 
 variable "ami_id" {
-  description = "AMI ID (Amazon Linux 2 or Ubuntu)"
+  description = "AMI ID override (Optional, bypasses Golden Image lookup if provided)"
   type        = string
+  default     = null
 }
 
 variable "instance_type" {
@@ -62,3 +63,39 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# Golden Image State Configuration
+variable "env" {
+  description = "Environment name"
+  type        = string
+}
+
+variable "project" {
+  description = "Project name"
+  type        = string
+}
+
+variable "state_bucket" {
+  description = "Terraform state S3 bucket (for Golden Image lookup)"
+  type        = string
+  default     = null
+}
+
+variable "state_region" {
+  description = "Terraform state region (for Golden Image lookup)"
+  type        = string
+  default     = null
+}
+
+variable "state_key_prefix" {
+  description = "Terraform state key prefix (for Golden Image lookup)"
+  type        = string
+  default     = null
+}
+
+variable "allow_ami_fallback" {
+  description = "Allow fallback to default AMI if Golden Image not found"
+  type        = bool
+  default     = false
+}
+

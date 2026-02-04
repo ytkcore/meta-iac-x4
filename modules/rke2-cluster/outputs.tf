@@ -1,21 +1,21 @@
 output "control_plane_instance_ids" {
   description = "Control Plane 인스턴스 ID"
-  value       = { for k, v in aws_instance.control_plane : k => v.id }
+  value       = { for k, v in module.control_plane : k => v.id }
 }
 
 output "worker_instance_ids" {
   description = "Worker 인스턴스 ID"
-  value       = { for k, v in aws_instance.worker : k => v.id }
+  value       = { for k, v in module.worker : k => v.id }
 }
 
 output "control_plane_private_ips" {
   description = "Control Plane Private IP"
-  value       = { for k, v in aws_instance.control_plane : k => v.private_ip }
+  value       = { for k, v in module.control_plane : k => v.private_ip }
 }
 
 output "worker_private_ips" {
   description = "Worker Private IP"
-  value       = { for k, v in aws_instance.worker : k => v.private_ip }
+  value       = { for k, v in module.worker : k => v.private_ip }
 }
 
 output "rke2_internal_nlb_dns" {
@@ -58,7 +58,6 @@ output "ingress_http_listener_arn" {
   description = "Ingress Public NLB HTTP(80) listener ARN"
   value       = try(aws_lb_listener.ingress_http[0].arn, null)
 }
-
 
 output "acm_tls_termination_enabled" {
   description = "ACM TLS Termination 활성화 여부"
