@@ -20,7 +20,7 @@ data "terraform_remote_state" "security" {
   config = {
     bucket  = var.state_bucket
     region  = var.state_region
-    key     = "${var.state_key_prefix}/${var.env}/10-security.tfstate"
+    key     = "${var.state_key_prefix}/${var.env}/05-security.tfstate"
     encrypt = true
   }
 }
@@ -107,6 +107,20 @@ locals {
   ops_client_sg_id      = try(data.terraform_remote_state.security.outputs.ops_client_sg_id, "")
   k8s_node_subnet_cidrs = try(data.terraform_remote_state.network.outputs.subnet_cidrs_by_tier["k8s_dp"], [])
   vpc_cidr              = try(data.terraform_remote_state.network.outputs.vpc_cidr, "")
+  
+  # Golden Image Configuration (40-harbor specific)
+  docker_enabled     = true   # Harbor 필수
+  cloudwatch_enabled = false  # Dev: 비활성화
+  teleport_enabled   = false  # K8s 관리
+  ssh_port           = 22     # 기본 포트
+  
+  # Golden Image AMI with fallback logic
+  golden_ami_id = try(data.terraform_remote_state.golden_image.outputs.golden_ami_id, null)
+  
+  # AMI Selection: Golden Image 우선, fallback 설정에 따라 기본 AMI 사용 또는 에러
+  final_ami_id = local.golden_ami_id != null ? local.golden_ami_id : (
+    var.allow_ami_fallback ? null : "ERROR: Golden Image not found and fallback is disabled"
+  )
 }
 
 # -----------------------------------------------------------------------------
@@ -160,12 +174,19 @@ module "harbor" {
   enable_alb          = true
   alb_subnet_ids      = local.final_alb_subnets
   alb_certificate_arn = local.acm_certificate_arn
-  alb_internal        = false
-  alb_ingress_cidrs   = ["0.0.0.0/0"]
+  alb_internal        = true
+  alb_ingress_cidrs   = [local.vpc_cidr, "10.100.0.0/16"]
 
   # Decoupling & Security optimization (Hybrid A+B)
   additional_ingress_sg_ids = [local.k8s_client_sg_id, local.ops_client_sg_id]
   allowed_inbound_cidrs     = distinct(concat([local.vpc_cidr], local.k8s_node_subnet_cidrs))
+  
+  # Golden Image (handled by harbor-ec2 -> ec2-instance)
+  state_bucket       = var.state_bucket
+  state_region       = var.state_region
+  state_key_prefix   = var.state_key_prefix
+  ami_id             = var.ami_id  # Optional override
+  allow_ami_fallback = var.allow_ami_fallback
 }
 
 # -----------------------------------------------------------------------------

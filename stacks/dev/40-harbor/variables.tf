@@ -174,7 +174,7 @@ variable "route53_zone_id" {
 variable "dns_scope" {
   description = "DNS registration scope (public, private, or both)"
   type        = string
-  default     = "both"
+  default     = "private"
 
   validation {
     condition     = contains(["public", "private", "both"], var.dns_scope)
@@ -234,3 +234,13 @@ variable "seed_neo4j_tag" {
   type        = string
   default     = ""
 }
+
+# -----------------------------------------------------------------------------
+# Golden Image Configuration
+# -----------------------------------------------------------------------------
+variable "allow_ami_fallback" {
+  description = "Allow fallback to default AMI if Golden Image not found (true=fallback, false=error)"
+  type        = bool
+  default     = false
+}
+

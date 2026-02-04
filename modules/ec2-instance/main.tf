@@ -1,20 +1,58 @@
-# 1. AMI 조회 (Amazon Linux 2023)
-data "aws_ami" "golden" {
-  most_recent = true
-  owners      = ["self"]
+# -----------------------------------------------------------------------------
+# Golden Image Lookup (from 10-golden-image tfstate)
+# -----------------------------------------------------------------------------
+data "terraform_remote_state" "golden_image" {
+  count = var.ami_id == null && var.state_bucket != null ? 1 : 0
+  
+  backend = "s3"
+  config = {
+    bucket  = var.state_bucket
+    region  = var.state_region
+    key     = "${var.state_key_prefix}/${var.env}/10-golden-image.tfstate"
+    encrypt = true
+  }
+}
 
+# -----------------------------------------------------------------------------
+# Fallback: Default AMI (Amazon Linux 2023)
+# -----------------------------------------------------------------------------
+data "aws_ami" "al2023_fallback" {
+  count = var.ami_id == null && var.allow_ami_fallback ? 1 : 0
+  
+  most_recent = true
+  owners      = ["amazon"]
+  
   filter {
-    name   = "tag:Role"
-    values = ["meta-golden-image"]
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+  
+  filter {
+    name   = "state"
+    values = ["available"]
   }
 }
 
 locals {
   # Name Format: {env}-{project}-{workload}-{resource}-{suffix}
   name_prefix = "${var.env}-${var.project}-${var.name}"
-
-  # AMI selection: Override > Golden Image > AL2023 (Fallback)
-  final_ami_id = var.ami_id != null ? var.ami_id : data.aws_ami.golden.id
+  
+  # Golden Image AMI from remote state
+  golden_ami_id = var.ami_id == null && length(data.terraform_remote_state.golden_image) > 0 ? try(data.terraform_remote_state.golden_image[0].outputs.golden_ami_id, null) : null
+  
+  # Fallback AMI (AL2023)
+  fallback_ami_id = var.ami_id == null && var.allow_ami_fallback && length(data.aws_ami.al2023_fallback) > 0 ? data.aws_ami.al2023_fallback[0].id : null
+  
+  # AMI Selection Priority:
+  # 1. Explicit ami_id (highest priority)
+  # 2. Golden Image from remote state
+  # 3. Fallback to AL2023 (if allow_ami_fallback=true)
+  # 4. Error if none available and fallback disabled
+  final_ami_id = var.ami_id != null ? var.ami_id : (
+    local.golden_ami_id != null ? local.golden_ami_id : (
+      local.fallback_ami_id != null ? local.fallback_ami_id : "ERROR: Golden Image not found and fallback is disabled"
+    )
+  )
 
   # Common tags for all resources in this module
   common_tags = {

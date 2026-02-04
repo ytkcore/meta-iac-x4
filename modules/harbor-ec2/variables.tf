@@ -223,3 +223,11 @@ variable "alb_ingress_cidrs" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
+
+# --- AMI Configuration ---
+variable "ami_id" {
+  description = "AMI ID Override (Optional, defaults to ec2-instance module default)"
+  type        = string
+  default     = null
+}
+

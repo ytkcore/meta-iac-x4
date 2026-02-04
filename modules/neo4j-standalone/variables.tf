@@ -98,3 +98,29 @@ variable "ami_id" {
   type        = string
   default     = null
 }
+
+# Golden Image State Configuration
+variable "state_bucket" {
+  description = "Terraform state S3 bucket (for Golden Image lookup)"
+  type        = string
+  default     = null
+}
+
+variable "state_region" {
+  description = "Terraform state region (for Golden Image lookup)"
+  type        = string
+  default     = null
+}
+
+variable "state_key_prefix" {
+  description = "Terraform state key prefix (for Golden Image lookup)"
+  type        = string
+  default     = null
+}
+
+variable "allow_ami_fallback" {
+  description = "Allow fallback to default AMI if Golden Image not found"
+  type        = bool
+  default     = false
+}
+

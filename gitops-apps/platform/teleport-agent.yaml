@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: teleport-agent
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.releases.teleport.dev
+    chart: teleport-kube-agent
+    targetRevision: 17.0.0
+    helm:
+      values: |
+        roles: "kube"
+        proxyAddr: "teleport.dev.unifiedmeta.net:443"
+        kubeClusterName: "meta-dev"
+        # 중요: 실제 토큰은 K8s Secret으로 관리하거나 여기에 직접 입력해야 합니다.
+        # 보안을 위해 'teleport-kube-agent-join-token' Secret을 미리 생성하는 것을 권장합니다.
+        # 만약 IAM Join을 사용한다면 joinParams를 설정해야 합니다.
+        authToken: "changeme-or-use-secret"
+        
+        # IAM Join 사용 시 (권장)
+        # joinParams:
+        #   method: iam
+        #   token_name: kube-join
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: teleport
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

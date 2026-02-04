@@ -31,6 +31,7 @@ apply: tf-init tunnel-check
 	@if [ "$(STACK)" = "00-network" ]; then \
 		$(MAKE) build-ami; \
 	fi
+	@bash scripts/terraform/post-apply-hook.sh "$(STACK)"
 
 apply-auto: tf-init tunnel-check
 	@bash scripts/common/log-op.sh "APPLY-AUTO" "$(STACK)" "$(ENV)"
@@ -38,6 +39,7 @@ apply-auto: tf-init tunnel-check
 	@if [ "$(STACK)" = "00-network" ]; then \
 		$(MAKE) build-ami; \
 	fi
+	@bash scripts/terraform/post-apply-hook.sh "$(STACK)"
 
 destroy: tf-init tunnel-check
 	@bash scripts/common/log-op.sh "DESTROY" "$(STACK)" "$(ENV)"
