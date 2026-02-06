@@ -70,7 +70,7 @@ variable "kubeconfig_context" {
 variable "use_harbor_oci" {
   description = "Harbor OCI 레지스트리에서 Helm 차트 설치 여부 (외부 네트워크 접근 불가 시 true)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "harbor_oci_registry_url" {
@@ -89,7 +89,7 @@ variable "harbor_admin_password" {
 variable "auto_seed_missing_helm_charts" {
   description = "Harbor OCI 사용 시, 필요한 Helm 차트(argo-cd/cert-manager/rancher)가 Harbor에 없으면 로컬 머신에서 외부 Helm repo에서 pull 후 Harbor OCI로 push하여 채웁니다. (로컬 머신에서 실행 + 인터넷 가능 전제)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 # Cert-Manager Variables removed (ArgoCD managed)

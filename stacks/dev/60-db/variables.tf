@@ -109,7 +109,18 @@ variable "require_rke2_state" {
   description = "Deprecated: Now uses static k8s_client SG from 10-security. Default: false."
 }
 
-# Managed Postgres (RDS/Aurora) settings - REMOVED for Consolidation
+# Golden Image Configuration
+variable "ami_id" {
+  type        = string
+  default     = null
+  description = "Optional AMI ID override (if not using Golden Image remote state)."
+}
+
+variable "allow_ami_fallback" {
+  type        = bool
+  default     = false
+  description = "Allow fallback to SSM parameter if Golden Image is not found/provided."
+}
 
 # [NEW] base_domain (global variable compatibility)
 variable "base_domain" {
