@@ -9,9 +9,11 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-staging
     solvers:
-    - http01:
-        ingress:
-          class: nginx
+    # DNS-01 solver using Route53 (Public Zone)
+    - dns01:
+        route53:
+          region: ap-northeast-2
+          hostedZoneID: Z09535251FN1BQ4E3N9ID
 ---
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
@@ -24,6 +26,9 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
-    - http01:
-        ingress:
-          class: nginx
+    # DNS-01 solver using Route53 (Public Zone)
+    # Bypasses hairpin routing issue with HTTP-01
+    - dns01:
+        route53:
+          region: ap-northeast-2
+          hostedZoneID: Z09535251FN1BQ4E3N9ID

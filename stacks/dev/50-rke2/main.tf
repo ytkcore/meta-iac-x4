@@ -104,6 +104,12 @@ resource "aws_iam_policy" "external_dns" {
         Effect   = "Allow"
         Action   = ["route53:ListHostedZones", "route53:ListResourceRecordSets"]
         Resource = "*"
+      },
+      # Required for cert-manager DNS-01 challenge to verify TXT record propagation
+      {
+        Effect   = "Allow"
+        Action   = ["route53:GetChange"]
+        Resource = "arn:aws:route53:::change/*"
       }
     ]
   })
