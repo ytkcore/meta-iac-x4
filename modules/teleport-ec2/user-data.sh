@@ -1,24 +1,72 @@
 #!/bin/bash
-set -e
+# Teleport EC2 Installation Script
+# Version: 2026-02-04
+
+set -euo pipefail
 
 # 로그 설정
-exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+LOG_FILE="/var/log/user-data.log"
+exec > >(tee "$LOG_FILE"|logger -t user-data -s 2>/dev/console) 2>&1
 
-echo ">>> Teleport Installation Started..."
+echo "=============================================="
+echo ">>> Teleport Installation Started: $(date)"
+echo "=============================================="
+
+# 변수 확인
+TELEPORT_VERSION="${teleport_version}"
+CLUSTER_NAME="${cluster_name}"
+REGION="${region}"
+DYNAMO_TABLE="${dynamo_table}"
+S3_BUCKET="${s3_bucket}"
+
+echo ">>> Configuration:"
+echo "    - Teleport Version: $TELEPORT_VERSION"
+echo "    - Cluster Name: $CLUSTER_NAME"
+echo "    - Region: $REGION"
+echo "    - DynamoDB Table: $DYNAMO_TABLE"
+echo "    - S3 Bucket: $S3_BUCKET"
 
 # 1. Install Teleport
-# (Amazon Linux 2023 / 2 assumed based on Golden Image)
-# If Ubuntu, commands might differ.
-# Using generic install script for compatibility.
+echo ">>> Step 1: Installing Teleport..."
 
-TELEPORT_VERSION="${teleport_version}"
-# Install Teleport Repo
-yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-yum install -y teleport-$TELEPORT_VERSION
+# yum-config-manager 설치 확인 (Amazon Linux 2023)
+if ! command -v yum-config-manager &> /dev/null; then
+    echo ">>> Installing yum-utils for yum-config-manager..."
+    yum install -y yum-utils
+fi
 
-# 2. Configure Teleport
-# Using DynamoDB & S3 Backend
+# Teleport 저장소 추가
+echo ">>> Adding Teleport repository..."
+yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo || {
+    echo "ERROR: Failed to add Teleport repository"
+    exit 1
+}
+
+# Teleport 설치
+echo ">>> Installing teleport-$TELEPORT_VERSION..."
+yum install -y teleport-"$TELEPORT_VERSION" || {
+    echo "ERROR: Failed to install Teleport"
+    exit 1
+}
+
+# 설치 확인
+if ! command -v teleport &> /dev/null; then
+    echo "ERROR: Teleport binary not found after installation!"
+    exit 1
+fi
+echo ">>> Teleport installed: $(teleport version)"
+
+# 2. 데이터 디렉토리 준비
+echo ">>> Step 2: Preparing data directory..."
+mkdir -p /var/lib/teleport
+mkdir -p /var/lib/teleport/audit/events
+chmod 700 /var/lib/teleport
+chmod -R 700 /var/lib/teleport/audit
+
+# 3. Configure Teleport
+echo ">>> Step 3: Creating Teleport configuration..."
 cat > /etc/teleport.yaml <<EOF
+version: v3
 teleport:
   nodename: $(hostname)
   data_dir: /var/lib/teleport
@@ -28,23 +76,20 @@ teleport:
     format:
       output: text
   
-  # Configure High Availability Storage (DynamoDB + S3)
+  # High Availability Storage (DynamoDB + S3)
   storage:
     type: dynamodb
-    region: ${region}
-    table_name: ${dynamo_table}
-    audit_events_uri: "dynamodb://${dynamo_table}_audit"
-    audit_sessions_uri: "s3://${s3_bucket}/records"
+    region: $REGION
+    table_name: $DYNAMO_TABLE
+    audit_sessions_uri: "s3://$S3_BUCKET/records"
+    # Audit Events to Local File (v18+ S3 scheme unsupported for events, DynamoDB requires separate table setup)
+    audit_events_uri: "file:///var/lib/teleport/audit/events"
     continuous_backups: true
 
 auth_service:
   enabled: "yes"
-  cluster_name: "${cluster_name}"
+  cluster_name: "$CLUSTER_NAME"
   listen_addr: 0.0.0.0:3025
-  
-  # Public Address (for clients/nodes to reach auth service)
-  # Should proveid Public DNS or ALB DNS if external access is needed
-  # public_addr: "${cluster_name}:3025" 
   
   authentication:
     type: local
@@ -54,36 +99,50 @@ ssh_service:
   enabled: "yes"
   labels:
     env: dev
-    role: proxy
-  commands:
-  - name: hostname
-    command: [hostname]
-    period: 1m0s
+    role: teleport-server
 
 proxy_service:
   enabled: "yes"
   listen_addr: 0.0.0.0:3023
   web_listen_addr: 0.0.0.0:3080
   tunnel_listen_addr: 0.0.0.0:3024
-  public_addr: "${cluster_name}:443"  # ALB uses 443
-  
-  # TLS is handled by ALB (ACM) -> Proxy (HTTP or Self-signed HTTPS)
-  # Here we terminate TLS at ALB, so Proxy can use HTTP or (better) Self-signed HTTPS.
-  # Teleport requires HTTPS for Web UI even behind ALB mostly.
+  public_addr: "$CLUSTER_NAME:443"
   https_keypairs: []
-  
-  # ACME (Let's Encrypt) is NOT used because we use ACM on ALB.
   acme:
     enabled: "no"
 
 EOF
 
-# 3. Create Audit Table for DynamoDB (if not exists, Teleport might create it but IAM perm allows it)
-# The main table is created by Terraform, audit table is separate usually or same.
-# We configured "audit_events_uri: dynamodb://..." which creates a separate table or index.
+echo ">>> Configuration file created at /etc/teleport.yaml"
 
 # 4. Start Teleport
+echo ">>> Step 4: Starting Teleport service..."
+systemctl daemon-reload
 systemctl enable teleport
 systemctl start teleport
 
-echo ">>> Teleport Installation Completed!"
+# 5. 시작 확인 (최대 30초 대기)
+echo ">>> Step 5: Verifying Teleport startup..."
+for i in {1..6}; do
+    if systemctl is-active --quiet teleport; then
+        echo ">>> Teleport service is running!"
+        break
+    fi
+    echo ">>> Waiting for Teleport to start... ($i/6)"
+    sleep 5
+done
+
+# 최종 상태 확인
+if systemctl is-active --quiet teleport; then
+    echo "=============================================="
+    echo ">>> Teleport Installation COMPLETED: $(date)"
+    echo ">>> host_uuid: $(cat /var/lib/teleport/host_uuid 2>/dev/null || echo 'generating...')"
+    echo "=============================================="
+else
+    echo "=============================================="
+    echo ">>> ERROR: Teleport failed to start!"
+    echo ">>> Check logs with: journalctl -u teleport -n 100"
+    echo "=============================================="
+    journalctl -u teleport -n 50 --no-pager
+    exit 1
+fi

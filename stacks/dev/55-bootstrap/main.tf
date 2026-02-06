@@ -101,6 +101,7 @@ locals {
 # - Harbor EC2의 user_data seeding이 아직 완료되지 않았거나, 인터넷 단절 대비
 # ------------------------------------------------------------------------------
 resource "null_resource" "seed_missing_helm_charts" {
+  count = var.auto_seed_missing_helm_charts ? 1 : 0
 
   triggers = {
     harbor_host    = local.harbor_oci_host

@@ -126,20 +126,57 @@ resource "aws_lb" "teleport" {
 resource "aws_lb_target_group" "teleport" {
   name     = "${local.name_prefix}-teleport-tg"
   port     = 3080
-  protocol = "HTTP" # Teleport Proxy Web Port (TLS Terminated at ALB)
+  protocol = "HTTPS" # Web Traffic (HTTP/1.1)
+  protocol_version = "HTTP1" # Explicitly revert to HTTP1 for non-gRPC traffic
   vpc_id   = data.terraform_remote_state.network.outputs.vpc_id
 
   health_check {
-    path = "/healthz" # Teleport Health Check Endpoint (might need adjustment)
+    path = "/web/login" # Teleport Health Check Endpoint (Login Page)
     # Teleport 3080 redirects to /web/login usually, check /health for API
-    # Recommended: /readyz
+    # Recommended: /readyz or /healthz on HTTPS
     port                = "traffic-port"
-    protocol            = "HTTP"
+    protocol            = "HTTPS"
     healthy_threshold   = 3
     unhealthy_threshold = 3
     timeout             = 5
     interval            = 30
-    matcher             = "200"
+    matcher             = "200-399"
+  }
+}
+
+resource "aws_lb_target_group" "teleport_grpc" {
+  name     = "${local.name_prefix}-teleport-grpc"
+  port     = 3080
+  protocol = "HTTPS"
+  protocol_version = "HTTP2" # For gRPC
+  vpc_id   = data.terraform_remote_state.network.outputs.vpc_id
+
+  health_check {
+    path                = "/web/login"
+    port                = "traffic-port"
+    protocol            = "HTTPS"
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    timeout             = 5
+    interval            = 30
+    matcher             = "200-399"
+  }
+}
+
+resource "aws_lb_listener_rule" "teleport_grpc" {
+  listener_arn = aws_lb_listener.teleport_https.arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.teleport_grpc.arn
+  }
+
+  condition {
+    http_header {
+      http_header_name = "Content-Type"
+      values           = ["application/grpc*"]
+    }
   }
 }
 
@@ -206,6 +243,14 @@ resource "aws_lb_target_group_attachment" "teleport" {
   count = length(module.teleport.instance_ids)
 
   target_group_arn = aws_lb_target_group.teleport.arn
+  target_id        = module.teleport.instance_ids[count.index]
+  port             = 3080
+}
+
+resource "aws_lb_target_group_attachment" "teleport_grpc" {
+  count = length(module.teleport.instance_ids)
+
+  target_group_arn = aws_lb_target_group.teleport_grpc.arn
   target_id        = module.teleport.instance_ids[count.index]
   port             = 3080
 }

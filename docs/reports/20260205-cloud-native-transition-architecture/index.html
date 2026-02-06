@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Meta Cloud Native Transition Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-color: #38bdf8;
+            --success-color: #4ade80;
+            --border-color: #334155;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 40px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, var(--accent-color), var(--success-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .section {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid var(--border-color);
+        }
+
+        h2 {
+            border-left: 4px solid var(--accent-color);
+            padding-left: 15px;
+            margin-top: 0;
+            color: var(--text-primary);
+        }
+
+        .diagram-container {
+            display: flex;
+            justify-content: center;
+            margin: 30px 0;
+            overflow-x: auto;
+            background: rgba(0,0,0,0.2);
+            padding: 40px;
+            border-radius: 12px;
+        }
+        
+        .diagram-container.image-container {
+            padding: 0;
+            max-width: 50%; 
+            margin: 0 auto;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        /* Force SVG to be larger */
+        .mermaid svg {
+            max-width: none !important;
+            width: 100% !important;
+            min-width: 800px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .summary-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .summary-card.major { border-top: 4px solid #f43f5e; }
+        .summary-card.medium { border-top: 4px solid #3b82f6; }
+        .summary-card.minor { border-top: 4px solid #10b981; }
+
+        .card-header {
+            padding: 15px;
+            font-weight: 800;
+            font-size: 1.2rem;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .major .card-header { color: #f43f5e; }
+        .medium .card-header { color: #3b82f6; }
+        .minor .card-header { color: #10b981; }
+
+        .card-content {
+            padding: 20px;
+            font-size: 1.05rem;
+        }
+        .card-content ul {
+            padding-left: 20px;
+            margin-bottom: 0;
+        }
+        .card-content li {
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+        }
+        .card-content strong {
+            color: var(--text-primary);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .download-hint {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-top: 50px;
+            padding: 20px;
+            border-top: 1px dashed var(--border-color);
+        }
+        
+        /* Mermaid Customization */
+        .mermaid {
+            font-family: 'Inter', sans-serif !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="app">
+        <!-- Dynamic Content will be injected here -->
+    </div>
+
+    <!-- Load Report Data -->
+    <script src="report_data.js"></script>
+    
+    <!-- Render Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const app = document.getElementById('app');
+
+            // 1. Render Header
+            const header = document.createElement('header');
+            header.innerHTML = `<h1>${reportData.title}</h1>`;
+            app.appendChild(header);
+
+            // 2. Render Sections
+            reportData.sections.forEach(section => {
+                const sectionDiv = document.createElement('div');
+                sectionDiv.className = 'section';
+                
+                // Title
+                let html = `<h2>${section.title}</h2>`;
+                
+                // Description (Optional)
+                if (section.description) {
+                    html += `<p>${section.description}</p>`;
+                }
+
+                // Content based on Type
+                if (section.type === 'mermaid') {
+                    html += `<div class="diagram-container"><div class="mermaid">${section.content}</div></div>`;
+                } 
+                else if (section.type === 'image') {
+                    html += `<div class="diagram-container image-container" style="${section.style || ''}">
+                                <img src="${section.src}" alt="${section.alt}" style="width: 100%; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);">
+                             </div>`;
+                }
+                else if (section.type === 'table') {
+                    html += `<table><thead><tr>`;
+                    section.headers.forEach((h, i) => {
+                        let width = "";
+                        if (i === 0) width = "15%";
+                        else if (i === 1) width = "20%";
+                        else if (i === 2) width = "25%";
+                        else if (i === 3) width = "40%";
+                        html += `<th style="width: ${width}">${h}</th>`;
+                    });
+                    html += `</tr></thead><tbody>`;
+                    
+                    section.rows.forEach(row => {
+                        html += `<tr>
+                                    <td><strong>${row.area}</strong></td>
+                                    <td>${row.before}</td>
+                                    <td>${row.after}</td>
+                                    <td>${row.impact}</td>
+                                </tr>`;
+                    });
+                    html += `</tbody></table>`;
+                }
+                else if (section.type === 'cards') {
+                    html += `<div class="summary-grid">`;
+                    section.cards.forEach(card => {
+                        html += `<div class="summary-card ${card.type}">
+                                    <div class="card-header">${card.title}</div>
+                                    <div class="card-content"><ul>`;
+                        card.items.forEach(item => {
+                            html += `<li><strong>${item.title}</strong>${item.desc}</li>`;
+                        });
+                        html += `</ul></div></div>`;
+                    });
+                    html += `</div>`;
+                }
+
+                sectionDiv.innerHTML = html;
+                app.appendChild(sectionDiv);
+            });
+
+            // 3. Render Footer
+            const footer = document.createElement('div');
+            footer.className = 'download-hint';
+            footer.innerText = "💡 파일(File) > '다른 이름으로 저장(Save As)'을 통해 이 보고서를 HTML로 저장하거나, 브라우저의 인쇄(Print) 기능을 사용하여 PDF로 저장할 수 있습니다.";
+            app.appendChild(footer);
+
+            // 4. Initialize Mermaid
+            mermaid.initialize({
+                startOnLoad: true,
+                theme: 'dark',
+                securityLevel: 'loose',
+                fontFamily: 'Inter',
+                themeVariables: {
+                    fontSize: '24px', 
+                    fontFamily: 'Inter',
+                    nodeBorder: '#38bdf8',
+                    mainBkg: '#1e293b',
+                    clusterBkg: '#0f172a',
+                    clusterBorder: '#64748b',
+                    lineColor: '#cbd5e1',
+                    textColor: '#ffffff',
+                    titleColor: '#ffffff',
+                    nodeTextColor: '#ffffff'
+                },
+                flowchart: {
+                    htmlLabels: true,
+                    curve: 'basis',
+                    useMaxWidth: false
+                }
+            });
+            // Re-run init to render injected diagrams
+            mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+        });
+    </script>
+</body>
+</html>

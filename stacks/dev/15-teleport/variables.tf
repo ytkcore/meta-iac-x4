@@ -32,7 +32,7 @@ variable "base_domain" {
 
 variable "teleport_version" {
   type    = string
-  default = "14.3.3"
+  default = "18.6.6"
 }
 
 variable "ami_id" {

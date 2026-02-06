@@ -18,6 +18,12 @@
   - 아키텍처, 기술 스택, 배포 절차
   - HA 구성 및 비용 최적화
 
+- **[Teleport 사용자 가이드](teleport-user-guide.md)** ⭐ NEW
+  - **일상 사용법 완전 가이드** (개발자/운영자용)
+  - tsh 클라이언트 설치 및 로그인
+  - SSH/Kubernetes/Database 접속 방법
+  - Break-Glass 비상 접근 및 문제 해결
+
 - **[Teleport 프로덕션 가이드](teleport-production-guide.md)**
   - Kubernetes Helm 기반 HA 배포 (대규모 환경용)
   - SSO 통합, 역할 정의, 감사 로그 설정
@@ -51,6 +57,7 @@
 | 상황 | 추천 문서 |
 |:---|:---|
 | **처음 시작** | [ADR-001](ADR-001-access-control-solution.md) → [EC2 배포 가이드](teleport-ec2-deployment-guide.md) |
+| **일상 사용** | [사용자 가이드](teleport-user-guide.md) ⭐ |
 | **운영 중** | [운영 매뉴얼](teleport-operations-manual.md) |
 | **보안 강화** | [보안 최적화](security-optimization-best-practices.md) |
 | **대규모 배포** | [프로덕션 가이드](teleport-production-guide.md) |
