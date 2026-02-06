@@ -133,3 +133,16 @@ Harbor Setup Complete
 ================================================================================
 EOT
 }
+
+# -----------------------------------------------------------------------------
+# Access Gateway Integration (솔루션 독립적)
+# -----------------------------------------------------------------------------
+output "service_endpoint" {
+  description = "Service endpoint for access-gateway integration"
+  value = {
+    name     = "harbor"
+    uri      = "https://${local.final_hostname}"
+    type     = "web"
+    internal = true
+  }
+}

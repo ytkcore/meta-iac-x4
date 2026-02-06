@@ -55,12 +55,15 @@ locals {
   )
 
   # Common tags for all resources in this module
-  common_tags = {
-    Name        = local.name_prefix
-    Project     = var.project
-    Environment = var.env
-    ManagedBy   = "terraform"
-  }
+  common_tags = merge(
+    {
+      Name        = local.name_prefix
+      Project     = var.project
+      Environment = var.env
+      ManagedBy   = "terraform"
+    },
+    var.tags
+  )
   
   # IAM: Use external profile if provided, otherwise create internal
   use_internal_iam = var.iam_instance_profile == null

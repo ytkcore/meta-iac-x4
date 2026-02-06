@@ -1,0 +1,204 @@
+<mxfile host="app.diagrams.net" modified="2026-02-06T05:13:00.000Z" agent="5.0" version="24.0.0" etag="teleport-arch-v1" type="device">
+  <diagram name="Teleport Architecture" id="teleport-arch">
+    <mxGraphModel dx="1422" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Local Environment Container -->
+        <mxCell id="local-env" value="User's Local Environment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5E6D3;strokeColor=#CCCCCC;fontSize=16;fontStyle=1;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="1120" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- User -->
+        <mxCell id="user" value="User" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=data:image/svg+xml,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCI+PHBhdGggZD0iTTI0IDI0YzMuMzEgMCA2LTIuNjkgNi02cy0yLjY5LTYtNi02LTYgMi42OS02IDYgMi42OSA2IDYgNnptMCAxLjVjLTQuMDEgMC0xMiAyLjAxLTEyIDZ2My41aDI0di0zLjVjMC0zLjk5LTcuOTktNi0xMi02eiIgZmlsbD0iIzMzMyIvPjwvc3ZnPg==;" vertex="1" parent="1">
+          <mxGeometry x="576" y="50" width="48" height="48" as="geometry" />
+        </mxCell>
+        
+        <!-- AWS Cloud Container -->
+        <mxCell id="aws-cloud" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#4A90E2;strokeWidth=2;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="150" width="1120" height="600" as="geometry" />
+        </mxCell>
+        
+        <!-- AWS Cloud Label -->
+        <mxCell id="aws-label" value="AWS Cloud" style="text;html=1;strokeColor=none;fillColor=#4A90E2;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=12;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="140" width="80" height="25" as="geometry" />
+        </mxCell>
+        
+        <!-- DNS Layer Container -->
+        <mxCell id="dns-layer" value="DNS Layer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#CCCCCC;fontSize=12;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="60" y="180" width="1080" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- Public DNS -->
+        <mxCell id="public-dns" value="Public DNS (Route53)&lt;br&gt;&lt;br&gt;*.teleport.unifiedmeta.net → ALB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE4B5;strokeColor=#CCCCCC;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="100" y="210" width="480" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Private DNS -->
+        <mxCell id="private-dns" value="Private DNS (Route53)&lt;br&gt;&lt;br&gt;harbor.unifiedmeta.net → 10.0.102.x" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D3D3D3;strokeColor=#CCCCCC;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="620" y="210" width="480" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Internet Zone Container -->
+        <mxCell id="internet-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D6EAF8;strokeColor=#CCCCCC;align=center;verticalAlign=bottom;" vertex="1" parent="1">
+          <mxGeometry x="80" y="330" width="240" height="370" as="geometry" />
+        </mxCell>
+        
+        <!-- Internet Zone Label -->
+        <mxCell id="internet-label" value="INTERNET ZONE" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="665" width="200" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- Public ALB -->
+        <mxCell id="public-alb" value="Public ALB&lt;br&gt;&lt;br&gt;ALB (443)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#AED6F1;strokeColor=#CCCCCC;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="110" y="400" width="180" height="100" as="geometry" />
+        </mxCell>
+        
+        <!-- Internal Zone Container -->
+        <mxCell id="internal-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#CCCCCC;align=center;verticalAlign=bottom;" vertex="1" parent="1">
+          <mxGeometry x="350" y="330" width="780" height="370" as="geometry" />
+        </mxCell>
+        
+        <!-- Internal Zone Label -->
+        <mxCell id="internal-label" value="INTERNAL ZONE (VPC)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="540" y="665" width="400" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- Teleport Server -->
+        <mxCell id="teleport-server" value="Teleport Server (10.0.201.42)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#CCCCCC;fontSize=11;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="380" y="360" width="300" height="290" as="geometry" />
+        </mxCell>
+        
+        <!-- Proxy -->
+        <mxCell id="proxy" value="Proxy (3080)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CE93D8;strokeColor=#CCCCCC;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="430" y="395" width="200" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- SSH Tunnel Arrow -->
+        <mxCell id="ssh-tunnel" value="SSH Tunnel (Persistent)" style="shape=flexArrow;endArrow=classic;startArrow=classic;html=1;rounded=0;fillColor=#9C27B0;strokeColor=#7B1FA2;strokeWidth=3;startSize=6;endSize=6;" edge="1" parent="1">
+          <mxGeometry width="100" height="100" relative="1" as="geometry">
+            <mxPoint x="530" y="470" as="sourcePoint" />
+            <mxPoint x="530" y="540" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- App Service -->
+        <mxCell id="app-service" value="App Service (3024)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CE93D8;strokeColor=#CCCCCC;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="430" y="555" width="200" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Harbor Server -->
+        <mxCell id="harbor-server" value="Harbor Server (10.0.102.x)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#CCCCCC;fontSize=11;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="750" y="360" width="330" height="290" as="geometry" />
+        </mxCell>
+        
+        <!-- Harbor Registry -->
+        <mxCell id="harbor-registry" value="Harbor Registry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A5D6A7;strokeColor=#CCCCCC;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="795" y="400" width="240" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- DB Connection Arrow -->
+        <mxCell id="db-conn" value="DB Connection" style="endArrow=classic;html=1;rounded=0;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="915" y="500" as="sourcePoint" />
+            <mxPoint x="915" y="540" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- PostgreSQL -->
+        <mxCell id="postgresql" value="PostgreSQL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A5D6A7;strokeColor=#CCCCCC;fontSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="815" y="555" width="200" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Legend -->
+        <mxCell id="legend" value="Legend" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#CCCCCC;fontSize=11;fontStyle=1;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="770" width="1120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Legend Items -->
+        <mxCell id="legend-req" value="→ Request Flow" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontColor=#4A90E2;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="795" width="200" height="20" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="legend-res" value="← Response Flow" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontColor=#4CAF50;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="795" width="200" height="20" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="legend-dns" value="... DNS Query/Response" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontColor=#999999;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="795" width="200" height="20" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="legend-pers" value="↔ Persistent Connection" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=10;fontColor=#9C27B0;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="800" y="795" width="200" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrows -->
+        <!-- ① DNS Query -->
+        <mxCell id="arrow-1" value="① DNS Query" style="endArrow=classic;html=1;rounded=0;strokeColor=#999999;strokeWidth=1;dashed=1;dashPattern=2 4;" edge="1" parent="1" source="user" target="public-dns">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="600" y="110" as="sourcePoint" />
+            <mxPoint x="340" y="210" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- ② DNS Response -->
+        <mxCell id="arrow-2" value="② DNS Response" style="endArrow=classic;html=1;rounded=0;strokeColor=#999999;strokeWidth=1;dashed=1;dashPattern=2 4;" edge="1" parent="1" source="public-dns" target="user">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="290" y="210" as="sourcePoint" />
+            <mxPoint x="580" y="110" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- ③ HTTPS Request -->
+        <mxCell id="arrow-3" value="③ HTTPS Request" style="endArrow=classic;html=1;rounded=0;strokeColor=#4A90E2;strokeWidth=2;" edge="1" parent="1" source="user" target="public-alb">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="550" y="120" as="sourcePoint" />
+            <mxPoint x="200" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- ④ HTTP Forward -->
+        <mxCell id="arrow-4" value="④ HTTP Forward" style="endArrow=classic;html=1;rounded=0;strokeColor=#4A90E2;strokeWidth=2;" edge="1" parent="1" source="public-alb" target="proxy">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="290" y="450" as="sourcePoint" />
+            <mxPoint x="430" y="425" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- ⑤ DNS Query (Private) -->
+        <mxCell id="arrow-5" value="⑤ DNS Query" style="endArrow=classic;html=1;rounded=0;strokeColor=#999999;strokeWidth=1;dashed=1;dashPattern=2 4;" edge="1" parent="1" source="app-service" target="private-dns">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="530" y="555" as="sourcePoint" />
+            <mxPoint x="860" y="280" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- ⑥ DNS Response (Private) -->
+        <mxCell id="arrow-6" value="⑥ DNS Response" style="endArrow=classic;html=1;rounded=0;strokeColor=#999999;strokeWidth=1;dashed=1;dashPattern=2 4;" edge="1" parent="1" source="private-dns" target="app-service">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="810" y="280" as="sourcePoint" />
+            <mxPoint x="570" y="555" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- ⑦ HTTPS -->
+        <mxCell id="arrow-7" value="⑦ HTTPS" style="endArrow=classic;html=1;rounded=0;strokeColor=#4A90E2;strokeWidth=2;" edge="1" parent="1" source="app-service" target="harbor-registry">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="630" y="585" as="sourcePoint" />
+            <mxPoint x="795" y="440" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- ⑧ Response -->
+        <mxCell id="arrow-8" value="⑧ Response" style="endArrow=classic;html=1;rounded=0;strokeColor=#4CAF50;strokeWidth=2;dashed=1;dashPattern=5 5;" edge="1" parent="1" source="harbor-registry" target="user">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1035" y="400" as="sourcePoint" />
+            <mxPoint x="650" y="105" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

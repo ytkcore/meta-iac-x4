@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MARKER="/opt/opensearch/.installed"
+if [ -f "$MARKER" ]; then
+  exit 0
+fi
+
+REGISTRY_HOSTPORT="${harbor_registry_hostport}"
+PROJECT="${harbor_project}"
+OPENSEARCH_TAG="${opensearch_image_tag}"
+DASHBOARDS_TAG="${dashboards_image_tag}"
+
+OPENSEARCH_IMAGE="$REGISTRY_HOSTPORT/$PROJECT/opensearchproject/opensearch:$OPENSEARCH_TAG"
+DASHBOARDS_IMAGE="$REGISTRY_HOSTPORT/$PROJECT/opensearchproject/opensearch-dashboards:$DASHBOARDS_TAG"
+
+ADMIN_PASSWORD="${admin_password}"
+
+mkdir -p /opt/opensearch /data/opensearch
+
+if ! command -v docker > /dev/null 2>&1; then
+  echo "ERROR: docker is not installed. Use Golden Image with Docker pre-installed."
+  exit 2
+fi
+
+systemctl enable --now docker > /dev/null 2>&1 || true
+
+if [ "${harbor_insecure}" = "true" ]; then
+  mkdir -p /etc/docker
+  cat > /etc/docker/daemon.json <<JSON
+{
+  "insecure-registries": ["$REGISTRY_HOSTPORT"]
+}
+JSON
+  systemctl restart docker > /dev/null 2>&1 || true
+fi
+
+# Pull images
+docker pull "$OPENSEARCH_IMAGE"
+docker pull "$DASHBOARDS_IMAGE"
+
+# Remove existing containers
+docker rm -f opensearch > /dev/null 2>&1 || true
+docker rm -f opensearch-dashboards > /dev/null 2>&1 || true
+
+# Create Docker network
+docker network create opensearch-net > /dev/null 2>&1 || true
+
+# Run OpenSearch (single-node mode)
+docker run -d --name opensearch \
+  --restart unless-stopped \
+  --network opensearch-net \
+  -p 9200:9200 \
+  -p 9600:9600 \
+  -e "discovery.type=single-node" \
+  -e "OPENSEARCH_INITIAL_ADMIN_PASSWORD=$ADMIN_PASSWORD" \
+  -e "DISABLE_SECURITY_PLUGIN=false" \
+  -e "DISABLE_INSTALL_DEMO_CONFIG=true" \
+  -v /data/opensearch:/usr/share/opensearch/data \
+  "$OPENSEARCH_IMAGE"
+
+# Wait for OpenSearch to be ready
+sleep 15
+
+# Run OpenSearch Dashboards
+docker run -d --name opensearch-dashboards \
+  --restart unless-stopped \
+  --network opensearch-net \
+  -p 5601:5601 \
+  -e "OPENSEARCH_HOSTS=https://opensearch:9200" \
+  -e "DISABLE_SECURITY_DASHBOARDS_PLUGIN=false" \
+  "$DASHBOARDS_IMAGE"
+
+touch "$MARKER"

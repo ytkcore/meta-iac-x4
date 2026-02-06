@@ -1,0 +1,90 @@
+# =============================================================================
+# 80-access-gateway Stack - Variables
+# =============================================================================
+
+variable "region" {
+  description = "AWS region"
+  type        = string
+  default     = "ap-northeast-2"
+}
+
+variable "env" {
+  description = "Environment name"
+  type        = string
+  default     = "dev"
+}
+
+variable "project" {
+  description = "Project name"
+  type        = string
+  default     = "meta"
+}
+
+variable "base_domain" {
+  description = "Base domain for services"
+  type        = string
+}
+
+variable "state_bucket" {
+  description = "Terraform state bucket"
+  type        = string
+}
+
+variable "state_region" {
+  description = "Terraform state bucket region"
+  type        = string
+  default     = "ap-northeast-2"
+}
+
+variable "state_key_prefix" {
+  description = "Terraform state key prefix"
+  type        = string
+  default     = "iac"
+}
+
+# -----------------------------------------------------------------------------
+# Access Solution Selection
+# -----------------------------------------------------------------------------
+variable "access_solution" {
+  description = "Access control solution to use (teleport, boundary, none)"
+  type        = string
+  default     = "teleport"
+
+  validation {
+    condition     = contains(["teleport", "boundary", "none"], var.access_solution)
+    error_message = "access_solution must be one of: teleport, boundary, none"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Kubernetes Services (GitOps 배포, 수동 등록 필요)
+# -----------------------------------------------------------------------------
+variable "kubernetes_services" {
+  description = "Kubernetes services to register (manually specified, not auto-discovered)"
+  type = list(object({
+    name     = string
+    uri      = string
+    type     = optional(string, "web")
+    internal = optional(bool, true)
+  }))
+  default = [
+    {
+      name     = "argocd"
+      uri      = "https://argocd.unifiedmeta.net"
+      type     = "web"
+      internal = true
+    },
+    {
+      name     = "grafana"
+      uri      = "https://grafana.unifiedmeta.net"
+      type     = "web"
+      internal = true
+    },
+    {
+      name     = "longhorn"
+      uri      = "https://longhorn.unifiedmeta.net"
+      type     = "web"
+      internal = true
+    }
+  ]
+}

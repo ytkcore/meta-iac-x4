@@ -298,6 +298,9 @@ module "control_plane" {
   # Use shared IAM instance profile (external)
   iam_instance_profile = aws_iam_instance_profile.nodes.name
 
+  # Kubernetes cluster tags for AWS CCM
+  tags = local.common_tags
+
   # Golden Image Configuration
   state_bucket       = var.state_bucket
   state_region       = var.state_region
@@ -356,6 +359,9 @@ module "worker" {
 
   # Use shared IAM instance profile (external)
   iam_instance_profile = aws_iam_instance_profile.nodes.name
+
+  # Kubernetes cluster tags for AWS CCM
+  tags = local.common_tags
 
   # Golden Image Configuration
   state_bucket       = var.state_bucket

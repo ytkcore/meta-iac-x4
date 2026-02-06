@@ -1,0 +1,30 @@
+# Gemini Language Server 인덱싱 제외 목록
+# Language Server가 이 폴더들을 완전히 무시하여 CPU 사용률 감소
+
+# Terraform 관련
+**/.terraform/**
+**/.terraform.lock.hcl
+
+# Git 관련
+**/.git/**
+
+# Node.js 관련
+**/node_modules/**
+
+# 빌드 출력
+**/dist/**
+**/build/**
+**/tmp/**
+
+# 캐시 및 임시 파일
+**/.cache/**
+**/__pycache__/**
+**/.yarn/**
+
+# 로그 파일
+**/*.log
+
+# 큰 바이너리 파일
+**/*.zip
+**/*.tar.gz
+**/*.dmg

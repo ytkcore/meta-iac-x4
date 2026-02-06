@@ -77,7 +77,7 @@ locals {
     # Container Runtime
     docker = {
       installed = true
-      enabled   = true  # 기본 활성화 (60-db, 40-harbor에서 사용)
+      enabled   = true  # 기본 활성화 (60-postgres, 61-neo4j, 62-opensearch, 40-harbor에서 사용)
       version   = "24.x"
     }
     docker_compose = {

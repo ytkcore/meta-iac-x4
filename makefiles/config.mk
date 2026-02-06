@@ -27,7 +27,7 @@ STATE_KEY_PREFIX := iac
 BACKEND_OPTS := -backend-config="../../../$(BACKEND_CONFIG_FILE)" \
                 -backend-config="key=$(STATE_KEY_PREFIX)/$(ENV)/$(STACK).tfstate"
 
-STACK_ORDER := $(strip 00-network 05-security 10-golden-image 15-access-control 30-bastion 40-harbor 50-rke2 55-bootstrap 60-db 70-observability)
+STACK_ORDER := $(strip 00-network 05-security 10-golden-image 15-access-control 30-bastion 40-harbor 50-rke2 55-bootstrap 60-postgres 61-neo4j 62-opensearch 70-observability 80-access-gateway)
 
 # -----------------------------------------------------------------------------
 # Harbor Stack Configuration

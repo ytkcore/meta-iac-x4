@@ -61,7 +61,7 @@ clean-cache:
 # -----------------------------------------------------------------------------
 # Bulk Operations
 # -----------------------------------------------------------------------------
-.PHONY: plan-all apply-all destroy-all import-all
+.PHONY: plan-all apply-all apply-all-auto destroy-all import-all
 
 import-all:
 	@bash scripts/terraform/recover-all.sh "$(ENV)" "$(STACK)"
@@ -71,6 +71,9 @@ plan-all:
 
 apply-all:
 	@for s in $(STACK_ORDER); do echo "==> APPLY $(ENV)/$$s"; $(MAKE) apply ENV=$(ENV) STACK=$$s; done
+
+apply-all-auto:
+	@for s in $(STACK_ORDER); do echo "==> APPLY-AUTO $(ENV)/$$s"; $(MAKE) apply-auto ENV=$(ENV) STACK=$$s || exit 1; done
 
 destroy-all:
 	@bash scripts/terraform/destroy-all.sh "$(ENV)" "$(STACK_ORDER)" "$(BACKEND_CONFIG_FILE)" "$(STATE_KEY_PREFIX)" "$(BOOT_DIR)"
