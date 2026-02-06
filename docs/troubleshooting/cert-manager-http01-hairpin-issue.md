@@ -148,9 +148,10 @@ spec:
             # hostedZoneID는 PUBLIC Zone ID
 ```
 
-### 2. IAM 권한 확인
+### 2. IAM 권한 확인 (글로벌 필수 권한)
 
 EC2 노드의 IAM Role에 다음 권한 필요:
+
 ```json
 {
   "Effect": "Allow",
@@ -165,6 +166,47 @@ EC2 노드의 IAM Role에 다음 권한 필요:
   ]
 }
 ```
+
+#### `route53:GetChange` 권한이 필요한 이유
+
+DNS-01 Challenge는 비동기로 작동합니다:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DNS-01 상세 흐름                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   1️⃣ TXT 레코드 생성 요청                                           │
+│       cert-manager → Route53 API (ChangeResourceRecordSets)         │
+│       Route53 응답: "Change ID: C0017795xxx" (비동기 작업 시작)      │
+│                                                                     │
+│   2️⃣ 변경 완료 확인 (GetChange 필수!)                               │
+│       cert-manager → Route53 API (GetChange)                        │
+│       응답 확인: "PENDING" → "INSYNC"                               │
+│                                                                     │
+│       • PENDING = DNS 변경이 아직 전파 중                            │
+│       • INSYNC = DNS 변경 완료, 검증 가능                            │
+│                                                                     │
+│   3️⃣ INSYNC 확인 후 Let's Encrypt에 검증 요청                       │
+│       cert-manager → ACME 서버: "TXT 레코드 준비 완료"               │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**GetChange 없이 발생하는 문제:**
+```
+AccessDenied: User is not authorized to perform: 
+route53:GetChange on resource: arn:aws:route53:::change/C0017795xxx
+```
+
+| 권한 | 필수 여부 | 용도 |
+|------|----------|------|
+| `route53:ChangeResourceRecordSets` | ✅ 필수 | TXT 레코드 생성/삭제 |
+| `route53:GetChange` | ✅ **필수** | DNS 변경 완료(INSYNC) 확인 |
+| `route53:ListResourceRecordSets` | ⚪ 권장 | 기존 레코드 충돌 방지 |
+| `route53:ListHostedZonesByName` | ⚪ 선택 | Zone ID 자동 탐색 |
+
+> **참고**: [cert-manager 공식 문서 - Route53 IAM Policy](https://cert-manager.io/docs/configuration/acme/dns01/route53/)에서 `route53:GetChange`를 필수 권한으로 명시
 
 ---
 
