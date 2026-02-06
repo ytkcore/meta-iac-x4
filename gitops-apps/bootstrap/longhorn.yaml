@@ -70,6 +70,10 @@ spec:
         longhornDriver:
           priorityClass: system-cluster-critical
         
+        # [CRITICAL] Disable pre-upgrade hook to avoid ServiceAccount race condition
+        preUpgradeChecker:
+          jobEnabled: false
+        
         defaultSettings:
           # [Backup] Configure S3 for DR
           backupTarget: "s3://dev-meta-longhorn-backup@ap-northeast-2/"
