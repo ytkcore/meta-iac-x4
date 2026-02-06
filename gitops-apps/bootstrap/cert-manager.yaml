@@ -16,6 +16,19 @@ spec:
     helm:
       values: |
         installCRDs: true
+        # Use recursive DNS resolvers for DNS-01 propagation check
+        # Fixes "NS returned REFUSED" error when querying authoritative servers
+        extraArgs:
+          - "--dns01-recursive-nameservers-only"
+          - "--dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53"
+        # Use VPC DNS for pod DNS resolution
+        podDnsPolicy: "None"
+        podDnsConfig:
+          nameservers:
+            - "10.0.0.2"
+          searches:
+            - "svc.cluster.local"
+            - "cluster.local"
         resources:
           requests:
             cpu: 100m
