@@ -85,6 +85,12 @@ variable "kubernetes_services" {
       uri      = "https://longhorn.unifiedmeta.net"
       type     = "web"
       internal = true
+    },
+    {
+      name     = "rancher"
+      uri      = "https://rancher.unifiedmeta.net"
+      type     = "web"
+      internal = true
     }
   ]
 }
