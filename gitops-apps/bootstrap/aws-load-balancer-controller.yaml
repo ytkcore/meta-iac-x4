@@ -1,0 +1,56 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aws-load-balancer-controller
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://aws.github.io/eks-charts
+    targetRevision: 1.8.4
+    chart: aws-load-balancer-controller
+    helm:
+      values: |
+        clusterName: meta-dev-k8s
+        region: ap-northeast-2
+
+        # Phase 1: Node IAM Role 사용 (serviceAccount 별도 annotation 없음)
+        # Phase 3: Keycloak OIDC 기반 IRSA로 전환 시 아래 주석 해제
+        # serviceAccount:
+        #   annotations:
+        #     eks.amazonaws.com/role-arn: arn:aws:iam::role/albc-irsa-role
+
+        # VPC ID (ALBC가 서브넷/SG 조회에 필요)
+        vpcId: "vpc-0f00997f25423fdab"
+
+        # NLB IP mode 기본 설정
+        enableServiceMutatorWebhook: true
+
+        # Resource limits
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+        # Node selector: Worker 노드에 배포
+        tolerations: []
+        nodeSelector: {}
+
+        # Webhook 인증서 (cert-manager 사용)
+        enableCertManager: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

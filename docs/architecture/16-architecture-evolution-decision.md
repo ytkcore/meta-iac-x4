@@ -297,6 +297,26 @@ SPIRE만 제공할 수 있는 것:
 | **Vault** | K8s Helm (ArgoCD App) 또는 EC2 | HA 필요 시 EC2, 단일은 K8s |
 | **ALBC** | K8s Helm (ArgoCD App) | 표준 배포 방식, CCM 대체 |
 
+### 6.1 환경별 LB 전략 (고객 납품 대응)
+
+K8s 설계 자체가 Cloud Provider를 **교체 가능한 플러그인**으로 취급한다.  
+이에 따라 배포 환경별 LB 컴포넌트만 교체하고, 나머지(nginx-ingress, Keycloak, Vault 등)는 동일하게 유지한다.
+
+| 배포 환경 | LB 컴포넌트 | 배포 방식 | 비고 |
+|----------|-----------|----------|------|
+| **AWS** | ALBC (AWS Load Balancer Controller) | ArgoCD App | NLB IP mode 자동 Target |
+| **GCP** | GCE Ingress Controller | ArgoCD App | GCP LB 자동 관리 |
+| **Azure** | Azure Load Balancer Controller | ArgoCD App | Azure LB 자동 관리 |
+| **온프렘 / 폐쇄망** | MetalLB 또는 Terraform LB | ArgoCD App 또는 IaC | L2/BGP 모드 |
+
+```
+교체 범위:  ArgoCD App yaml 1개 + nginx-ingress annotations 수정
+유지 범위:  그 외 전체 (K8s 코어, Keycloak, Vault, Teleport, ArgoCD, Longhorn...)
+```
+
+> **글로벌 표준 사례**: Rancher/SUSE, Red Hat OpenShift, VMware Tanzu 모두 이 패턴 채택.  
+> K8s의 Cloud Controller Manager 인터페이스 자체가 환경별 교체를 전제로 설계되어 있다.
+
 ---
 
 ## 7. 일정

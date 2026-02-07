@@ -5,6 +5,28 @@ configs:
   cm:
     url: "${argocd_url}"
 
+    # [SSO] Keycloak OIDC Integration (Phase 2)
+    oidc.config: |
+      name: Keycloak
+      issuer: https://keycloak.dev.unifiedmeta.net/realms/platform
+      clientID: argocd
+      clientSecret: $oidc.keycloak.clientSecret
+      requestedScopes:
+        - openid
+        - profile
+        - email
+        - groups
+      insecureSkipVerify: true
+
+  rbac:
+    policy.csv: |
+      g, admin, role:admin
+      g, developer, role:readonly
+    policy.default: role:readonly
+
+  params:
+    server.insecure: "${server_insecure}"
+
 server:
   replicas: ${server_replicas}
   resources:

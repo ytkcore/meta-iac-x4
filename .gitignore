@@ -61,4 +61,4 @@ Thumbs.db
 *.swo
 *~
 
-*.pid
+*.pidscripts/keycloak/client-secrets.env

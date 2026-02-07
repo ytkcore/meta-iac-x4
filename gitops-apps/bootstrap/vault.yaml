@@ -1,0 +1,100 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: default
+  source:
+    repoURL: https://helm.releases.hashicorp.com
+    targetRevision: 0.28.1
+    chart: vault
+    helm:
+      values: |
+        global:
+          enabled: true
+
+        # Server Configuration
+        server:
+          enabled: true
+          
+          # Single instance (Phase 4 초기)
+          # HA 전환 시 ha.enabled: true + Raft storage
+          ha:
+            enabled: false
+          
+          # Standalone mode
+          standalone:
+            enabled: true
+            config: |
+              ui = true
+
+              listener "tcp" {
+                tls_disable = 1
+                address     = "[::]:8200"
+                cluster_address = "[::]:8201"
+              }
+
+              storage "file" {
+                path = "/vault/data"
+              }
+
+          # Resources
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          # Persistence (Longhorn)
+          dataStorage:
+            enabled: true
+            size: 10Gi
+            storageClass: longhorn
+
+          # Ingress (Internal only — Teleport 경유 접근)
+          ingress:
+            enabled: true
+            ingressClassName: nginx-internal
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+            hosts:
+              - host: vault.dev.unifiedmeta.net
+            tls:
+              - secretName: vault-tls
+                hosts:
+                  - vault.dev.unifiedmeta.net
+
+        # Injector (Sidecar for Pod secret injection)
+        injector:
+          enabled: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+
+        # CSI Provider (Optional — Phase 4 확장)
+        csi:
+          enabled: false
+
+        # UI
+        ui:
+          enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vault
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

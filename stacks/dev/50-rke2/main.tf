@@ -225,3 +225,22 @@ module "rke2" {
   acm_certificate_arn        = local.effective_acm_certificate_arn
   acm_ssl_policy             = var.acm_ssl_policy
 }
+
+# ==============================================================================
+# AWS Load Balancer Controller — IAM Policy
+# Phase 1: Node IAM Role에 부착 (ExternalDNS와 동일 패턴)
+# Phase 3: Keycloak OIDC 기반 IRSA로 분리 예정
+# ==============================================================================
+
+module "albc_iam" {
+  source = "../../../modules/albc-iam"
+
+  env     = var.env
+  project = var.project
+
+  cluster_name       = local.name
+  vpc_id             = local.vpc_id
+  node_iam_role_name = module.rke2.iam_role_name
+
+  tags = local.common_tags
+}

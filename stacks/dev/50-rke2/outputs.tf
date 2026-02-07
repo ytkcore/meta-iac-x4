@@ -83,3 +83,13 @@ output "iam_role_name" {
   description = "RKE2 노드 IAM Role 이름"
   value       = module.rke2.iam_role_name
 }
+
+output "albc_policy_arn" {
+  description = "AWS Load Balancer Controller IAM Policy ARN"
+  value       = module.albc_iam.policy_arn
+}
+
+output "vpc_id" {
+  description = "VPC ID (ALBC ArgoCD App 설정에 필요)"
+  value       = local.vpc_id
+}
