@@ -61,7 +61,7 @@ spec:
           # Ingress (Internal only — Teleport 경유 접근)
           ingress:
             enabled: true
-            ingressClassName: nginx-internal
+            ingressClassName: nginx
             annotations:
               cert-manager.io/cluster-issuer: letsencrypt-prod
             hosts:

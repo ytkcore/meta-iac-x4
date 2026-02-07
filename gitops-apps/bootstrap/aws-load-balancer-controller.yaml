@@ -30,6 +30,11 @@ spec:
         # NLB IP mode 기본 설정
         enableServiceMutatorWebhook: true
 
+        # Ingress webhook 비활성화: nginx ingress와 공존을 위해
+        # ALBC는 NLB target 관리만 담당, Ingress 검증은 불필요
+        webhookConfig:
+          disableIngressValidation: true
+
         # Resource limits
         resources:
           requests:
