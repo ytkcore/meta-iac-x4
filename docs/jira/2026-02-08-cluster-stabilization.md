@@ -1,11 +1,11 @@
-# [INFRA] 클러스터 안정화 — CCM 정리 + Monitoring Synced + Internal 전환 + Vault 검토
+# [INFRA] 클러스터 안정화 — CCM 정리 + Monitoring Synced + Internal 전환 + Vault 검토 + WAF + Auto-Unseal
 
 ## 📋 Summary
 
-클러스터 감사 결과 발견된 안정화 항목 7건을 처리. **13/13 ArgoCD 앱 Synced + Healthy** 달성.
-CCM 정리, Monitoring 5-blocker 해결, 전체 Ingress Internal 전환, Keycloak Split-Horizon, Cilium CNI 검증, Vault HA 로드맵 문서화.
+클러스터 감사 결과 발견된 안정화 항목 9건을 처리. **13/13 ArgoCD 앱 Synced + Healthy** 달성.
+CCM 정리, Monitoring 5-blocker, Ingress Internal, Keycloak Split-Horizon + WAF, Cilium CNI 검증, Vault HA 로드맵 + KMS Auto-Unseal, IMDS hop_limit 보안 강화.
 
-커밋: `ffda789` → `1173359` → `2452fd4` → `a639e8f` → `067fd2a` → `893a212` → `0687766`
+커밋: `ffda789` → … → `0687766` → `7221364` → `94d787c` → `ffb5877` → `bf18e79`
 
 ## 🎯 Goals
 
@@ -16,6 +16,8 @@ CCM 정리, Monitoring 5-blocker 해결, 전체 Ingress Internal 전환, Keycloa
 5. **T5**: ArgoCD/Rancher/Longhorn → Internal NLB (Public 노출 완전 차단)
 6. **T6**: Keycloak Split-Horizon (Public 인증 API + Internal Admin Console)
 7. **T7**: Cilium CNI/ENI mode 검증 + 코드 정합성
+8. **T8**: Keycloak WAF-Equivalent Protection (nginx Rate Limit + CiliumNetworkPolicy L7)
+9. **T9**: Vault AWS KMS Auto-Unseal (Shamir → KMS 마이그레이션)
 
 ## 📊 진행 결과
 
@@ -71,17 +73,33 @@ CCM 정리, Monitoring 5-blocker 해결, 전체 Ingress Internal 전환, Keycloa
 | Hubble | Relay + UI Running ✅ |
 | 변수 default 정합 | `cni=cilium`, `eni_mode=true`, `ccm=false` (`0687766`) |
 
+### T8: Keycloak WAF-Equivalent Protection ✅
+| 계층 | 보호 | 커밋 |
+|------|------|------|
+| nginx Rate Limit | 20 rps / 300 rpm / 10 conn | `7221364` |
+| Security Headers | X-Frame-Options, XSS 등 5종 | `7221364` |
+| CiliumNetworkPolicy L7 | Public → `/realms`,`/resources`,`/js`만 허용 | `7221364` |
+
+### T9: Vault AWS KMS Auto-Unseal ✅
+| 항목 | 상태 |
+|------|------|
+| KMS Key | `fcaa0e8d` (key rotation 활성) ✅ |
+| IAM Policy | KMS Encrypt/Decrypt/DescribeKey → Node Role ✅ |
+| Seal Migration | Shamir 5/3 → AWS KMS ✅ |
+| Auto-Unseal | Pod 재시작 → 자동 unseal 검증 ✅ |
+| IMDS hop_limit | 1→2 (Cilium ENI Pod IMDS 접근) ✅ |
+
 ## 📋 최종 Ingress 현황
 
-| 서비스 | Class | NLB |
-|--------|-------|-----|
-| Keycloak 인증 API | `nginx` | **Public** (SSO 필수) |
-| Keycloak Admin | `nginx-internal` | Internal |
-| ArgoCD | `nginx-internal` | Internal |
-| Rancher | `nginx-internal` | Internal |
-| Longhorn | `nginx-internal` | Internal |
-| Grafana | `nginx-internal` | Internal |
-| Vault | `nginx-internal` | Internal |
+| 서비스 | Class | NLB | WAF |
+|--------|-------|-----|-----|
+| Keycloak 인증 API | `nginx` | **Public** | nginx Rate Limit + CiliumNetworkPolicy L7 |
+| Keycloak Admin | `nginx-internal` | Internal | — |
+| ArgoCD | `nginx-internal` | Internal | — |
+| Rancher | `nginx-internal` | Internal | — |
+| Longhorn | `nginx-internal` | Internal | — |
+| Grafana | `nginx-internal` | Internal | — |
+| Vault | `nginx-internal` | Internal | — |
 
 ## 📋 Tasks
 
@@ -92,6 +110,8 @@ CCM 정리, Monitoring 5-blocker 해결, 전체 Ingress Internal 전환, Keycloa
 - [x] T5: ArgoCD/Rancher/Longhorn Internal NLB 전환
 - [x] T6: Keycloak Split-Horizon (Public 인증 + Internal Admin)
 - [x] T7: Cilium CNI 검증 + variables.tf 정합성
+- [x] T8: Keycloak WAF (nginx Rate Limit + CiliumNetworkPolicy L7)
+- [x] T9: Vault KMS Auto-Unseal + IMDS hop_limit 보안
 - [x] 13/13 ArgoCD 앱 Synced + Healthy 확인
 
 ## 🔧 주요 변경 파일
@@ -103,7 +123,9 @@ CCM 정리, Monitoring 5-blocker 해결, 전체 Ingress Internal 전환, Keycloa
 | GitOps | `gitops-apps/bootstrap/longhorn.yaml` — nginx-internal |
 | GitOps | `gitops-apps/keycloak-ingress/resources.yaml` — Split-Horizon |
 | Terraform | `stacks/dev/55-bootstrap/variables.tf` — ArgoCD nginx-internal |
+| Terraform | `stacks/dev/55-bootstrap/main.tf` — KMS Key + IAM Policy |
 | Terraform | `stacks/dev/50-rke2/variables.tf` — Cilium defaults 정합 |
+| Terraform | `modules/ec2-instance/main.tf` — IMDS hop_limit=2 |
 | Docs | `docs/vault/vault-ha-transition-roadmap.md` |
 
 ## 📎 References
@@ -113,7 +135,7 @@ CCM 정리, Monitoring 5-blocker 해결, 전체 Ingress Internal 전환, Keycloa
 
 ## 🏷️ Labels
 
-`ccm`, `monitoring`, `security`, `ingress`, `vault`, `cilium`, `keycloak`, `stabilization`
+`ccm`, `monitoring`, `security`, `ingress`, `vault`, `cilium`, `keycloak`, `waf`, `kms`, `stabilization`
 
 ## 📌 Priority / Status
 
