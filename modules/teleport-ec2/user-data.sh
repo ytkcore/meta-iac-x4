@@ -42,12 +42,21 @@ yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo ||
     exit 1
 }
 
-# Teleport 설치
+# AL2023 vs AL2 감지 및 설치
 echo ">>> Installing teleport-$TELEPORT_VERSION..."
-yum install -y teleport-"$TELEPORT_VERSION" || {
-    echo "ERROR: Failed to install Teleport"
-    exit 1
-}
+if grep -q "Amazon Linux 2023" /etc/os-release 2>/dev/null; then
+    echo ">>> Detected Amazon Linux 2023"
+    dnf install -y teleport-"$TELEPORT_VERSION" || {
+        echo "Standard install failed, trying direct RPM download..."
+        wget -q https://cdn.teleport.dev/teleport-"$TELEPORT_VERSION"-1.x86_64.rpm
+        dnf install -y ./teleport-"$TELEPORT_VERSION"-1.x86_64.rpm
+    }
+else
+    yum install -y teleport-"$TELEPORT_VERSION" || {
+        echo "ERROR: Failed to install Teleport"
+        exit 1
+    }
+fi
 
 # 설치 확인
 if ! command -v teleport &> /dev/null; then
@@ -82,7 +91,6 @@ teleport:
     region: $REGION
     table_name: $DYNAMO_TABLE
     audit_sessions_uri: "s3://$S3_BUCKET/records"
-    # Audit Events to Local File (v18+ S3 scheme unsupported for events, DynamoDB requires separate table setup)
     audit_events_uri: "file:///var/lib/teleport/audit/events"
     continuous_backups: true
 
@@ -98,7 +106,7 @@ auth_service:
 ssh_service:
   enabled: "yes"
   labels:
-    env: dev
+    env: ${environment}
     role: teleport-server
 
 proxy_service:
@@ -107,13 +115,30 @@ proxy_service:
   web_listen_addr: 0.0.0.0:3080
   tunnel_listen_addr: 0.0.0.0:3024
   public_addr: "$CLUSTER_NAME:443"
+  ssh_public_addr: "$CLUSTER_NAME:443"
+  tunnel_public_addr: $(hostname):3024
   https_keypairs: []
   acme:
     enabled: "no"
 
+app_service:
+  enabled: "yes"
+  apps:
+    - name: harbor
+      uri: https://harbor.${base_domain}
+      insecure_skip_verify: true
+      labels:
+        env: ${environment}
+
 EOF
 
 echo ">>> Configuration file created at /etc/teleport.yaml"
+
+# 3-1. Validate Configuration
+echo ">>> Validating Teleport configuration..."
+teleport configure --test -c /etc/teleport.yaml || {
+  echo "WARNING: Teleport configuration validation failed (may be normal for first run)"
+}
 
 # 4. Start Teleport
 echo ">>> Step 4: Starting Teleport service..."

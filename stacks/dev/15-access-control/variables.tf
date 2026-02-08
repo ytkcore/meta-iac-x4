@@ -29,34 +29,46 @@ variable "state_key_prefix" {
   type        = string
 }
 
-variable "vpc_cidr" {
-  description = "VPC CIDR (Unused but passed by env.tfvars)"
+# -----------------------------------------------------------------------------
+# Access Solution Selection (Pluggable)
+# -----------------------------------------------------------------------------
+variable "access_solution" {
+  description = "Access control solution to provision (teleport, none)"
   type        = string
-  default     = ""
+  default     = "teleport"
+
+  validation {
+    condition     = contains(["teleport", "none"], var.access_solution)
+    error_message = "access_solution must be one of: teleport, none"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Pass-through variables (from env.tfvars, unused but required)
+# -----------------------------------------------------------------------------
+variable "vpc_cidr" {
+  type    = string
+  default = ""
 }
 
 variable "target_bucket_name" {
-  description = "Harbor bucket (Unused)"
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "longhorn_backup_bucket" {
-  description = "Longhorn bucket (Unused)"
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "region" {
-  description = "Legacy region var"
-  type        = string
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "azs" {
-  description = "Availability Zones (Unused)"
-  type        = list(string)
-  default     = []
+  type    = list(string)
+  default = []
 }
 
 variable "enable_interface_endpoints" {

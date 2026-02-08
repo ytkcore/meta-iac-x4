@@ -34,3 +34,8 @@ output "iam_role_names" {
   description = "EC2 instance IAM role names"
   value       = [for i in module.instance : i.iam_role_name]
 }
+
+output "web_target_group_arn" {
+  description = "ARN of Web Target Group (null if no ALB)"
+  value       = var.listener_arn != null ? aws_lb_target_group.web[0].arn : null
+}

@@ -42,6 +42,28 @@ variable "alb_security_group_ids" {
   default     = []
 }
 
+variable "vpc_cidr" {
+  description = "VPC CIDR block for internal connectivity (Reverse Tunnel, Agent)"
+  type        = string
+}
+
+variable "listener_arn" {
+  description = "ALB HTTPS Listener ARN (null = no ALB routing)"
+  type        = string
+  default     = null
+}
+
+variable "domain_name" {
+  description = "Domain for ALB routing rules (e.g. teleport.unifiedmeta.net)"
+  type        = string
+  default     = null
+}
+
+variable "base_domain" {
+  description = "Base domain for application URLs (e.g. unifiedmeta.net)"
+  type        = string
+}
+
 variable "cluster_name" {
   description = "Teleport Cluster Name (e.g., teleport.example.com)"
   type        = string

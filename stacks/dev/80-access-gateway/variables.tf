@@ -46,13 +46,13 @@ variable "state_key_prefix" {
 # Access Solution Selection
 # -----------------------------------------------------------------------------
 variable "access_solution" {
-  description = "Access control solution to use (teleport, boundary, none)"
+  description = "Access control solution to use (teleport, none)"
   type        = string
   default     = "teleport"
 
   validation {
-    condition     = contains(["teleport", "boundary", "none"], var.access_solution)
-    error_message = "access_solution must be one of: teleport, boundary, none"
+    condition     = contains(["teleport", "none"], var.access_solution)
+    error_message = "access_solution must be one of: teleport, none"
   }
 }
 

@@ -152,24 +152,43 @@ resource "aws_route53_record" "alb_wildcard_private" {
   records = [module.alb.alb_dns_name]
 }
 
-# -----------------------------------------------------------------------------
-# 3. App Module (Teleport)
-# -----------------------------------------------------------------------------
-# Conditionally load app based on variable (future extensibility)
-module "app" {
-  source = "../../../modules/apps/teleport"
+# =============================================================================
+# 3. Access Control Solution (Pluggable)
+# =============================================================================
+# var.access_solution 으로 프로비저닝 솔루션 선택:
+#   "teleport" (default) → modules/teleport-ec2
+#   "none"               → 프로비저닝 없음
 
-  name                  = "${var.project}-${var.env}-teleport"
-  region                = var.aws_region
-  vpc_id                = data.terraform_remote_state.network.outputs.vpc_id
-  vpc_cidr              = data.terraform_remote_state.network.outputs.vpc_cidr
-  alb_security_group_id = module.alb.security_group_id
-  listener_arn          = module.alb.https_listener_arn
-  domain_name           = "teleport.${var.base_domain}"
-  cluster_name          = "teleport.${var.base_domain}"
-  teleport_version      = "18.6.6"
-  base_domain           = var.base_domain
-  environment           = var.env
+# -----------------------------------------------------------------------------
+# 3-A. Teleport (Default)
+# -----------------------------------------------------------------------------
+module "teleport" {
+  source = "../../../modules/teleport-ec2"
+  count  = var.access_solution == "teleport" ? 1 : 0
+
+  name       = "${var.project}-${var.env}-teleport"
+  region     = var.aws_region
+  vpc_id     = data.terraform_remote_state.network.outputs.vpc_id
+  vpc_cidr   = data.terraform_remote_state.network.outputs.vpc_cidr
+  subnet_ids = data.terraform_remote_state.network.outputs.subnet_ids_by_tier["public"]
+  env        = var.env
+  project    = var.project
+
+  # Teleport Config
+  cluster_name     = "teleport.${var.base_domain}"
+  base_domain      = var.base_domain
+  teleport_version = "18.6.6"
+  email            = "admin@${var.base_domain}"
+
+  # ALB Integration
+  alb_security_group_ids = [module.alb.security_group_id]
+  listener_arn           = module.alb.https_listener_arn
+  domain_name            = "teleport.${var.base_domain}"
+
+  # Golden Image Support
+  state_bucket     = var.state_bucket
+  state_region     = var.aws_region
+  state_key_prefix = var.state_key_prefix
 
   tags = {
     Environment = var.env
@@ -177,41 +196,3 @@ module "app" {
     Stack       = "15-access-control"
   }
 }
-
-# -----------------------------------------------------------------------------
-# 4. EC2 Module (Compute)
-# -----------------------------------------------------------------------------
-module "ec2" {
-  source = "../../../modules/ec2-instance"
-
-  # Single instance config (or HA if needed)
-  name    = "${local.name_prefix}-ec2"
-  env     = var.env
-  project = var.project
-  region  = var.aws_region
-
-  subnet_id              = data.terraform_remote_state.network.outputs.subnet_ids_by_tier["public"][0]
-  vpc_security_group_ids = [module.app.security_group_id]
-  instance_type          = "t3.medium"
-  root_volume_size       = 50
-
-  # Inject Logic from App Module
-  user_data            = module.app.user_data
-  iam_instance_profile = module.app.iam_instance_profile_name
-
-  # Golden Image Support
-  state_bucket     = var.state_bucket
-  state_region     = var.aws_region
-  state_key_prefix = var.state_key_prefix
-}
-
-# -----------------------------------------------------------------------------
-# 5. Glue: Connect EC2 to Target Groups
-# -----------------------------------------------------------------------------
-resource "aws_lb_target_group_attachment" "web" {
-  target_group_arn = module.app.web_target_group_arn
-  target_id        = module.ec2.instance_id
-  port             = 3080
-}
-
-

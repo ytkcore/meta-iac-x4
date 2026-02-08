@@ -196,14 +196,7 @@ resource "aws_security_group" "teleport" {
   description = "Security Group for Teleport Server"
   vpc_id      = var.vpc_id
 
-  # Inbound: ALB (3080, 3023, 3024?), or direct?
-  # Teleport Default Ports:
-  # 3023: SSH Proxy
-  # 3024: SSH Tunnel (Reverse Tunnel)
-  # 3025: Auth Service (gRPC)
-  # 3080: Web UI / Proxy (HTTPS)
-
-  # ALB를 통해 들어오는 Web UI (3080)
+  # ALB → Web UI (3080)
   ingress {
     from_port       = 3080
     to_port         = 3080
@@ -212,11 +205,23 @@ resource "aws_security_group" "teleport" {
     description     = "Allow Web UI from ALB"
   }
 
-  # ALB를 통해 들어오는 Tunnel (3023, 3024 등도 필요할 수 있음. ALB 구성에 따라 다름)
-  # Tunnel(3024)은 ALB가 아니라 NLB가 필요한 경우가 많지만, WebSockets over ALB도 가능.
-  # 여기서는 443(ALB) -> 3080(EC2) 만 먼저 고려.
+  # VPC → Reverse Tunnel (3024) — Agent 연결용
+  ingress {
+    from_port   = 3024
+    to_port     = 3024
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+    description = "Allow Reverse Tunnel from VPC"
+  }
 
-  # SSH (Optional for debugging via Bastion or VPN) - 여기서는 SSM만 사용 권장
+  # VPC → Web UI (3080) — Internal 연결용
+  ingress {
+    from_port   = 3080
+    to_port     = 3080
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+    description = "Allow Web UI from VPC"
+  }
 
   egress {
     from_port   = 0
@@ -243,6 +248,8 @@ locals {
     s3_bucket        = aws_s3_bucket.teleport_sessions.id
     email            = var.email
     teleport_version = var.teleport_version
+    base_domain      = var.base_domain
+    environment      = var.env
   })
 }
 
@@ -276,4 +283,54 @@ resource "aws_iam_role_policy" "teleport_to_ec2_instance" {
   name   = "${var.name}-teleport-policy"
   role   = module.instance[count.index].iam_role_name
   policy = data.aws_iam_policy_document.teleport_policy.json
+}
+
+# -----------------------------------------------------------------------------
+# 5. Load Balancer Routing (Target Group + Listener Rule)
+# -----------------------------------------------------------------------------
+resource "aws_lb_target_group" "web" {
+  count    = var.listener_arn != null ? 1 : 0
+  name     = "${var.name}-web-tg"
+  port     = 3080
+  protocol = "HTTPS"
+  vpc_id   = var.vpc_id
+
+  protocol_version = "HTTP1"
+
+  health_check {
+    path                = "/webapi/ping"
+    protocol            = "HTTPS"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 10
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+  }
+
+  tags = var.tags
+}
+
+resource "aws_lb_listener_rule" "web" {
+  count        = var.listener_arn != null ? 1 : 0
+  listener_arn = var.listener_arn
+  priority     = 60
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.web[0].arn
+  }
+
+  condition {
+    host_header {
+      values = [var.domain_name, "*.${var.domain_name}"]
+    }
+  }
+}
+
+# 6. Target Group Attachment (EC2 → TG)
+resource "aws_lb_target_group_attachment" "web" {
+  count            = var.listener_arn != null ? local.instance_count : 0
+  target_group_arn = aws_lb_target_group.web[0].arn
+  target_id        = module.instance[count.index].id
+  port             = 3080
 }

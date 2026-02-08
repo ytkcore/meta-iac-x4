@@ -93,14 +93,3 @@ module "teleport_apps" {
   teleport_server = data.terraform_remote_state.access_control.outputs.teleport_server
   region          = var.region
 }
-
-# =============================================================================
-# Boundary Integration (access_solution = "boundary") - Future
-# =============================================================================
-
-# module "boundary_targets" {
-#   source = "../../../modules/access-gateway/boundary"
-#   count  = var.access_solution == "boundary" ? 1 : 0
-#
-#   services = local.all_services
-# }
