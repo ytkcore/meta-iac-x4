@@ -63,3 +63,4 @@ Thumbs.db
 
 *.pidscripts/keycloak/client-secrets.env
 scripts/keycloak/vault-keys.env
+.tunnel.pid
