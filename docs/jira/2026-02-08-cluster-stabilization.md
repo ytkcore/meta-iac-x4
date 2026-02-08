@@ -5,7 +5,7 @@
 클러스터 감사 결과 발견된 즉시 해결 가능한 안정화 항목 3건을 처리한다.
 CCM CrashLoopBackOff 정리, Monitoring drift 해결, Grafana/Vault Public NLB 노출 차단.
 
-커밋: `ffda789`
+커밋: `ffda789`, `1173359`, `36986b0`
 
 ## 🎯 Goals
 
@@ -21,7 +21,7 @@ CCM CrashLoopBackOff 정리, Monitoring drift 해결, Grafana/Vault Public NLB �
 | HelmChart CR | ✅ 삭제 (`helm.cattle.io/v1 aws-cloud-controller-manager`) |
 | Addon | ✅ 삭제 (`k3s.cattle.io/v1 aws-ccm`) |
 | CrashLoop Pod | ✅ 강제 삭제 |
-| 서버 매니페스트 | ⏳ SSM 수동 (mv aws-ccm.yaml .disabled) |
+| 서버 매니페스트 | ✅ SSM 비활성화 (3 CP 노드 전부 `.disabled`) |
 
 > **CCM은 RKE2 `cloud-provider-name=aws` 설정이 자동 생성.** Cilium 전환(Phase 6) 시 config 정리
 
@@ -37,10 +37,10 @@ CCM CrashLoopBackOff 정리, Monitoring drift 해결, Grafana/Vault Public NLB �
 ### T3: 관리 도구 Ingress Internal 전환 📝
 | 서비스 | 변경 | 상태 |
 |--------|------|------|
-| Grafana | `nginx` → `nginx-internal` | ✅ Git 반영, ArgoCD sync 대기 |
-| Vault | `nginx` → `nginx-internal` | ✅ Git 반영, ArgoCD sync 대기 |
+| Grafana | `nginx` → `nginx-internal` | ✅ Internal NLB 적용 |
+| Vault | `nginx` → `nginx-internal` | ✅ Internal NLB 적용 |
 
-> Git push 완료. ArgoCD selfHeal이 자동 적용 예정.
+> `nginx-internal` IngressClass 생성 (`controllerValue: k8s.io/ingress-nginx-internal`). Public/Internal NLB 완전 분리.
 
 ## 📋 Tasks
 
@@ -52,16 +52,18 @@ CCM CrashLoopBackOff 정리, Monitoring drift 해결, Grafana/Vault Public NLB �
 - [x] Grafana ingressClassName `nginx` → `nginx-internal`
 - [x] Vault ingressClassName `nginx` → `nginx-internal`
 - [x] Git commit + push
-- [ ] ArgoCD sync 완료 확인 (터널 재연결 후)
-- [ ] Internal NLB 라우팅 확인
+- [x] ArgoCD sync 완료 확인 (Vault Synced, Monitoring benign OutOfSync)
+- [x] Internal NLB 라우팅 확인
+- [x] CCM 서버 매니페스트 3 CP 노드 비활성화
+- [x] IngressClass `nginx-internal` 생성 (nginx-ingress-internal.yaml)
 
 ## ⚠️ 이슈
 
 | # | Issue | Status |
 |---|-------|--------|
-| 1 | CCM 서버 매니페스트 제거 필요 | SSM 수동 작업 (기존 세션 활용) |
+| 1 | CCM 서버 매니페스트 제거 | ✅ SSM RunCommand로 3 CP 노드 비활성화 |
 | 2 | Monitoring Prometheus 영구 drift | Known Issue — Healthy, 운영 영향 없음 |
-| 3 | K8s API 터널 끊어짐 | 재연결 후 sync 확인 필요 |
+| 3 | K8s API 터널 | SSM Port Forwarding 사용 |
 
 ## 🔧 주요 변경 파일
 
@@ -69,6 +71,7 @@ CCM CrashLoopBackOff 정리, Monitoring drift 해결, Grafana/Vault Public NLB �
 |------|------|
 | GitOps | `gitops-apps/bootstrap/monitoring.yaml` — Grafana ingressClassName |
 | GitOps | `gitops-apps/bootstrap/vault.yaml` — Vault ingressClassName |
+| GitOps | `gitops-apps/bootstrap/nginx-ingress-internal.yaml` — IngressClass 분리 |
 
 ## 📎 References
 
@@ -80,4 +83,4 @@ CCM CrashLoopBackOff 정리, Monitoring drift 해결, Grafana/Vault Public NLB �
 
 ## 📌 Priority / Status
 
-**High** / 🔄 부분 완료 (2026-02-08)
+**High** / ✅ 완료 (2026-02-08)
