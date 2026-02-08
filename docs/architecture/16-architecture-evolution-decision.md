@@ -1,8 +1,27 @@
 # 플랫폼 아키텍처 고도화 — 최종 의사결정 문서
 
-**작성일**: 2026-02-07 (Cilium 추가: 2026-02-08)  
+**작성일**: 2026-02-07  
 **상태**: 최종 확정  
 **범위**: 플랫폼 전체 Identity/Secrets/Access/Network 아키텍처 재설계
+
+### 개정 이력
+
+| 일자 | 변경 사항 |
+|------|----------|
+| 2026-02-07 | 초안 작성 |
+| 2026-02-08 | Cilium ENI Mode 전환 반영 (Phase 6) |
+| 2026-02-08 | **Phase 3 워크로드 ID 방식 변경** (아래 AS-IS/TO-BE 참조) |
+
+#### Phase 3 Workload Identity — AS-IS → TO-BE
+
+| | AS-IS 계획 (2026-02-07) | TO-BE 확정 (2026-02-08) |
+|---|---|---|
+| **방식** | S3 OIDC + IRSA | **Vault AWS Secrets Engine** |
+| **인증 흐름** | K8s SA Token → S3 OIDC Provider → IAM IRSA → STS | K8s SA Token → Vault K8s Auth → Vault AWS SE → STS |
+| **수동 관리** | ⚠️ OIDC 키 S3 업로드/rotation 필요 | ✅ 불필요 (Vault 자동) |
+| **기존 스택 활용** | ❌ S3 버킷 + IAM OIDC Provider 신규 생성 | ✅ Vault + K8s Auth 이미 구축 |
+| **CSP 종속** | ⚠️ AWS S3 종속 | ✅ CSP 무관 (Bridge 전략 일치) |
+| **변경 근거** | — | Vault K8s Auth 구축 완료 후 재분석, 글로벌 업계 표준 반영 |
 
 ---
 
