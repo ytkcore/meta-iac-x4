@@ -234,6 +234,29 @@ resource "aws_security_group" "nodes" {
     cidr_blocks = [var.vpc_cidr]
   }
 
+  # NLB IP-mode: Pod 포트 직접 접근 (Cilium ENI Mode)
+  dynamic "ingress" {
+    for_each = var.cni == "cilium" && var.cilium_eni_mode ? [80] : []
+    content {
+      description = "NLB IP-mode: HTTP Pod port (Cilium ENI)"
+      from_port   = 80
+      to_port     = 80
+      protocol    = "tcp"
+      cidr_blocks = [var.vpc_cidr]
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = var.cni == "cilium" && var.cilium_eni_mode ? [443] : []
+    content {
+      description = "NLB IP-mode: HTTPS Pod port (Cilium ENI)"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = [var.vpc_cidr]
+    }
+  }
+
   egress {
     description = "Outbound All"
     from_port   = 0
