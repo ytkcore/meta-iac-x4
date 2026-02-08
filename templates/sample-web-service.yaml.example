@@ -1,0 +1,113 @@
+# =============================================================================
+# Sample Web Service - ArgoCD Application (Helm Chart 기반)
+# 
+# 사용법:
+#   1. 아래 값들을 실제 서비스에 맞게 수정
+#   2. gitops-apps/apps/ 디렉토리에 저장
+#   3. Git push 후 ArgoCD가 자동 감지하여 배포
+#
+# 배포 방식:
+#   - [옵션 A] Helm Chart (외부 레지스트리 또는 Harbor OCI)
+#   - [옵션 B] Git 저장소의 Kubernetes manifests (주석 참고)
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-web-service                    # ← 서비스 이름으로 변경
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"        # 부트스트랩 이후 배포 (높은 번호 = 나중에)
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  # =========================================================================
+  # [옵션 A] Helm Chart 소스 (외부 레지스트리)
+  # =========================================================================
+  source:
+    repoURL: https://charts.example.com       # ← Helm repo URL 또는 Harbor OCI
+    chart: my-web-app                         # ← Chart 이름
+    targetRevision: 1.0.0                     # ← Chart 버전
+    helm:
+      valuesObject:
+        replicaCount: 2
+
+        image:
+          repository: harbor.unifiedmeta.net/apps/my-web-app  # ← 컨테이너 이미지
+          tag: "latest"                                        # ← 이미지 태그
+          pullPolicy: IfNotPresent
+
+        service:
+          type: ClusterIP
+          port: 80
+          targetPort: 8080                    # ← 앱 컨테이너가 리슨하는 포트
+
+        ingress:
+          enabled: true
+          className: nginx
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt-prod
+            nginx.ingress.kubernetes.io/ssl-redirect: "true"
+          hosts:
+            - host: myapp.dev.unifiedmeta.net  # ← 도메인 변경
+              paths:
+                - path: /
+                  pathType: Prefix
+          tls:
+            - secretName: myapp-tls
+              hosts:
+                - myapp.dev.unifiedmeta.net    # ← 도메인 변경
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+        # 헬스체크 설정
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+  # =========================================================================
+  # [옵션 B] Git 저장소 소스 (Kubernetes manifests 직접 관리)
+  # 위의 source 블록을 아래로 교체하여 사용
+  # =========================================================================
+  # source:
+  #   repoURL: https://github.com/<org>/<repo>.git  # ← Git 저장소 URL
+  #   path: k8s/overlays/dev                         # ← manifest 경로
+  #   targetRevision: main                           # ← 브랜치/태그
+  #   # Kustomize 사용 시:
+  #   # kustomize:
+  #   #   images:
+  #   #     - harbor.unifiedmeta.net/apps/my-web-app:latest
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sample-web-service              # ← 네임스페이스 변경
+
+  syncPolicy:
+    automated:
+      prune: true                              # 삭제된 리소스 자동 정리
+      selfHeal: true                           # Drift 자동 복구
+    syncOptions:
+      - CreateNamespace=true                   # 네임스페이스 자동 생성
+      - ServerSideApply=true                   # SSA 사용 (충돌 방지)
+    retry:
+      limit: 3                                 # 실패 시 최대 3회 재시도
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s
