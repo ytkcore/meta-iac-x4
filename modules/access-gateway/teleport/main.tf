@@ -50,6 +50,7 @@ resource "null_resource" "configure_teleport_apps" {
         --region ${var.region}
 
       # Teleport 서버에 설정 적용 명령 전송
+      # teleport.yaml의 app_service 섹션을 직접 업데이트
       aws ssm send-command \
         --instance-ids "${var.teleport_server.instance_id}" \
         --document-name "AWS-RunShellScript" \
@@ -60,8 +61,17 @@ resource "null_resource" "configure_teleport_apps" {
           "aws ssm get-parameter --name /teleport/${var.teleport_server.domain}/apps-config --query Parameter.Value --output text > /tmp/apps-config.yaml",
           "sudo cp /tmp/apps-config.yaml /etc/teleport/apps.yaml",
           "sudo chown teleport:teleport /etc/teleport/apps.yaml",
-          "sudo systemctl reload teleport || sudo systemctl restart teleport",
-          "echo \"Teleport app configuration updated successfully\""
+          "sudo python3 -c \"",
+          "import yaml, sys",
+          "with open(\"/etc/teleport.yaml\") as f: conf = yaml.safe_load(f)",
+          "with open(\"/etc/teleport/apps.yaml\") as f: apps = yaml.safe_load(f)",
+          "conf[\"app_service\"] = {\"enabled\": \"yes\", \"apps\": apps.get(\"apps\", [])}",
+          "with open(\"/etc/teleport.yaml\", \"w\") as f: yaml.dump(conf, f, default_flow_style=False, allow_unicode=True)",
+          "print(\"Updated teleport.yaml with\", len(apps.get(\"apps\",[])), \"apps\")",
+          "\"",
+          "sudo systemctl restart teleport",
+          "sleep 3",
+          "systemctl is-active teleport && echo \"Teleport restarted successfully\" || echo \"ERROR: Teleport failed to restart\""
         ]' \
         --region ${var.region} \
         --output text
