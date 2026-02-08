@@ -11,7 +11,7 @@
 |:------|:-----|:-----|:-----|
 | 1 | ALBC + NLB IP Mode | ⏸️ Phase 6에서 해소 | [albc-adoption](2026-02-07-albc-adoption.md) |
 | 1-2-4 | ALBC + Keycloak + Vault 실제 배포 | ✅ 완료 | [deployment](2026-02-07-keycloak-albc-vault-deployment.md) |
-| 3 | IAM OIDC Federation | ⏸️ Phase 6 이후 | [milestones §Phase 3](2026-02-07-architecture-evolution-milestones.md) |
+| 3 | Vault AWS Secrets Engine (Workload Identity) | ✅ 완료 | [milestones §Phase 3](2026-02-07-architecture-evolution-milestones.md) |
 | 5 | CCM 제거 | ⏸️ Phase 6에서 해소 | [milestones §Phase 5](2026-02-07-architecture-evolution-milestones.md) |
 | **6** | **Cilium CNI + 클러스터 재구축** | 🆕 **최우선** | [cilium-cni-migration](2026-02-08-cilium-cni-migration.md) |
 | 6+ | Keycloak K8s 마이그레이션 | 🆕 Phase 6 동시 | [keycloak-k8s-migration](2026-02-08-keycloak-k8s-migration.md) |
@@ -76,6 +76,7 @@
 | [cilium-cni-migration](2026-02-08-cilium-cni-migration.md) | Cilium ENI Mode 전환 + Clean Rebuild | 🆕 **Critical** |
 | [keycloak-k8s-migration](2026-02-08-keycloak-k8s-migration.md) | Keycloak EC2 → K8s-native 마이그레이션 | 🆕 Phase 6 동시 |
 | [argocd-drift-fix](2026-02-08-argocd-drift-fix.md) | ArgoCD OutOfSync Drift 수정 | 🔄 부분 완료 |
+| [vault-aws-se-albc](2026-02-08-vault-aws-se-albc.md) | Vault AWS SE — ALBC Workload Identity | ✅ 완료 |
 
 ---
 
@@ -90,7 +91,7 @@
 | **2/5** | 수 | *(2/4 Teleport 후속 문서화)* | Access Control 문서 7건 | — |
 | **2/6** | 목 | **ArgoCD 앱 안정화** | Longhorn hook race condition 해결 | 1 |
 | **2/7** | 금 | **플랫폼 고도화 설계 + Phase 1-2-4 배포** | DNS-01 전환, Dual NLB, Keycloak SSO, ALBC, Vault | 9 |
-| **2/8** | 토 | **Cilium 전환 계획 + ArgoCD Drift 수정** | Cilium ENI 코드, Keycloak K8s 계획, ignoreDifferences | 3 |
+| **2/8** | 토 | **Vault Workload Identity + Cilium 계획** | Vault AWS SE → ALBC STS 자격증명, Cilium ENI 코드, ArgoCD Drift Fix | 4 |
 
 ### 🔑 주간 핵심 흐름
 
@@ -107,7 +108,7 @@
  ↓
 2/7  ★ 플랫폼 고도화 Day — ALBC + Keycloak + Vault + Dual NLB
  ↓
-2/8  Cilium 전환 계획 수립 + ArgoCD Drift 수정
+2/8  ★ Vault Workload Identity — ALBC 동적 STS 자격증명 + Cilium 전환 계획
 ```
 
 ### 📈 성과 지표
@@ -120,4 +121,4 @@
 | 삭제 스택 | 1개 (`15-vpn`) |
 | ArgoCD 앱 | 12+ 앱 자동 배포 |
 | 문서 | 20+ 문서 (architecture, security, troubleshooting, guides) |
-| Jira 티켓 | **22건** (이 디렉토리) |
+| Jira 티켓 | **23건** (이 디렉토리) |

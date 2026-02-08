@@ -60,30 +60,51 @@ Keycloak IdP를 EC2(Docker Compose)로 배포하고, 5개 서비스(Grafana, Arg
 
 ---
 
-## Phase 3: Keycloak → AWS IAM OIDC Federation (D8-9) ⏸️ → Phase 6 이후
+## Phase 3: Vault AWS Secrets Engine — Workload Identity (D8-9) ✅ 완료
 
-> **상태 변경**: 미착수 → ⏸️  
-> **사유**: Cilium 클러스터 재구축 시 OIDC Provider 설정을 포함하여 자연 해소.
+> **상태 변경**: ⏸️ → ✅ 완료 (2026-02-08)  
+> **사유**: Keycloak OIDC Federation 대신 **Vault AWS Secrets Engine**으로 구현. Vault K8s Auth → AWS assumed_role → STS 임시 자격증명.
 
 ### Summary
-Keycloak을 AWS IAM OIDC Provider로 등록하여, Pod별 IAM Role(IRSA) 분리를 실현한다.
-Node IAM Role에서 ALBC 정책을 분리하고, Pod-level 인증으로 전환한다.
+Vault AWS Secrets Engine을 통해 ALBC Pod에 동적 STS 자격증명을 주입한다.
+Node IAM Role에서 ALBC 정책을 분리하고, Vault Agent Sidecar가 credential을 자동 rotation한다.
+
+### 구현 결과
+
+| 항목 | 값 |
+|------|-----|
+| ALBC Namespace | `aws-system` (Vault Injector 호환) |
+| Vault AWS Role | `albc` (assumed_role → `dev-meta-vault-albc-role`) |
+| TTL | 15min default / 1h max |
+| K8s Auth Role | `albc` (SA: `aws-load-balancer-controller`, NS: `aws-system`) |
+| Credential Path | `/vault/secrets/aws-creds` (AWS shared credentials format) |
+| Pod Containers | 2/2 (controller + vault-agent sidecar) |
 
 ### Scope
 
 | 파일 | 작업 |
 |------|------|
-| `stacks/dev/25-keycloak/main.tf` | ✏️ aws_iam_openid_connect_provider 추가 |
-| `stacks/dev/50-rke2/main.tf` | ✏️ ALBC 전용 IRSA Role 생성 |
-| `gitops-apps/bootstrap/aws-load-balancer-controller.yaml` | ✏️ ServiceAccount IRSA annotation |
+| `modules/albc-iam/main.tf` | ✏️ `dev-meta-vault-albc-role` + AssumeRole trust + Node Role inline policy |
+| `modules/albc-iam/variables.tf` | ✏️ `enable_vault_integration` toggle 추가 |
+| `modules/albc-iam/outputs.tf` | ✏️ `vault_albc_role_arn` output 추가 |
+| `stacks/dev/50-rke2/main.tf` | ✏️ `enable_vault_integration = true` |
+| `gitops-apps/bootstrap/aws-load-balancer-controller.yaml` | ✏️ Vault Agent annotations + `aws-system` namespace |
+| `gitops-apps/bootstrap/vault.yaml` | ✏️ `AGENT_INJECT_IGNORE_NAMESPACES: kube-public` |
 
 ### Acceptance Criteria
-- [ ] Keycloak JWT로 AWS STS AssumeRoleWithWebIdentity 성공
-- [ ] ALBC Pod이 IRSA Role로 NLB 관리
-- [ ] Node IAM Role에서 ALBC 정책 분리 완료
+- [x] Vault `aws/creds/albc` → STS 임시 자격증명 발급 성공
+- [x] ALBC Pod Vault Agent sidecar 주입 (2/2 Running)
+- [x] Node IAM Role에서 ALBC 정책 분리 완료
+- [x] NLB TargetGroupBindings 4개 정상 관리
+
+### Git Commits
+- `aba9b9c` — feat: Phase 3 Vault AWS Secrets Engine — ALBC Workload Identity
+- `dfbd5e4` — fix: Vault Agent Injector — allow kube-system namespace injection
+- `eec6c11` — fix: move ALBC to aws-system namespace for Vault Agent injection
+- `f8186e5` — cleanup: Phase 1 Node Role direct ALBC policy attachment removed
 
 ### Labels
-`oidc`, `iam`, `irsa`, `phase-3`
+`vault`, `aws-se`, `workload-identity`, `sts`, `phase-3`
 
 ---
 
@@ -144,7 +165,7 @@ AWS Cloud Controller Manager를 제거하고 ALBC로 완전 전환한다.
 ## Phase 6: Cilium CNI + 클러스터 재구축 + Keycloak K8s (D14-16) 🆕 최우선
 
 > **신규 추가**: 2026-02-08  
-> **이 Phase가 해소하는 것**: Phase 1 (ALBC IP-mode), Phase 3 (IAM OIDC), Phase 5 (CCM 제거)
+> **이 Phase가 해소하는 것**: Phase 1 (ALBC IP-mode), Phase 5 (CCM 제거)
 
 ### Summary
 RKE2 CNI를 Canal → Cilium ENI Mode로 전환하는 **Clean Rebuild**를 수행한다.
@@ -161,7 +182,6 @@ eBPF 기반 L7 NetworkPolicy, kube-proxy 대체, Hubble 관측성을 확보한�
 | Keycloak K8s 마이그레이션 | EC2 → K8s-native + Dual Ingress | [2026-02-08-keycloak-k8s-migration.md](2026-02-08-keycloak-k8s-migration.md) |
 | CCM 제거 | Cilium이 대체 → 자연 해소 | Phase 5 흡수 |
 | ALBC IP-mode | VPC-native Pod IP → 네이티브 동작 | Phase 1 흡수 |
-| IAM OIDC | 재구축 시 포함 | Phase 3 흡수 |
 
 ### Acceptance Criteria
 - [ ] Cilium status 정상 + connectivity test 통과
