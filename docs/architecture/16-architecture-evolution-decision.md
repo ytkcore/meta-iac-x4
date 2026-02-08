@@ -15,11 +15,11 @@
 
 ```
 CCM 버그 → NLB 어떻게 고치지? → ALBC 도입 검토
-  → ALBC IRSA가 필요한데 RKE2엔 OIDC가 없다 → OIDC를 어떻게 해결하지?
+  → ALBC IAM 인증이 필요한데 RKE2엔 IRSA가 없다 → 어떻게 해결하지?
     → Keycloak이면 SSO도 되고 OIDC도 된다 → Keycloak 도입 결정
-      → Workload ID는? SPIRE? → 현재는 Keycloak OIDC로 충분
+      → Workload ID는? SPIRE? → 현재는 Keycloak OIDC로 사용자 인증 충분
         → 시크릿도 하드코딩인데? → Vault 도입 결정
-          → 한 번에? 점진적으로? → 시장 검증 + 통합 재설계 결정
+          → Vault K8s Auth 구축 → Vault AWS Secrets Engine으로 워크로드 IAM도 해결 가능
             → NLB IP-mode 왜 안 되지? → Pod IP가 overlay(10.42.x.x)라서 VPC unreachable
               → 근본 원인: Canal VXLAN overlay → Cilium ENI Mode로 전환 결정
 ```
@@ -65,7 +65,7 @@ SPIRE가 유일하게 제공하는 것(mTLS, Attestation)은 **현재 플랫폼 
 | 결정 사항 | 내용 |
 |----------|------|
 | **CNI** | **Cilium ENI Mode** (Canal 교체 — VPC-native Pod IP, eBPF) |
-| **IdP / SSO** | Keycloak 도입 (사용자 SSO + 워크로드 OIDC 겸용) |
+| **IdP / SSO** | Keycloak 도입 (사용자 SSO + OIDC 인증) |
 | **Secrets** | HashiCorp Vault 도입 (동적 시크릿, 자동 회전) |
 | **Access** | Teleport 유지 (이미 완성) |
 | **SPIRE** | **추후 도입 검토** (서비스 메시/mTLS 필요 시점) |
@@ -84,7 +84,7 @@ SPIRE가 유일하게 제공하는 것(mTLS, Attestation)은 **현재 플랫폼 
 | **NLB Target** | CCM 수동 등록 | Worker 변경 시 서비스 중단, Teleport 접근 장애 반복 | 🔴 |
 | **Pod 네트워킹** | Canal VXLAN overlay | Pod IP(10.42.x.x) VPC unreachable → NLB IP-mode 불가 | 🔴 |
 | **NetworkPolicy** | Canal (L3-L4) | L7(HTTP path) 정책 불가, Keycloak Admin/OIDC 분리 불가 | 🟡 |
-| **워크로드 ID** | Node IAM Role | Pod 전체가 동일 권한, Least Privilege 위반 | 🟡 |
+| **워크로드 ID** | Node IAM Role | Pod 전체가 동일 권한, Least Privilege 위반 | 🟡 → ✅ Vault AWS Secrets Engine |
 | **네트워크 관측성** | 없음 | Pod 간 트래픽 흐름 파악 불가 | 🟡 |
 
 > **거버넌스 플랫폼이면서 자체 인프라 거버넌스가 미비** — 이 모순을 해소해야 한다.
@@ -140,7 +140,7 @@ SPIRE가 유일하게 제공하는 것(mTLS, Attestation)은 **현재 플랫폼 
 | **NetworkPolicy** | — | — | — | — | — | **CiliumNetworkPolicy L7** | L3-L4 → L7 (HTTP) | eBPF 기반 |
 | **kube-proxy** | — | iptables | 동일 | 동일 | 동일 | **Cilium eBPF 대체** | O(n) → O(1) | 성능 향상 |
 | **사용자 인증** | 없음 | 서비스별 개별 | 동일 | 동일 | **Keycloak SSO** | 동일 ✅ | 퇴사자 즉시 차단, MFA | `25-keycloak` |
-| **워크로드 인증** | 없음 | Node IAM Role | 동일 | 동일 | **Keycloak OIDC** | 동일 ✅ | Pod별 Least Privilege | SPIRE 추후 검토 |
+| **워크로드 인증** | 없음 | Node IAM Role | 동일 | 동일 | **Vault AWS SE** | 동일 ✅ | Pod별 Least Privilege | Vault K8s Auth → STS 임시 자격증명 |
 | **시크릿 관리** | 없음 | K8s Secret (하드코딩) | 동일 | 동일 | **Vault** | 동일 ✅ | 업계 표준, 감사 추적 | DB dynamic secrets |
 
 ### 3.3 버전별 형상 요약
@@ -191,7 +191,7 @@ v0.4 (현재):                           TO-BE (고도화):
   [접근] Teleport ── SSH/App             [접근] Teleport ── SSH/App/DB/K8s
   [인증] 서비스별 개별                    [인증] Keycloak ── SSO + Workload OIDC
   [시크릿] K8s Secret (평문)             [시크릿] Vault ── 동적 생성/회전/감사
-  [워크로드] Node IAM (AWS 전용)         [워크로드] Keycloak OIDC (CSP 범용)
+  [워크로드] Node IAM (AWS 전용)         [워크로드] Vault AWS Secrets Engine (CSP 범용)
 ```
 
 ### 3.6 아키텍처 다이어그램 (TO-BE)
@@ -275,9 +275,9 @@ SPIRE만 제공할 수 있는 것:
   사용자 → kubectl → Keycloak (OIDC) → JWT 발급 → K8s API 접근
 
 워크로드 인증 흐름:
-  ALBC Pod → Keycloak (Client Credentials) → JWT 발급
-           → AWS IAM (OIDC Provider = Keycloak)
-           → STS AssumeRoleWithWebIdentity → 임시 자격증명
+  ALBC Pod → K8s SA Token → Vault (K8s Auth)
+           → Vault AWS Secrets Engine
+           → STS 임시 자격증명 (15분 TTL, 자동 rotation)
            → NLB/ALB Target Group 관리
 
 시크릿 흐름:
@@ -354,7 +354,7 @@ K8s 설계 자체가 Cloud Provider를 **교체 가능한 플러그인**으로 �
 
 | 리스크 | 확률 | 영향 | 대응 |
 |--------|------|------|------|
-| Keycloak → AWS IAM OIDC 연동 실패 | 낮음 | 높음 | Node IAM Role 폴백 유지 |
+| Vault AWS Secrets Engine 장애 | 낮음 | 높음 | Node IAM Role 폴백 유지 (즉시 복구) |
 | Vault HA 구성 복잡도 | 중간 | 중간 | 초기 단일 노드 → 점진 확장 |
 | 서비스별 OIDC 연동 이슈 | 중간 | 낮음 | Grafana 파일럿 → 나머지 순차 적용 |
 | NLB 재생성 다운타임 | 확정 | 낮음 | 유지보수 윈도우 활용 |
@@ -374,7 +374,7 @@ K8s 설계 자체가 Cloud Provider를 **교체 가능한 플러그인**으로 �
 | Secrets | **Vault** | 상용 3사 전원 채택, 동적 시크릿 업계 표준 |
 | Access | **Teleport 유지** | 이미 완성, 추가 투자 불필요 |
 | NLB | **ALBC IP mode** | Cilium ENI로 네이티브 동작 (overlay 없이) |
-| Workload ID | **Keycloak OIDC** (SPIRE 아님) | 이중 역할로 컴포넌트 절약, 현재 규모 적합 |
+| Workload ID | **Vault AWS Secrets Engine** | 기존 Vault+K8s Auth 활용, S3 OIDC 수동관리 불필요, CSP 범용 |
 | SPIRE | **추후 검토** | mTLS/서비스 메시 필요 시점에 도입 |
 | K8s 엔진 | **RKE2 유지 + 재구축** | CSP 독립, Cilium CNI 포함 Clean Rebuild |
 
