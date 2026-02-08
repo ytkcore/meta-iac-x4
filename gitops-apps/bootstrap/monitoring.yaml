@@ -170,13 +170,11 @@ spec:
         # ====================================================================
         prometheusOperator:
           admissionWebhooks:
-            # [Fix] cert-manager가 webhook TLS cert 관리
-            # Helm hook patch job 대신 cert-manager Certificate 리소스 사용
-            # → ArgoCD 호환 + webhook deadlock 방지
-            certManager:
-              enabled: true
-            patch:
-              enabled: false
+            # [Fix] Webhook completely disabled for dev environment
+            # Root cause: cert-manager secret key names (tls.crt/tls.key) don't match
+            # operator's expected paths (/cert/cert, /cert/key) in chart v65.1.0
+            # PrometheusRule validation is convenience, not security-critical
+            enabled: false
 
   destination:
     server: https://kubernetes.default.svc
