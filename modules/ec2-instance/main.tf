@@ -123,6 +123,13 @@ resource "aws_instance" "this" {
   key_name               = var.key_name # Standardized to null in Keyless standard
   user_data_base64       = var.user_data_base64 != null ? var.user_data_base64 : (var.user_data != null ? base64encode(var.user_data) : null)
 
+  # IMDSv2: hop_limit=2 for Cilium ENI mode (pod → veth → eth0 = 2 hops)
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
   root_block_device {
     volume_type = "gp3"
     volume_size = var.root_volume_size
