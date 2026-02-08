@@ -17,6 +17,7 @@ locals {
       uri                  = svc.uri
       public_addr          = "${svc.name}.teleport.${var.teleport_server.domain}"
       insecure_skip_verify = var.insecure_skip_verify
+      rewrite_redirect     = svc.rewrite_redirect
       labels = {
         env  = "dev"
         type = svc.type
@@ -28,15 +29,24 @@ locals {
   app_service_yaml = join("\n", concat(
     ["app_service:", "  enabled: 'yes'", "  apps:"],
     flatten([
-      for app in local.teleport_apps_config : [
-        "    - name: ${app.name}",
-        "      uri: ${app.uri}",
-        "      public_addr: ${app.public_addr}",
-        "      insecure_skip_verify: ${app.insecure_skip_verify}",
-        "      labels:",
-        "        env: ${app.labels.env}",
-        "        type: ${app.labels.type}",
-      ]
+      for app in local.teleport_apps_config : concat(
+        [
+          "    - name: ${app.name}",
+          "      uri: ${app.uri}",
+          "      public_addr: ${app.public_addr}",
+          "      insecure_skip_verify: ${app.insecure_skip_verify}",
+        ],
+        # rewrite redirect 설정 (내부 호스트명 → Teleport 프록시 호스트명 변환)
+        length(app.rewrite_redirect) > 0 ? concat(
+          ["      rewrite:", "        redirect:"],
+          [for r in app.rewrite_redirect : "          - \"${r}\""]
+        ) : [],
+        [
+          "      labels:",
+          "        env: ${app.labels.env}",
+          "        type: ${app.labels.type}",
+        ]
+      )
     ])
   ))
 

@@ -5,10 +5,11 @@
 variable "services" {
   description = "List of services to register as Teleport apps"
   type = list(object({
-    name     = string
-    uri      = string
-    type     = string
-    internal = bool
+    name              = string
+    uri               = string
+    type              = string
+    internal          = bool
+    rewrite_redirect  = optional(list(string), [])
   }))
   default = []
 }

@@ -99,10 +99,11 @@ variable "kubernetes_services" {
       internal = true
     },
     {
-      name     = "keycloak-admin"
-      uri      = "https://keycloak.dev.unifiedmeta.net"
-      type     = "web"
-      internal = true
+      name              = "keycloak-admin"
+      uri               = "https://keycloak.dev.unifiedmeta.net"
+      type              = "web"
+      internal          = true
+      rewrite_redirect  = ["keycloak.dev.unifiedmeta.net"]
     }
   ]
 }
