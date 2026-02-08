@@ -74,6 +74,10 @@ spec:
         # Injector (Sidecar for Pod secret injection)
         injector:
           enabled: true
+          # kube-system 네임스페이스에서도 injection 허용 (ALBC 등)
+          # 기본값: kube-system,kube-public → kube-public만 제외
+          extraEnvironmentVars:
+            AGENT_INJECT_IGNORE_NAMESPACES: "kube-public"
           resources:
             requests:
               cpu: 50m
