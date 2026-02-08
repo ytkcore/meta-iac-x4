@@ -3,7 +3,7 @@
 # =============================================================================
 # 
 # 이 모듈은 서비스 목록을 받아 Teleport App Service에 등록합니다.
-# SSM을 통해 Teleport 서버에 앱 설정을 적용합니다.
+# SSM을 통해 Teleport 서버의 teleport.yaml에 app_service 섹션을 직접 업데이트합니다.
 # =============================================================================
 
 locals {
@@ -24,7 +24,23 @@ locals {
     }
   ]
 
-  # teleport.yaml apps 섹션 생성
+  # app_service YAML 블록 직접 생성 (yamlencode 대신 직접 구성)
+  app_service_yaml = join("\n", concat(
+    ["app_service:", "  enabled: 'yes'", "  apps:"],
+    flatten([
+      for app in local.teleport_apps_config : [
+        "    - name: ${app.name}",
+        "      uri: ${app.uri}",
+        "      public_addr: ${app.public_addr}",
+        "      insecure_skip_verify: ${app.insecure_skip_verify}",
+        "      labels:",
+        "        env: ${app.labels.env}",
+        "        type: ${app.labels.type}",
+      ]
+    ])
+  ))
+
+  # SSM Parameter 저장용 (추적)
   apps_yaml = yamlencode({
     apps = local.teleport_apps_config
   })
@@ -35,43 +51,40 @@ resource "null_resource" "configure_teleport_apps" {
   count = length(local.internal_services) > 0 ? 1 : 0
 
   triggers = {
-    apps_config_hash = md5(local.apps_yaml)
+    apps_config_hash = md5(local.app_service_yaml)
     services_count   = length(local.internal_services)
   }
 
   provisioner "local-exec" {
     command = <<-EOT
-      # Teleport 앱 설정을 SSM Parameter Store에 저장
+      # 1. app_service YAML을 SSM Parameter에 저장
       aws ssm put-parameter \
-        --name "/teleport/${var.teleport_server.domain}/apps-config" \
-        --value '${replace(local.apps_yaml, "'", "\\'")}' \
+        --name "/teleport/${var.teleport_server.domain}/app-service-yaml" \
+        --value '${replace(local.app_service_yaml, "'", "'\\''")}' \
         --type "String" \
         --overwrite \
         --region ${var.region}
 
-      # Teleport 서버에 설정 적용 명령 전송
-      # teleport.yaml의 app_service 섹션을 직접 업데이트
+      # 2. Teleport 서버에 설정 적용: teleport.yaml의 app_service 섹션 교체
       aws ssm send-command \
         --instance-ids "${var.teleport_server.instance_id}" \
         --document-name "AWS-RunShellScript" \
         --parameters 'commands=[
           "#!/bin/bash",
           "set -e",
-          "echo \"Updating Teleport app configuration...\"",
-          "aws ssm get-parameter --name /teleport/${var.teleport_server.domain}/apps-config --query Parameter.Value --output text > /tmp/apps-config.yaml",
-          "sudo cp /tmp/apps-config.yaml /etc/teleport/apps.yaml",
-          "sudo chown teleport:teleport /etc/teleport/apps.yaml",
-          "sudo python3 -c \"",
-          "import yaml, sys",
-          "with open(\"/etc/teleport.yaml\") as f: conf = yaml.safe_load(f)",
-          "with open(\"/etc/teleport/apps.yaml\") as f: apps = yaml.safe_load(f)",
-          "conf[\"app_service\"] = {\"enabled\": \"yes\", \"apps\": apps.get(\"apps\", [])}",
-          "with open(\"/etc/teleport.yaml\", \"w\") as f: yaml.dump(conf, f, default_flow_style=False, allow_unicode=True)",
-          "print(\"Updated teleport.yaml with\", len(apps.get(\"apps\",[])), \"apps\")",
-          "\"",
+          "echo \"=== Teleport App Service Update ===\"",
+          "echo \"Step 1: Fetching app_service config from SSM...\"",
+          "aws ssm get-parameter --name /teleport/${var.teleport_server.domain}/app-service-yaml --query Parameter.Value --output text --region ${var.region} > /tmp/app_service_block.yaml",
+          "echo \"Step 2: Removing old app_service from teleport.yaml...\"",
+          "sudo sed -i \"/^app_service:/,/^[a-z]/{ /^app_service:/d; /^[a-z]/!d; }\" /etc/teleport.yaml",
+          "sudo sed -i \"/^$/d\" /etc/teleport.yaml",
+          "echo \"Step 3: Appending new app_service section...\"",
+          "echo \"\" | sudo tee -a /etc/teleport.yaml",
+          "cat /tmp/app_service_block.yaml | sudo tee -a /etc/teleport.yaml",
+          "echo \"Step 4: Restarting Teleport...\"",
           "sudo systemctl restart teleport",
-          "sleep 3",
-          "systemctl is-active teleport && echo \"Teleport restarted successfully\" || echo \"ERROR: Teleport failed to restart\""
+          "sleep 5",
+          "if systemctl is-active --quiet teleport; then echo \"SUCCESS: Teleport restarted with updated apps\"; else echo \"ERROR: Teleport failed to restart\"; journalctl -u teleport -n 20 --no-pager; fi"
         ]' \
         --region ${var.region} \
         --output text
