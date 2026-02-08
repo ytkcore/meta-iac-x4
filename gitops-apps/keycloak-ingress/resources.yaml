@@ -1,12 +1,17 @@
 # ==============================================================================
-# Keycloak Split-Horizon Ingress
+# Keycloak Split-Horizon Ingress + WAF-Equivalent Protection
 #
 # Split-Horizon 패턴: Public (인증 API) + Internal (Admin Console) 분리
 # Keycloak EC2 (private subnet)를 K8s nginx ingress를 통해 노출
 # AWS IAM OIDC Provider가 OIDC Discovery endpoint에 접근할 수 있도록 구성
 #
-# Public:   keycloak.dev.unifiedmeta.net   → 인증 API (/realms, /resources, /.well-known)
+# Public:   keycloak.dev.unifiedmeta.net   → 인증 API (/realms, /resources, /js)
 # Internal: keycloak.dev.unifiedmeta.net   → Admin Console (/admin)
+#
+# WAF-Equivalent Protection:
+# - nginx rate-limit: 분당 요청 제한 (brute-force 방어)
+# - nginx request-size: 대용량 요청 차단
+# - CiliumNetworkPolicy: L7 경로 기반 접근 제어
 #
 # Flow: Internet/VPN → NLB → nginx-ingress → K8s Service → Keycloak EC2:8080
 # ==============================================================================
@@ -54,9 +59,7 @@ subsets:
 # 1. Public Ingress — 인증 API 전용 (OIDC, SSO 로그인)
 #
 # 외부 사용자/AWS IAM이 접근해야 하는 경로만 Public NLB로 노출
-# - /realms/    → OIDC 인증 플로우 (login, token, userinfo)
-# - /resources/ → Keycloak 로그인 페이지 정적 리소스 (JS, CSS, images)
-# - /js/        → Keycloak 프론트엔드 어댑터
+# WAF-Equivalent: Rate Limit + Request Size + Security Headers
 # ====================================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -68,8 +71,23 @@ metadata:
     tier: public
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    # --- Buffer ---
     nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
     nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
+    # --- WAF: Rate Limiting (Brute-Force 방어) ---
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-rpm: "300"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+    nginx.ingress.kubernetes.io/limit-connections: "10"
+    # --- WAF: Request Size (대용량 요청 차단) ---
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+    # --- WAF: Security Headers ---
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-Frame-Options: SAMEORIGIN";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Permissions-Policy: camera=(), microphone=(), geolocation=()";
 spec:
   ingressClassName: nginx
   tls:
@@ -157,3 +175,52 @@ spec:
                 name: keycloak
                 port:
                   number: 8080
+---
+# ====================================================================
+# 3. CiliumNetworkPolicy — L7 경로 기반 접근 제어
+#
+# Public Ingress에서 /admin 경로 접근을 L7 레벨에서 차단
+# Split-Horizon Ingress 우회 시도 방어 (직접 Pod IP 접근 등)
+# ====================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: keycloak-l7-protection
+  namespace: keycloak
+  labels:
+    app: keycloak
+spec:
+  endpointSelector:
+    matchLabels:
+      app: keycloak
+  ingress:
+    # Internal Ingress Controller → 모든 경로 허용
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: ingress-nginx
+            app.kubernetes.io/instance: nginx-ingress-internal
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    # Public Ingress Controller → 인증 API 경로만 허용
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: ingress-nginx
+            app.kubernetes.io/instance: nginx-ingress
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/realms/.*"
+              - method: "POST"
+                path: "/realms/.*"
+              - method: "GET"
+                path: "/resources/.*"
+              - method: "GET"
+                path: "/js/.*"
+              - method: "GET"
+                path: "/robots.txt"
