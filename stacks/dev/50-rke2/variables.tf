@@ -234,13 +234,13 @@ variable "interface_services" {
 variable "cni" {
   description = "CNI 플러그인 선택 (canal, cilium, none)"
   type        = string
-  default     = "canal"
+  default     = "cilium"
 }
 
 variable "cilium_eni_mode" {
   description = "Cilium AWS ENI IPAM 모드 활성화"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "cilium_enable_prefix_delegation" {
@@ -264,5 +264,5 @@ variable "cilium_kube_proxy_replacement" {
 variable "enable_aws_ccm" {
   description = "AWS Cloud Controller Manager 활성화 (Cilium ENI에서 불필요)"
   type        = bool
-  default     = true
+  default     = false
 }
