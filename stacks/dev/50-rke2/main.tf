@@ -248,9 +248,10 @@ module "albc_iam" {
   env     = var.env
   project = var.project
 
-  cluster_name       = local.name
-  vpc_id             = local.vpc_id
-  node_iam_role_name = module.rke2.iam_role_name
+  cluster_name             = local.name
+  vpc_id                   = local.vpc_id
+  node_iam_role_name       = module.rke2.iam_role_name
+  enable_vault_integration = true
 
   tags = local.common_tags
 }

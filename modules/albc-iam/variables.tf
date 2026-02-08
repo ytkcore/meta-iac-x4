@@ -7,7 +7,7 @@
 #
 # Design Decision:
 #   Phase 1: Attached to Node IAM Role (all nodes share permissions)
-#   Phase 3: Migrated to dedicated IRSA Role (Keycloak OIDC → STS)
+#   Phase 3: Vault AWS Secrets Engine → Dedicated IAM Role (AssumeRole)
 # ==============================================================================
 
 variable "env" {
@@ -35,8 +35,15 @@ variable "node_iam_role_name" {
   type        = string
 }
 
+variable "enable_vault_integration" {
+  description = "Phase 3: Vault AWS Secrets Engine용 전용 ALBC IAM Role 생성 여부"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "공통 태그"
   type        = map(string)
   default     = {}
 }
+

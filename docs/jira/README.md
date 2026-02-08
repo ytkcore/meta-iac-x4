@@ -76,3 +76,48 @@
 | [cilium-cni-migration](2026-02-08-cilium-cni-migration.md) | Cilium ENI Mode 전환 + Clean Rebuild | 🆕 **Critical** |
 | [keycloak-k8s-migration](2026-02-08-keycloak-k8s-migration.md) | Keycloak EC2 → K8s-native 마이그레이션 | 🆕 Phase 6 동시 |
 | [argocd-drift-fix](2026-02-08-argocd-drift-fix.md) | ArgoCD OutOfSync Drift 수정 | 🔄 부분 완료 |
+
+---
+
+## 📅 일자별 커버리지 요약
+
+| 날짜 | 요일 | 🎯 메인 Task | 핵심 산출물 | 티켓 |
+|:-----|:-----|:------------|:----------|:-----|
+| **2/1** | 토 | **GitOps 기반 서비스 배포 기틀 구축** | ExternalDNS, check-status, cert-manager ClusterIssuer, CCM 착수 | 3 |
+| **2/2** | 일 | **인프라 복원력 + 자동 삭제 체계 확립** | `make destroy-all` 100% 자동화, `try()` 전수 적용, DNS Hygiene | 2 |
+| **2/3** | 월 | **네트워크 관측성 확보** | Split-Horizon DNS, CCM NLB 자동화, Longhorn + Grafana/Prometheus | 2 |
+| **2/4** | 화 | **접근 제어 체계 전환 (VPN → Teleport)** | Golden Image v2, 스택 재넘버링(05/10/15/20), Teleport HA + WAF | 2 |
+| **2/5** | 수 | *(2/4 Teleport 후속 문서화)* | Access Control 문서 7건 | — |
+| **2/6** | 목 | **ArgoCD 앱 안정화** | Longhorn hook race condition 해결 | 1 |
+| **2/7** | 금 | **플랫폼 고도화 설계 + Phase 1-2-4 배포** | DNS-01 전환, Dual NLB, Keycloak SSO, ALBC, Vault | 9 |
+| **2/8** | 토 | **Cilium 전환 계획 + ArgoCD Drift 수정** | Cilium ENI 코드, Keycloak K8s 계획, ignoreDifferences | 3 |
+
+### 🔑 주간 핵심 흐름
+
+```
+2/1  서비스 배포 기틀 (DNS + TLS + CCM)
+ ↓
+2/2  파괴 안정성 확보 (Destroy 자동화 + Resilience)
+ ↓
+2/3  관측성 구축 (Monitoring + Dual DNS + NLB)
+ ↓
+2/4  접근 제어 전환 (VPN 제거 → Teleport HA + Golden Image v2)
+ ↓
+2/6  ArgoCD 앱 안정화 (Longhorn Hook Fix)
+ ↓
+2/7  ★ 플랫폼 고도화 Day — ALBC + Keycloak + Vault + Dual NLB
+ ↓
+2/8  Cilium 전환 계획 수립 + ArgoCD Drift 수정
+```
+
+### 📈 성과 지표
+
+| 지표 | 값 |
+|:-----|:---|
+| 총 커밋 수 | 55+ |
+| 신규 Terraform 모듈 | 5개 (`albc-iam`, `keycloak-ec2`, `teleport-ec2`, `waf-acl`, `ec2-instance` 개선) |
+| 신규 Terraform 스택 | 5개 (`05-security`, `10-golden-image`, `15-teleport`, `20-waf`, `25-keycloak`) |
+| 삭제 스택 | 1개 (`15-vpn`) |
+| ArgoCD 앱 | 12+ 앱 자동 배포 |
+| 문서 | 20+ 문서 (architecture, security, troubleshooting, guides) |
+| Jira 티켓 | **22건** (이 디렉토리) |

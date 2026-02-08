@@ -18,11 +18,25 @@ spec:
         clusterName: meta-dev-k8s
         region: ap-northeast-2
 
-        # Phase 1: Node IAM Role 사용 (serviceAccount 별도 annotation 없음)
-        # Phase 3: Keycloak OIDC 기반 IRSA로 전환 시 아래 주석 해제
-        # serviceAccount:
-        #   annotations:
-        #     eks.amazonaws.com/role-arn: arn:aws:iam::role/albc-irsa-role
+        # Phase 3: Vault AWS Secrets Engine으로 credential 주입
+        # Vault Agent Injector가 STS 임시 자격증명을 /vault/secrets/aws-creds에 렌더링
+        podAnnotations:
+          vault.hashicorp.com/agent-inject: "true"
+          vault.hashicorp.com/agent-inject-status: "update"
+          vault.hashicorp.com/role: "albc"
+          vault.hashicorp.com/agent-inject-secret-aws-creds: "aws/creds/albc"
+          vault.hashicorp.com/agent-inject-template-aws-creds: |
+            {{- with secret "aws/creds/albc" -}}
+            [default]
+            aws_access_key_id={{ .Data.access_key }}
+            aws_secret_access_key={{ .Data.secret_key }}
+            aws_session_token={{ .Data.security_token }}
+            {{- end }}
+
+        # AWS SDK가 Vault Agent가 주입한 credential 파일을 사용하도록 설정
+        extraEnv:
+          - name: AWS_SHARED_CREDENTIALS_FILE
+            value: /vault/secrets/aws-creds
 
         # VPC ID (ALBC가 서브넷/SG 조회에 필요)
         vpcId: "vpc-0f00997f25423fdab"

@@ -175,8 +175,64 @@ resource "aws_iam_policy" "albc" {
   })
 }
 
-# Phase 1: Node IAM Role에 직접 부착
+# Phase 1: Node IAM Role에 직접 부착 (current — Vault 전환 후 제거 예정)
 resource "aws_iam_role_policy_attachment" "albc" {
   role       = var.node_iam_role_name
   policy_arn = aws_iam_policy.albc.arn
 }
+
+# ==============================================================================
+# Phase 3: Vault AWS Secrets Engine — Dedicated ALBC IAM Role
+#
+# Vault가 Node IAM Role(EC2 metadata)로 이 Role을 AssumeRole하여
+# ALBC Pod에 STS 임시 자격증명을 발급합니다.
+# ==============================================================================
+
+resource "aws_iam_role" "vault_albc" {
+  count = var.enable_vault_integration ? 1 : 0
+  name  = "${var.env}-${var.project}-vault-albc-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.node_iam_role_name}"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = merge(var.tags, {
+    Name    = "${var.env}-${var.project}-vault-albc-role"
+    Purpose = "Vault AWS Secrets Engine - ALBC"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "vault_albc" {
+  count      = var.enable_vault_integration ? 1 : 0
+  role       = aws_iam_role.vault_albc[0].name
+  policy_arn = aws_iam_policy.albc.arn
+}
+
+# Node Role에 STS AssumeRole 권한 추가 (Vault가 위 Role을 assume할 수 있게)
+resource "aws_iam_role_policy" "vault_assume_albc" {
+  count = var.enable_vault_integration ? 1 : 0
+  name  = "${var.env}-${var.project}-vault-assume-albc"
+  role  = var.node_iam_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "sts:AssumeRole"
+        Resource = aws_iam_role.vault_albc[0].arn
+      }
+    ]
+  })
+}
+
+data "aws_caller_identity" "current" {}
