@@ -47,7 +47,7 @@ spec:
             # [Optimization] Critical: Reduce I/O load on Longhorn
             walCompression: true
             retention: 15d
-            retentionSize: "20Gi"
+            retentionSize: "20GiB"
             
             # [QoS] High Memory Request to prevent OOM
             resources:
