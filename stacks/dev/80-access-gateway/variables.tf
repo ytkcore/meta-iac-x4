@@ -91,6 +91,18 @@ variable "kubernetes_services" {
       uri      = "https://rancher.unifiedmeta.net"
       type     = "web"
       internal = true
+    },
+    {
+      name     = "vault"
+      uri      = "https://vault.dev.unifiedmeta.net"
+      type     = "web"
+      internal = true
+    },
+    {
+      name     = "keycloak-admin"
+      uri      = "https://keycloak.dev.unifiedmeta.net"
+      type     = "web"
+      internal = true
     }
   ]
 }
