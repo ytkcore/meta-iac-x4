@@ -11,6 +11,7 @@
 | 2026-02-07 | 초안 작성 |
 | 2026-02-08 | Cilium ENI Mode 전환 반영 (Phase 6) |
 | 2026-02-08 | **Phase 3 워크로드 ID 방식 변경** (아래 AS-IS/TO-BE 참조) |
+| 2026-02-08 | **Vault KMS Auto-Unseal** 완료 반영 (Shamir→KMS 마이그레이션, IMDS hop_limit 수정) |
 
 #### Phase 3 Workload Identity — AS-IS → TO-BE
 
@@ -85,7 +86,7 @@ SPIRE가 유일하게 제공하는 것(mTLS, Attestation)은 **현재 플랫폼 
 |----------|------|
 | **CNI** | **Cilium ENI Mode** (Canal 교체 — VPC-native Pod IP, eBPF) |
 | **IdP / SSO** | Keycloak 도입 (사용자 SSO + OIDC 인증) |
-| **Secrets** | HashiCorp Vault 도입 (동적 시크릿, 자동 회전) |
+| **Secrets** | HashiCorp Vault 도입 (동적 시크릿, 자동 회전, **KMS Auto-Unseal**) |
 | **Access** | Teleport 유지 (이미 완성) |
 | **SPIRE** | **추후 도입 검토** (서비스 메시/mTLS 필요 시점) |
 | **접근 방식** | 통합 재설계 (3-Layer Stack) + **클러스터 재구축** |
@@ -363,11 +364,12 @@ K8s 설계 자체가 Cloud Provider를 **교체 가능한 플러그인**으로 �
 | **1** | ALBC + NLB IP mode (Teleport 안정화) | **D1-2** ✅ |
 | **2** | Keycloak 배포 + 5개 서비스 SSO | **D3-7** ✅ |
 | **3** | Vault AWS Secrets Engine (Workload Identity) | **D8-9** ✅ |
-| **4** | Vault 배포 + K8s Auth + DB secrets | **D10-12** ✅ |
+| **4** | Vault 배포 + K8s Auth + DB secrets + **KMS Auto-Unseal** | **D10-12** ✅ |
 | **5** | CCM 제거 | — ⏸️ Phase 6에서 자연 해소 |
 | **6** | **Cilium CNI + 클러스터 재구축 + Keycloak K8s** | **D14-16** 🆕 |
 
-> Phase 1, 2, 3, 4 완료. Phase 5는 Phase 6(Cilium) 진행 시 자연 해소됨.
+> Phase 1~4 완료. Phase 4에서 **Vault KMS Auto-Unseal** 및 Seal Migration 完了 — 📎 [운영 가이드](../vault/vault-kms-auto-unseal.md)  
+> Phase 5는 Phase 6(Cilium) 진행 시 자연 해소됨.
 
 ---
 
@@ -376,7 +378,8 @@ K8s 설계 자체가 Cloud Provider를 **교체 가능한 플러그인**으로 �
 | 리스크 | 확률 | 영향 | 대응 |
 |--------|------|------|------|
 | Vault AWS Secrets Engine 장애 | 낮음 | 높음 | Node IAM Role 폴백 유지 (즉시 복구) |
-| Vault HA 구성 복잡도 | 중간 | 중간 | 초기 단일 노드 → 점진 확장 |
+| ~~Vault 수동 Unseal 운영 부담~~ | ~~높음~~ | ~~높음~~ | ✅ **해결**: KMS Auto-Unseal (월 $1, Pod 재시작 자동 복구) |
+| Vault HA 구성 복잡도 | 중간 | 중간 | 초기 단일 노드 → 점진 확장 (Auto-Unseal 전제 조건 충족) |
 | 서비스별 OIDC 연동 이슈 | 중간 | 낮음 | Grafana 파일럿 → 나머지 순차 적용 |
 | NLB 재생성 다운타임 | 확정 | 낮음 | 유지보수 윈도우 활용 |
 | Cilium ENI Pod 밀도 제한 | 중간 | 중간 | Prefix Delegation (/28) 활성화 |
@@ -392,7 +395,7 @@ K8s 설계 자체가 Cloud Provider를 **교체 가능한 플러그인**으로 �
 |------|------|------|
 | **CNI** | **Cilium ENI Mode** | VPC-native Pod IP, eBPF L7 NetworkPolicy, kube-proxy 대체, Hubble |
 | IdP/SSO | **Keycloak** | OIDC SSO 표준, 시장 선두 Atlan 채택 |
-| Secrets | **Vault** | 상용 3사 전원 채택, 동적 시크릿 업계 표준 |
+| Secrets | **Vault** + KMS Auto-Unseal | 상용 3사 전원 채택, 동적 시크릿, **자동 Unseal (무인 운영)** |
 | Access | **Teleport 유지** | 이미 완성, 추가 투자 불필요 |
 | NLB | **ALBC IP mode** | Cilium ENI로 네이티브 동작 (overlay 없이) |
 | Workload ID | **Vault AWS Secrets Engine** | 기존 Vault+K8s Auth 활용, S3 OIDC 수동관리 불필요, CSP 범용 |
@@ -409,3 +412,5 @@ K8s 설계 자체가 Cloud Provider를 **교체 가능한 플러그인**으로 �
 - [17-cilium-cni-architecture.md](17-cilium-cni-architecture.md) — Cilium CNI 전환 상세 아키텍처
 - [market-player-infrastructure-research.md](market-player-infrastructure-research.md) — 시장 플레이어 인프라 분석
 - [platform-identity-bridge-strategy.md](platform-identity-bridge-strategy.md) — Bridge 전략 (참고용)
+- [vault-kms-auto-unseal.md](../vault/vault-kms-auto-unseal.md) — **Vault KMS Auto-Unseal 운영 가이드** (배경, 구현, 마이그레이션, 비상복구)
+- [vault-ha-transition-roadmap.md](../vault/vault-ha-transition-roadmap.md) — Vault HA 전환 로드맵 (Phase A~C)

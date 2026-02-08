@@ -9,7 +9,7 @@
 | **Mode** | Standalone | 🔴 HIGH | SPOF — Pod 재시작 시 서비스 중단 |
 | **Storage** | `file` (local PVC) | 🔴 HIGH | Raft 미사용, 복제 없음 |
 | **HA Enabled** | `false` | 🔴 HIGH | Failover 없음 |
-| **Seal Type** | Shamir (5/3) | 🟡 MED | 수동 unseal 필요 — 재시작마다 3개 키 입력 |
+| **Seal Type** | ~~Shamir (5/3)~~ → **KMS (awskms)** | ✅ DONE | Auto-Unseal 완료, Recovery Keys 보관 |
 | **TLS Listener** | `tls_disable = 1` | 🟡 MED | Pod↔Ingress 간 plaintext (Ingress TLS 종단) |
 | **Replicas** | 1 | 🔴 HIGH | 단일 Pod 장애 → 전체 Vault 중단 |
 | **Storage Size** | 10Gi (Longhorn) | 🟢 LOW | Dev 환경에 적절 |
@@ -25,32 +25,36 @@
 
 | 시나리오 | 영향 | 현재 대응 |
 |----------|------|-----------|
-| vault-0 Pod 재시작 | Sealed 상태 → 수동 unseal 필요, ALBC credential 갱신 중단 | 없음 (수동 개입) |
+| vault-0 Pod 재시작 | ~~Sealed 상태 → 수동 unseal~~ → **자동 Unseal** | ✅ KMS Auto-Unseal |
 | 워커 노드 장애 | Vault 완전 중단, PVC 재마운트 대기 | Longhorn 복제로 데이터 보존 |
 | Longhorn Volume 손상 | 데이터 유실 (백업 미구성 시) | Longhorn S3 backup (구성 여부 확인 필요) |
 | 네트워크 파티션 | Standalone이므로 영향 없음 | N/A |
 
 ## 3. HA 전환 로드맵 (To-Be)
 
-### Phase A: Auto-Unseal (우선순위 1) — 즉시 적용 가능
+### Phase A: Auto-Unseal (우선순위 1) — ✅ 완료 (2026-02-08)
 
-> Pod 재시작 시 자동 unseal로 운영 부담 제거
+> Pod 재시작 시 자동 unseal로 운영 부담 제거  
+> 📎 **상세 운영 가이드**: [vault-kms-auto-unseal.md](vault-kms-auto-unseal.md)
 
 ```hcl
 # vault.yaml → standalone.config 추가
 seal "awskms" {
   region     = "ap-northeast-2"
-  kms_key_id = "<KMS_KEY_ID>"
+  kms_key_id = "fcaa0e8d-2ee9-4f2e-8895-947d2bfd19e6"
 }
 ```
 
-**필요 작업:**
-1. AWS KMS 키 생성 (Terraform `55-bootstrap` 또는 별도 stack)
-2. Vault Pod에 KMS 권한 부여 (Node Role 또는 IRSA)
-3. `seal "shamir"` → `seal "awskms"` 마이그레이션 (`vault operator seal -migrate`)
-4. 기존 Shamir 키는 Recovery Keys로 보관
+**완료된 작업:**
+1. ✅ AWS KMS 키 생성 (Terraform `55-bootstrap`, key rotation 활성)
+2. ✅ Vault Pod에 KMS 권한 부여 (Node Role IAM Policy)
+3. ✅ `seal "awskms"` stanza 추가 (ArgoCD sync)
+4. ✅ IMDS hop_limit 2 설정 (Cilium ENI 필수)
+5. ✅ Seal Migration (`vault operator unseal -migrate` × 3)
+6. ✅ 기존 Shamir 키 = Recovery Keys로 보관
+7. ✅ Pod 재시작 자동 Unseal 검증
 
-**예상 다운타임**: 5~10분 (seal migration 중)
+**다운타임**: 5분 (seal migration 중)
 
 ---
 
@@ -143,8 +147,8 @@ listener "tcp" {
 | 판단 | 근거 |
 |------|------|
 | **현재 구성 유지** (당분간) | Dev 환경, ALBC만 의존, 재시작 빈도 낮음 |
-| **Phase A 우선 검토** | KMS auto-unseal은 비용 낮고 운영 부담 크게 감소 |
-| **Phase B는 Staging/Prod 시** | Raft HA는 리소스 3배, 복잡도 증가 |
+| **Phase A 우선 검토** | ✅ 완료 — KMS auto-unseal 적용, 월 $1 비용, 운영 부담 완전 제거 |
+| **Phase B는 Staging/Prod 시** | Raft HA는 리소스 3배, 복잡도 증가 (Auto-Unseal 전제 조건 충족) |
 | **Phase C는 Enterprise 시** | 내부 TLS는 compliance 요구 시에만 |
 
 ---
