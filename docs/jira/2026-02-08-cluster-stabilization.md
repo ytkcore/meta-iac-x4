@@ -5,7 +5,12 @@
 클러스터 감사 결과 발견된 안정화 항목 11건을 처리. **13/13 ArgoCD 앱 Synced + Healthy** 달성.
 CCM 정리, Monitoring 5-blocker, Ingress Internal, Keycloak Split-Horizon + WAF, Cilium CNI 검증, Vault HA + KMS Auto-Unseal, IMDS hop_limit, ALBC IP-mode 확인, Keycloak SSO Grafana 연동.
 
-커밋: `ffda789` → … → `0687766` → `7221364` → `94d787c` → `ffb5877` → `bf18e79`
+커밋: `ffda789` → … → `0687766` → `7221364` → `94d787c` → `ffb5877` → `bf18e79` → `0745cc8`
+
+### 📎 Sub-tickets
+| # | 제목 | 문서 |
+|---|------|------|
+| T11 | Keycloak SSO Grafana OIDC 연동 | [상세 워크스루](./2026-02-08-keycloak-sso-grafana.md) |
 
 ## 🎯 Goals
 

@@ -78,6 +78,7 @@
 | [argocd-drift-fix](2026-02-08-argocd-drift-fix.md) | ArgoCD OutOfSync Drift 수정 | 🔄 부분 완료 |
 | [vault-aws-se-albc](2026-02-08-vault-aws-se-albc.md) | Vault AWS SE — ALBC Workload Identity | ✅ 완료 |
 | [cluster-stabilization](2026-02-08-cluster-stabilization.md) | CCM 정리 + 관리도구 Internal 전환 | 🔄 부분 완료 |
+| [keycloak-sso-grafana](2026-02-08-keycloak-sso-grafana.md) | Keycloak SSO Grafana OIDC 연동 | ✅ 완료 |
 
 ---
 
@@ -92,7 +93,7 @@
 | **2/5** | 수 | *(2/4 Teleport 후속 문서화)* | Access Control 문서 7건 | — |
 | **2/6** | 목 | **ArgoCD 앱 안정화** | Longhorn hook race condition 해결 | 1 |
 | **2/7** | 금 | **플랫폼 고도화 설계 + Phase 1-2-4 배포** | DNS-01 전환, Dual NLB, Keycloak SSO, ALBC, Vault | 9 |
-| **2/8** | 토 | **Vault Workload Identity + Cilium 계획** | Vault AWS SE → ALBC STS 자격증명, Cilium ENI 코드, ArgoCD Drift Fix | 4 |
+| **2/8** | 토 | **Vault Workload Identity + Cilium 계획 + SSO** | Vault AWS SE, Cilium ENI, ArgoCD Drift Fix, Keycloak SSO | 6 |
 
 ### 🔑 주간 핵심 흐름
 
@@ -122,4 +123,4 @@
 | 삭제 스택 | 1개 (`15-vpn`) |
 | ArgoCD 앱 | 12+ 앱 자동 배포 |
 | 문서 | 20+ 문서 (architecture, security, troubleshooting, guides) |
-| Jira 티켓 | **24건** (이 디렉토리) |
+| Jira 티켓 | **26건** (이 디렉토리) |
