@@ -100,7 +100,7 @@ variable "kubernetes_services" {
     },
     {
       name     = "keycloak-admin"
-      uri      = "https://keycloak.dev.unifiedmeta.net"
+      uri      = "https://keycloak.dev.unifiedmeta.net/admin/"
       type     = "web"
       internal = true
     }
