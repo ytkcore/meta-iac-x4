@@ -298,3 +298,11 @@ variable "enable_acm_tls_termination" {
   type        = bool
   default     = false
 }
+
+# Vault Auto-Unseal
+variable "enable_vault_auto_unseal" {
+  description = "Vault Auto-Unseal: AWS KMS 키 생성 및 IAM 정책 할당"
+  type        = bool
+  default     = true
+}
+

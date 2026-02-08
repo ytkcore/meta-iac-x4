@@ -440,3 +440,62 @@ resource "kubernetes_secret" "infra_context" {
 # - Causes "Invalid count argument" error because `depends_on` makes the result
 #   unknown at plan time.
 # ------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# 9. Vault Auto-Unseal: AWS KMS Key
+# - Pod 재시작 시 자동 unseal로 운영 부담 제거
+# - Seal Migration: Shamir 5/3 → AWS KMS (Recovery Keys로 보관)
+# ------------------------------------------------------------------------------
+resource "aws_kms_key" "vault_unseal" {
+  count = var.enable_vault_auto_unseal ? 1 : 0
+
+  description             = "Vault Auto-Unseal Key (${var.env}-${var.project})"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+  multi_region            = false
+
+  tags = {
+    Name        = "${var.env}-${var.project}-vault-unseal"
+    Environment = var.env
+    Project     = var.project
+    ManagedBy   = "terraform"
+    Component   = "vault"
+  }
+}
+
+resource "aws_kms_alias" "vault_unseal" {
+  count = var.enable_vault_auto_unseal ? 1 : 0
+
+  name          = "alias/${var.env}-${var.project}-vault-unseal"
+  target_key_id = aws_kms_key.vault_unseal[0].key_id
+}
+
+# Vault Pod (Node Role) → KMS Encrypt/Decrypt 권한
+resource "aws_iam_policy" "vault_kms_unseal" {
+  count = var.enable_vault_auto_unseal ? 1 : 0
+
+  name        = "${var.env}-${var.project}-vault-kms-unseal"
+  description = "Vault Auto-Unseal: KMS Encrypt/Decrypt for seal operations"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:DescribeKey",
+        ]
+        Resource = aws_kms_key.vault_unseal[0].arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "vault_kms_unseal" {
+  count = var.enable_vault_auto_unseal ? 1 : 0
+
+  role       = data.terraform_remote_state.rke2.outputs.iam_role_name
+  policy_arn = aws_iam_policy.vault_kms_unseal[0].arn
+}

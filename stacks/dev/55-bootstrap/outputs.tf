@@ -29,6 +29,13 @@ output "argocd_server_url" {
   value       = local.argocd_hostname != "" ? "https://${local.argocd_hostname}" : "Access via NodePort: ${var.argocd_nodeport_https}"
 }
 
+# Vault Auto-Unseal KMS
+output "vault_kms_key_id" {
+  description = "Vault Auto-Unseal KMS Key ID"
+  value       = try(aws_kms_key.vault_unseal[0].key_id, "")
+}
+
+
 # -----------------------------------------------------------------------------
 # cert-manager Outputs
 # -----------------------------------------------------------------------------
