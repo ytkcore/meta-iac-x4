@@ -177,6 +177,7 @@ spec:
       - CreateNamespace=true
       - ServerSideApply=true
       - PrunePropagationPolicy=foreground
+      - RespectIgnoreDifferences=true
     # [Stability] Robust Retry for large CRDs
     retry:
       limit: 10
@@ -186,6 +187,20 @@ spec:
         maxDuration: 10m
   
   ignoreDifferences:
+    - group: apps
+      kind: DaemonSet
+      jsonPointers:
+        - /spec/template/metadata
+        - /spec/template/spec/containers/0/resources
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/metadata
+        - /spec/template/spec/containers/0/resources
+    - group: monitoring.coreos.com
+      kind: Prometheus
+      jsonPointers:
+        - /spec
     - group: admissionregistration.k8s.io
       kind: MutatingWebhookConfiguration
       jqPathExpressions:
