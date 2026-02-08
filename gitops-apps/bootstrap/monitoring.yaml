@@ -178,6 +178,8 @@ spec:
       - ServerSideApply=true
       - PrunePropagationPolicy=foreground
       - RespectIgnoreDifferences=true
+      - SkipDryRunOnMissingResource=true
+      - Replace=true
     # [Stability] Robust Retry for large CRDs
     retry:
       limit: 10
