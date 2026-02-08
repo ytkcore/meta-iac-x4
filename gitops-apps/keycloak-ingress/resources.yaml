@@ -160,16 +160,10 @@ spec:
     - host: keycloak.dev.unifiedmeta.net
       http:
         paths:
-          # Admin Console
-          - path: /admin
-            pathType: Prefix
-            backend:
-              service:
-                name: keycloak
-                port:
-                  number: 8080
-          # Admin REST API
-          - path: /admin/realms
+          # Catch-all: Internal NLB를 통한 모든 경로 서빙
+          # Teleport App Access에서 Admin Console SPA가
+          # /admin, /js, /resources, /realms 등 모든 경로 필요
+          - path: /
             pathType: Prefix
             backend:
               service:
