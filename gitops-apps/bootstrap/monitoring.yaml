@@ -165,6 +165,16 @@ spec:
         kubelet: { enabled: true }
         kubeApiServer: { enabled: true }
 
+        # ====================================================================
+        # 5. Prometheus Operator — ArgoCD Drift Prevention
+        # ====================================================================
+        prometheusOperator:
+          admissionWebhooks:
+            patch:
+              # [ArgoCD] Helm hook 리소스가 ArgoCD에서 None으로 보고되어
+              # 앱 전체를 OutOfSync로 만드는 Known Issue 방지
+              enabled: false
+
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
