@@ -1,6 +1,6 @@
 # [INFRA] Keycloak SSO — Grafana OIDC 연동 (Pilot)
 
-> **Parent**: [2026-02-08-cluster-stabilization.md](./2026-02-08-cluster-stabilization.md) (T11)
+> **Parent**: [클러스터 안정화](../2026-02-08-cluster-stabilization.md) | **Status**: ✅ 완료
 
 ## 📋 Summary
 

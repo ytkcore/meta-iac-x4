@@ -77,8 +77,8 @@
 | [keycloak-k8s-migration](2026-02-08-keycloak-k8s-migration.md) | Keycloak EC2 → K8s-native 마이그레이션 | 🆕 Phase 6 동시 |
 | [argocd-drift-fix](2026-02-08-argocd-drift-fix.md) | ArgoCD OutOfSync Drift 수정 | 🔄 부분 완료 |
 | [vault-aws-se-albc](2026-02-08-vault-aws-se-albc.md) | Vault AWS SE — ALBC Workload Identity | ✅ 완료 |
-| [cluster-stabilization](2026-02-08-cluster-stabilization.md) | CCM 정리 + 관리도구 Internal 전환 | 🔄 부분 완료 |
-| [keycloak-sso-grafana](2026-02-08-keycloak-sso-grafana.md) | Keycloak SSO Grafana OIDC 연동 | ✅ 완료 |
+| [cluster-stabilization](2026-02-08-cluster-stabilization.md) | CCM 정리 + 관리도구 Internal 전환 (11건) | ✅ 완료 |
+| ↳ [sub-tickets/](2026-02-08-cluster-stabilization/) | T01~T11 상세 워크스루 (디렉토리) | ✅ 11건 |
 
 ---
 

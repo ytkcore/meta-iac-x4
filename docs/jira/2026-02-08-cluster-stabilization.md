@@ -7,10 +7,23 @@ CCM 정리, Monitoring 5-blocker, Ingress Internal, Keycloak Split-Horizon + WAF
 
 커밋: `ffda789` → … → `0687766` → `7221364` → `94d787c` → `ffb5877` → `bf18e79` → `0745cc8`
 
-### 📎 Sub-tickets
-| # | 제목 | 문서 |
+### 📎 Sub-tickets (상세 워크스루)
+
+> 디렉토리: [`2026-02-08-cluster-stabilization/`](./2026-02-08-cluster-stabilization/)
+
+| # | 제목 | 파일 |
 |---|------|------|
-| T11 | Keycloak SSO Grafana OIDC 연동 | [상세 워크스루](./2026-02-08-keycloak-sso-grafana.md) |
+| T1 | CCM CrashLoopBackOff 정리 | [T01-ccm-crashloop-cleanup.md](./2026-02-08-cluster-stabilization/T01-ccm-crashloop-cleanup.md) |
+| T2 | Monitoring 5-Blocker 해결 | [T02-monitoring-outofsync-resolution.md](./2026-02-08-cluster-stabilization/T02-monitoring-outofsync-resolution.md) |
+| T3 | Grafana/Vault Internal 전환 | [T03-grafana-vault-internal.md](./2026-02-08-cluster-stabilization/T03-grafana-vault-internal.md) |
+| T4 | Vault HA 로드맵 문서화 | [T04-vault-ha-roadmap.md](./2026-02-08-cluster-stabilization/T04-vault-ha-roadmap.md) |
+| T5 | ArgoCD/Rancher/Longhorn Internal | [T05-argocd-rancher-longhorn-internal.md](./2026-02-08-cluster-stabilization/T05-argocd-rancher-longhorn-internal.md) |
+| T6 | Keycloak Split-Horizon | [T06-keycloak-split-horizon.md](./2026-02-08-cluster-stabilization/T06-keycloak-split-horizon.md) |
+| T7 | Cilium CNI 검증 + 코드 정합 | [T07-cilium-cni-verification.md](./2026-02-08-cluster-stabilization/T07-cilium-cni-verification.md) |
+| T8 | Keycloak WAF Protection | [T08-keycloak-waf-protection.md](./2026-02-08-cluster-stabilization/T08-keycloak-waf-protection.md) |
+| T9 | Vault KMS Auto-Unseal | [T09-vault-kms-auto-unseal.md](./2026-02-08-cluster-stabilization/T09-vault-kms-auto-unseal.md) |
+| T10 | ALBC NLB IP-mode 확인 | [T10-albc-nlb-ip-mode.md](./2026-02-08-cluster-stabilization/T10-albc-nlb-ip-mode.md) |
+| T11 | Keycloak SSO Grafana OIDC | [T11-keycloak-sso-grafana.md](./2026-02-08-cluster-stabilization/T11-keycloak-sso-grafana.md) |
 
 ## 🎯 Goals
 
