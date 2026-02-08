@@ -201,8 +201,9 @@ spec:
         - /spec/template/spec
     - group: monitoring.coreos.com
       kind: Prometheus
-      jsonPointers:
-        - /spec
+      jqPathExpressions:
+        - .spec
+        - .metadata.annotations
     - group: admissionregistration.k8s.io
       kind: MutatingWebhookConfiguration
       jqPathExpressions:
