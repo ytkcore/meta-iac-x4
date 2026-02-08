@@ -1,10 +1,14 @@
 # ==============================================================================
-# Keycloak Public Ingress
+# Keycloak Split-Horizon Ingress
 #
-# Keycloak EC2 (private subnet)를 K8s nginx ingress를 통해 공개 노출
+# Split-Horizon 패턴: Public (인증 API) + Internal (Admin Console) 분리
+# Keycloak EC2 (private subnet)를 K8s nginx ingress를 통해 노출
 # AWS IAM OIDC Provider가 OIDC Discovery endpoint에 접근할 수 있도록 구성
 #
-# Flow: Internet → NLB → nginx-ingress → K8s Service → Keycloak EC2:8080
+# Public:   keycloak.dev.unifiedmeta.net   → 인증 API (/realms, /resources, /.well-known)
+# Internal: keycloak.dev.unifiedmeta.net   → Admin Console (/admin)
+#
+# Flow: Internet/VPN → NLB → nginx-ingress → K8s Service → Keycloak EC2:8080
 # ==============================================================================
 ---
 # Headless Service + Manual Endpoints → Keycloak EC2 private IP
@@ -46,17 +50,24 @@ subsets:
         port: 8443
         protocol: TCP
 ---
-# Public Ingress — cert-manager TLS + nginx class
+# ====================================================================
+# 1. Public Ingress — 인증 API 전용 (OIDC, SSO 로그인)
+#
+# 외부 사용자/AWS IAM이 접근해야 하는 경로만 Public NLB로 노출
+# - /realms/    → OIDC 인증 플로우 (login, token, userinfo)
+# - /resources/ → Keycloak 로그인 페이지 정적 리소스 (JS, CSS, images)
+# - /js/        → Keycloak 프론트엔드 어댑터
+# ====================================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: keycloak
+  name: keycloak-public
   namespace: keycloak
   labels:
     app: keycloak
+    tier: public
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    # Keycloak은 HTTP 8080에서도 서비스 가능 (프록시 모드)
     nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
     nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
 spec:
@@ -69,7 +80,77 @@ spec:
     - host: keycloak.dev.unifiedmeta.net
       http:
         paths:
-          - path: /
+          # OIDC/SAML 인증 엔드포인트
+          - path: /realms
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
+          # 로그인 페이지 정적 리소스
+          - path: /resources
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
+          # JS 어댑터
+          - path: /js
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
+          # robots.txt (SEO)
+          - path: /robots.txt
+            pathType: Exact
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
+---
+# ====================================================================
+# 2. Internal Ingress — Admin Console (관리자 전용)
+#
+# Admin Console은 Internal NLB를 통해서만 접근 가능
+# VPN 또는 Teleport 경유 접근 필수
+# ====================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak-admin
+  namespace: keycloak
+  labels:
+    app: keycloak
+    tier: internal
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
+spec:
+  ingressClassName: nginx-internal
+  tls:
+    - hosts:
+        - keycloak.dev.unifiedmeta.net
+      secretName: keycloak-tls
+  rules:
+    - host: keycloak.dev.unifiedmeta.net
+      http:
+        paths:
+          # Admin Console
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
+          # Admin REST API
+          - path: /admin/realms
             pathType: Prefix
             backend:
               service:
