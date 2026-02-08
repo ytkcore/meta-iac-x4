@@ -1,9 +1,9 @@
-# [INFRA] 클러스터 안정화 — CCM 정리 + Monitoring Synced + Internal 전환 + Vault 검토 + WAF + Auto-Unseal
+# [INFRA] 클러스터 안정화 — CCM 정리 + Monitoring Synced + Internal 전환 + Vault 검토 + WAF + Auto-Unseal + SSO
 
 ## 📋 Summary
 
-클러스터 감사 결과 발견된 안정화 항목 9건을 처리. **13/13 ArgoCD 앱 Synced + Healthy** 달성.
-CCM 정리, Monitoring 5-blocker, Ingress Internal, Keycloak Split-Horizon + WAF, Cilium CNI 검증, Vault HA 로드맵 + KMS Auto-Unseal, IMDS hop_limit 보안 강화.
+클러스터 감사 결과 발견된 안정화 항목 11건을 처리. **13/13 ArgoCD 앱 Synced + Healthy** 달성.
+CCM 정리, Monitoring 5-blocker, Ingress Internal, Keycloak Split-Horizon + WAF, Cilium CNI 검증, Vault HA + KMS Auto-Unseal, IMDS hop_limit, ALBC IP-mode 확인, Keycloak SSO Grafana 연동.
 
 커밋: `ffda789` → … → `0687766` → `7221364` → `94d787c` → `ffb5877` → `bf18e79`
 
@@ -18,6 +18,8 @@ CCM 정리, Monitoring 5-blocker, Ingress Internal, Keycloak Split-Horizon + WAF
 7. **T7**: Cilium CNI/ENI mode 검증 + 코드 정합성
 8. **T8**: Keycloak WAF-Equivalent Protection (nginx Rate Limit + CiliumNetworkPolicy L7)
 9. **T9**: Vault AWS KMS Auto-Unseal (Shamir → KMS 마이그레이션)
+10. **T10**: ALBC NLB IP-mode 확인 (Cilium ENI VPC-native Pod IP)
+11. **T11**: Keycloak SSO Grafana 연동 (OIDC generic_oauth)
 
 ## 📊 진행 결과
 
@@ -89,6 +91,24 @@ CCM 정리, Monitoring 5-blocker, Ingress Internal, Keycloak Split-Horizon + WAF
 | Auto-Unseal | Pod 재시작 → 자동 unseal 검증 ✅ |
 | IMDS hop_limit | 1→2 (Cilium ENI Pod IMDS 접근) ✅ |
 
+### T10: ALBC NLB IP-mode 확인 ✅ (이미 적용)
+| 항목 | 상태 |
+|------|------|
+| NLB target-type | `ip` (Public + Internal) ✅ |
+| TargetGroupBindings | 4개 모두 `ip` mode ✅ |
+| Pod IP | VPC CIDR `10.0.x.x` (Cilium ENI) ✅ |
+| ALBC | 2/2 Running + Vault Agent Sidecar ✅ |
+
+### T11: Keycloak SSO Grafana 연동 ✅
+| 항목 | 상태 |
+|------|------|
+| Keycloak Realm | `platform` (이미 존재) ✅ |
+| OIDC Client | `grafana` (secret: `cb3ac87e`) ✅ |
+| Protocol Mappers | `groups` claim (admin/editor/viewer) ✅ |
+| Grafana.ini | `assertNoLeakedSecrets: false` + 직접 `client_secret` ✅ |
+| Login Button | "Sign in with Keycloak" ✅ |
+| ⚠️ Issue | Helm v7.1+ `assertNoLeakedSecrets`가 configmap에서 secret 제거 → 비활성화 |
+
 ## 📋 최종 Ingress 현황
 
 | 서비스 | Class | NLB | WAF |
@@ -112,6 +132,8 @@ CCM 정리, Monitoring 5-blocker, Ingress Internal, Keycloak Split-Horizon + WAF
 - [x] T7: Cilium CNI 검증 + variables.tf 정합성
 - [x] T8: Keycloak WAF (nginx Rate Limit + CiliumNetworkPolicy L7)
 - [x] T9: Vault KMS Auto-Unseal + IMDS hop_limit 보안
+- [x] T10: ALBC NLB IP-mode 확인 (이미 적용)
+- [x] T11: Keycloak SSO Grafana (assertNoLeakedSecrets + OIDC)
 - [x] 13/13 ArgoCD 앱 Synced + Healthy 확인
 
 ## 🔧 주요 변경 파일
@@ -126,7 +148,10 @@ CCM 정리, Monitoring 5-blocker, Ingress Internal, Keycloak Split-Horizon + WAF
 | Terraform | `stacks/dev/55-bootstrap/main.tf` — KMS Key + IAM Policy |
 | Terraform | `stacks/dev/50-rke2/variables.tf` — Cilium defaults 정합 |
 | Terraform | `modules/ec2-instance/main.tf` — IMDS hop_limit=2 |
+| GitOps | `gitops-apps/bootstrap/monitoring.yaml` — Grafana OIDC SSO |
+| GitOps | `gitops-apps/keycloak-ingress/keycloak-oidc-secret.yaml` — OIDC Secret |
 | Docs | `docs/vault/vault-ha-transition-roadmap.md` |
+| Docs | `docs/vault/vault-kms-auto-unseal.md` |
 
 ## 📎 References
 
@@ -135,7 +160,7 @@ CCM 정리, Monitoring 5-blocker, Ingress Internal, Keycloak Split-Horizon + WAF
 
 ## 🏷️ Labels
 
-`ccm`, `monitoring`, `security`, `ingress`, `vault`, `cilium`, `keycloak`, `waf`, `kms`, `stabilization`
+`ccm`, `monitoring`, `security`, `ingress`, `vault`, `cilium`, `keycloak`, `waf`, `kms`, `sso`, `oidc`, `stabilization`
 
 ## 📌 Priority / Status
 
