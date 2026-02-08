@@ -170,9 +170,12 @@ spec:
         # ====================================================================
         prometheusOperator:
           admissionWebhooks:
+            # [Fix] cert-manager가 webhook TLS cert 관리
+            # Helm hook patch job 대신 cert-manager Certificate 리소스 사용
+            # → ArgoCD 호환 + webhook deadlock 방지
+            certManager:
+              enabled: true
             patch:
-              # [ArgoCD] Helm hook 리소스가 ArgoCD에서 None으로 보고되어
-              # 앱 전체를 OutOfSync로 만드는 Known Issue 방지
               enabled: false
 
   destination:
