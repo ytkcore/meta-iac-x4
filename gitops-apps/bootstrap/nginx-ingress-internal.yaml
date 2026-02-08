@@ -17,12 +17,14 @@ spec:
       releaseName: nginx-ingress-internal
       values: |
         controller:
-          # Share the same IngressClass as the public controller
-          # Both controllers will serve the same Ingresses
+          # Separate IngressClass for Internal NLB routing
+          # Public: ingressClassName=nginx → Public NLB
+          # Internal: ingressClassName=nginx-internal → Internal NLB
           ingressClassResource:
-            name: nginx
-            enabled: false  # Do NOT create - already exists from public controller
-          ingressClass: nginx
+            name: nginx-internal
+            enabled: true
+            controllerValue: k8s.io/ingress-nginx-internal
+          ingressClass: nginx-internal
           electionID: ingress-controller-leader-internal
 
           # Internal NLB Service (ALBC IP Mode — 자동 Target 관리)
