@@ -34,9 +34,12 @@ spec:
     helm:
       releaseName: monitoring
       skipCrds: false
-      valuesObject:
+      # [Fix] valuesObject → values (string)
+      # ArgoCD RawExtension 파싱 에러 방지
+      # "unable to find api field in struct RawExtension for prometheusOperator"
+      values: |
         fullnameOverride: monitoring
-        
+
         # ====================================================================
         # 1. Prometheus (Performance & Stability)
         # ====================================================================
@@ -44,12 +47,9 @@ spec:
           enabled: true
           prometheusSpec:
             replicas: 1
-            # [Optimization] Critical: Reduce I/O load on Longhorn
             walCompression: true
             retention: 15d
             retentionSize: "20GiB"
-            
-            # [QoS] High Memory Request to prevent OOM
             resources:
               requests:
                 cpu: 500m
@@ -57,13 +57,9 @@ spec:
               limits:
                 cpu: 1000m
                 memory: 2Gi
-            
-            # [Resiliency] Safe Drain Strategy
             podDisruptionBudget:
               enabled: true
               minAvailable: 1
-            
-            # [Storage] Cloud Agnostic Persistence
             storageSpec:
               volumeClaimTemplate:
                 spec:
@@ -72,7 +68,6 @@ spec:
                   resources:
                     requests:
                       storage: 20Gi
-            
             serviceMonitorSelectorNilUsesHelmValues: false
             podMonitorSelectorNilUsesHelmValues: false
 
@@ -82,11 +77,8 @@ spec:
         alertmanager:
           enabled: true
           alertmanagerSpec:
-            # [HA] 3-Node Cluster for reliability (Quorum)
             replicas: 3
-            # [Resiliency] Force distribution across nodes
             podAntiAffinityTopologyKey: kubernetes.io/hostname
-            
             storage:
               volumeClaimTemplate:
                 spec:
@@ -101,21 +93,15 @@ spec:
         # ====================================================================
         grafana:
           enabled: true
-          
-          # [Security] No Hardcoded Passwords
           admin:
             existingSecret: "monitoring-grafana-secret"
             userKey: admin-user
             passwordKey: admin-password
-          
-          # [Security] Hardening Config
           grafana.ini:
             auth.anonymous:
               enabled: false
             server:
               root_url: "https://grafana.unifiedmeta.net"
-
-            # [SSO] Keycloak OIDC Integration (Phase 2)
             auth.generic_oauth:
               enabled: true
               name: "Keycloak"
@@ -129,15 +115,12 @@ spec:
               api_url: "https://keycloak.dev.unifiedmeta.net/realms/platform/protocol/openid-connect/userinfo"
               role_attribute_path: "contains(groups[*], 'admin') && 'Admin' || contains(groups[*], 'editor') && 'Editor' || 'Viewer'"
               tls_skip_verify_insecure: true
-
-          # [Network] Sibling Domain Strategy
           ingress:
             enabled: true
             ingressClassName: nginx-internal
             annotations:
               cert-manager.io/cluster-issuer: letsencrypt-prod
               nginx.ingress.kubernetes.io/ssl-redirect: "true"
-              # [Security] Clickjacking Protection
               nginx.ingress.kubernetes.io/configuration-snippet: |
                 more_set_headers "X-Frame-Options: DENY";
             hosts:
@@ -146,7 +129,6 @@ spec:
               - secretName: grafana-tls
                 hosts:
                   - grafana.unifiedmeta.net
-
           persistence:
             enabled: true
             storageClassName: longhorn
@@ -155,35 +137,38 @@ spec:
         # ====================================================================
         # 4. RKE2 Tuning
         # ====================================================================
-        kubeControllerManager: { enabled: false }
-        kubeScheduler: { enabled: false }
-        kubeEtcd: { enabled: false }
-        kubeProxy: { enabled: false }
-        
-        nodeExporter: { enabled: true }
-        kubeStateMetrics: { enabled: true }
-        kubelet: { enabled: true }
-        kubeApiServer: { enabled: true }
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeEtcd:
+          enabled: false
+        kubeProxy:
+          enabled: false
+        nodeExporter:
+          enabled: true
+        kubeStateMetrics:
+          enabled: true
+        kubelet:
+          enabled: true
+        kubeApiServer:
+          enabled: true
 
         # ====================================================================
-        # 5. Prometheus Operator — ArgoCD Drift Prevention
+        # 5. Prometheus Operator
         # ====================================================================
         prometheusOperator:
           admissionWebhooks:
-            # [Fix] Webhook completely disabled for dev environment
-            # Root cause: cert-manager secret key names (tls.crt/tls.key) don't match
-            # operator's expected paths (/cert/cert, /cert/key) in chart v65.1.0
-            # PrometheusRule validation is convenience, not security-critical
             enabled: false
 
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
-  
+
   syncPolicy:
     automated:
-      prune: true
       selfHeal: true
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -197,7 +182,7 @@ spec:
         duration: 30s
         factor: 2
         maxDuration: 10m
-  
+
   ignoreDifferences:
     - group: apps
       kind: DaemonSet
