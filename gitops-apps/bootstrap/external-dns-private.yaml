@@ -31,6 +31,10 @@ spec:
           name: external-dns-private
         domainFilters:
           - unifiedmeta.net
+        # Private Zone에는 nginx-internal Ingress만 등록
+        # (nginx class인 Public Ingress는 무시)
+        ingressClassNames:
+          - nginx-internal
         policy: sync
         txtOwnerId: external-dns-private
         interval: 1m
