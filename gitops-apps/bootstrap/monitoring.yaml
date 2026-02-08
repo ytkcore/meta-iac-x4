@@ -191,12 +191,12 @@ spec:
       kind: DaemonSet
       jsonPointers:
         - /spec/template/metadata
-        - /spec/template/spec/containers/0/resources
+        - /spec/template/spec
     - group: apps
       kind: Deployment
       jsonPointers:
         - /spec/template/metadata
-        - /spec/template/spec/containers/0/resources
+        - /spec/template/spec
     - group: monitoring.coreos.com
       kind: Prometheus
       jsonPointers:
