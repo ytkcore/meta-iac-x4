@@ -190,7 +190,6 @@ spec:
       - PrunePropagationPolicy=foreground
       - RespectIgnoreDifferences=true
       - SkipDryRunOnMissingResource=true
-      - Replace=true
     # [Stability] Robust Retry for large CRDs
     retry:
       limit: 10
@@ -223,3 +222,6 @@ spec:
       kind: ValidatingWebhookConfiguration
       jqPathExpressions:
         - .webhooks[]?.clientConfig.caBundle
+    - kind: PersistentVolumeClaim
+      jqPathExpressions:
+        - .spec
