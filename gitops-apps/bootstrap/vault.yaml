@@ -43,6 +43,11 @@ spec:
                 path = "/vault/data"
               }
 
+              seal "awskms" {
+                region     = "ap-northeast-2"
+                kms_key_id = "fcaa0e8d-2ee9-4f2e-8895-947d2bfd19e6"
+              }
+
           # Resources
           resources:
             requests:
