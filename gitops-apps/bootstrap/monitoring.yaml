@@ -98,7 +98,7 @@ spec:
             userKey: admin-user
             passwordKey: admin-password
           env:
-            GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: keycloak-oidc-secret
