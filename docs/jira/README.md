@@ -77,6 +77,7 @@
 | [keycloak-k8s-migration](2026-02-08-keycloak-k8s-migration.md) | Keycloak EC2 → K8s-native 마이그레이션 | 🆕 Phase 6 동시 |
 | [argocd-drift-fix](2026-02-08-argocd-drift-fix.md) | ArgoCD OutOfSync Drift 수정 | 🔄 부분 완료 |
 | [vault-aws-se-albc](2026-02-08-vault-aws-se-albc.md) | Vault AWS SE — ALBC Workload Identity | ✅ 완료 |
+| [cluster-stabilization](2026-02-08-cluster-stabilization.md) | CCM 정리 + 관리도구 Internal 전환 | 🔄 부분 완료 |
 
 ---
 
@@ -121,4 +122,4 @@
 | 삭제 스택 | 1개 (`15-vpn`) |
 | ArgoCD 앱 | 12+ 앱 자동 배포 |
 | 문서 | 20+ 문서 (architecture, security, troubleshooting, guides) |
-| Jira 티켓 | **23건** (이 디렉토리) |
+| Jira 티켓 | **24건** (이 디렉토리) |
