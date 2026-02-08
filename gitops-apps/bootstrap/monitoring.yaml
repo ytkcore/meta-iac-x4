@@ -97,12 +97,6 @@ spec:
             existingSecret: "monitoring-grafana-secret"
             userKey: admin-user
             passwordKey: admin-password
-          env:
-            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: keycloak-oidc-secret
-                  key: KEYCLOAK_GRAFANA_CLIENT_SECRET
           grafana.ini:
             auth.anonymous:
               enabled: false
@@ -114,6 +108,7 @@ spec:
               allow_sign_up: true
               auto_login: false
               client_id: "grafana"
+              client_secret: "cb3ac87e35b9560110b2667e43bcc503"
               scopes: "openid email profile roles"
               auth_url: "https://keycloak.dev.unifiedmeta.net/realms/platform/protocol/openid-connect/auth"
               token_url: "https://keycloak.dev.unifiedmeta.net/realms/platform/protocol/openid-connect/token"
