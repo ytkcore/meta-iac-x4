@@ -85,4 +85,4 @@ Pod-level 권한 관리의 기반도 마련한다.
 - [Keycloak 공식 문서](https://www.keycloak.org/documentation)
 - [docs/architecture/keycloak-idp-strategy.md](../architecture/keycloak-idp-strategy.md)
 - [docs/architecture/nlb-architecture.md](../architecture/nlb-architecture.md)
-- [docs/jira/albc-adoption.md](albc-adoption.md) — ALBC Jira (선행)
+- [docs/jira/albc-adoption.md](2026-02-07-albc-adoption.md) — ALBC Jira (선행)

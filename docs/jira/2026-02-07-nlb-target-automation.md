@@ -48,5 +48,5 @@ AWS CCM이 NLB Target Group에 Worker Node를 자동 등록하지 못하는 버�
 
 ## 🔗 관련 티켓
 
-- [ALBC 도입](albc-adoption.md) — 이 티켓의 근본 해결책
+- [ALBC 도입](2026-02-07-albc-adoption.md) — 이 티켓의 근본 해결책
 - [Teleport App Access 트러블슈팅](../troubleshooting/teleport-app-access-internal-nlb.md)

@@ -99,9 +99,19 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
   ignoreDifferences:
     - group: admissionregistration.k8s.io
       kind: MutatingWebhookConfiguration
       name: vault-agent-injector-cfg
       jsonPointers:
         - /webhooks/0/clientConfig/caBundle
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/volumeClaimTemplates
+        - /spec/template/metadata
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/metadata

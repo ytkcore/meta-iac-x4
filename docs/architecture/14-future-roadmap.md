@@ -78,7 +78,7 @@ Layer 1: Human ID      ──→ Keycloak
 
 **선행조건**: RKE2 OIDC Provider 수동 구성, IAM IRSA Role
 
-> 📎 상세: [08-nlb-architecture.md](08-nlb-architecture.md) / [ALBC Jira](../jira/albc-adoption.md)
+> 📎 상세: [08-nlb-architecture.md](08-nlb-architecture.md) / [ALBC Jira](../jira/2026-02-07-albc-adoption.md)
 
 ---
 

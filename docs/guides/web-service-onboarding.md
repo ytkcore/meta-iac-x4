@@ -218,4 +218,4 @@ ALBC 도입 후에는 **Step 3 (NLB Target 수동 등록)이 완전히 제거**�
 | DNS 등록 | external-dns 자동 | 동일 |
 | Teleport 등록 | 수동 tctl | 동일 |
 
-Jira 티켓: [ALBC 도입](../jira/albc-adoption.md)
+Jira 티켓: [ALBC 도입](../jira/2026-02-07-albc-adoption.md)
