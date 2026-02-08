@@ -208,9 +208,9 @@ variable "argocd_enable_ingress" {
 }
 
 variable "argocd_ingress_class_name" {
-  description = "ArgoCD IngressClass 이름"
+  description = "ArgoCD IngressClass 이름 (Internal NLB 경유)"
   type        = string
-  default     = "nginx"
+  default     = "nginx-internal"
 }
 
 variable "enable_route53_argocd_alias" {

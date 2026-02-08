@@ -20,7 +20,7 @@ spec:
         tls: "ingress"
         ingress:
           enabled: true
-          ingressClassName: nginx
+          ingressClassName: nginx-internal
           tls:
             source: secret
             secretName: tls-rancher-ingress
