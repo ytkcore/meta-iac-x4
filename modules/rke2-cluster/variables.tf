@@ -360,3 +360,41 @@ variable "aws_ccm_version" {
   type        = string
   default     = "v1.31.0"
 }
+
+##############################
+# Cilium CNI Configuration
+##############################
+variable "cni" {
+  description = "CNI 플러그인 선택. canal(기본), cilium, none"
+  type        = string
+  default     = "canal"
+
+  validation {
+    condition     = contains(["canal", "cilium", "none"], var.cni)
+    error_message = "cni는 canal, cilium, none 중 하나여야 합니다."
+  }
+}
+
+variable "cilium_eni_mode" {
+  description = "Cilium AWS ENI IPAM 모드 활성화 (true: Pod IP = VPC IP)"
+  type        = bool
+  default     = false
+}
+
+variable "cilium_enable_prefix_delegation" {
+  description = "AWS ENI Prefix Delegation (/28 블록 할당) — Pod 밀도 향상"
+  type        = bool
+  default     = true
+}
+
+variable "cilium_enable_hubble" {
+  description = "Hubble 네트워크 관측성 (relay + UI) 활성화"
+  type        = bool
+  default     = true
+}
+
+variable "cilium_kube_proxy_replacement" {
+  description = "Cilium eBPF로 kube-proxy 완전 대체"
+  type        = bool
+  default     = true
+}

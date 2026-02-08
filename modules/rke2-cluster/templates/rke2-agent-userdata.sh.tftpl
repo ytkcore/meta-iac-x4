@@ -36,7 +36,13 @@ node-name-from-cloud-provider-metadata: true
 %{ if disable_default_registry_fallback }
 # disable-default-registry-endpoint: true # [REMOVED]
 %{ endif }
+%{ if enable_aws_ccm }
 cloud-provider-name: "external"
+%{ endif }
+cni: ${cni}
+%{ if cilium_kube_proxy_replacement && cni == "cilium" }
+disable-kube-proxy: true
+%{ endif }
 YAML
 
 # ----------------------------------------------------------------------------

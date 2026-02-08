@@ -224,6 +224,16 @@ module "rke2" {
   enable_acm_tls_termination = local.effective_enable_acm_tls_termination
   acm_certificate_arn        = local.effective_acm_certificate_arn
   acm_ssl_policy             = var.acm_ssl_policy
+
+  # Cilium CNI (Phase 6: Network Evolution)
+  cni                             = var.cni
+  cilium_eni_mode                 = var.cilium_eni_mode
+  cilium_enable_prefix_delegation = var.cilium_enable_prefix_delegation
+  cilium_enable_hubble            = var.cilium_enable_hubble
+  cilium_kube_proxy_replacement   = var.cilium_kube_proxy_replacement
+
+  # CCM Removal (Phase 5/8: Cilium ENI에서 자연 해소)
+  enable_aws_ccm                  = var.enable_aws_ccm
 }
 
 # ==============================================================================

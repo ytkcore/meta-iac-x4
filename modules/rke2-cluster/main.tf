@@ -161,6 +161,44 @@ resource "aws_iam_role_policy_attachment" "nodes_elb" {
   policy_arn = aws_iam_policy.nodes_elb.arn
 }
 
+##############################
+# Cilium ENI IPAM IAM Policy
+##############################
+resource "aws_iam_policy" "cilium_eni" {
+  count       = var.cni == "cilium" && var.cilium_eni_mode ? 1 : 0
+  name        = "${local.name_prefix}-cilium-eni-policy"
+  description = "Cilium ENI IPAM: EC2 ENI/IP management permissions"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ec2:CreateNetworkInterface",
+        "ec2:DeleteNetworkInterface",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceTypes",
+        "ec2:ModifyNetworkInterfaceAttribute",
+        "ec2:AssignPrivateIpAddresses",
+        "ec2:UnassignPrivateIpAddresses",
+        "ec2:AttachNetworkInterface",
+        "ec2:DetachNetworkInterface"
+      ]
+      Resource = "*"
+    }]
+  })
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "cilium_eni" {
+  count      = var.cni == "cilium" && var.cilium_eni_mode ? 1 : 0
+  role       = aws_iam_role.nodes.name
+  policy_arn = aws_iam_policy.cilium_eni[0].arn
+}
+
 resource "aws_iam_instance_profile" "nodes" {
   name = "${local.name_prefix}-profile"
   role = aws_iam_role.nodes.name
@@ -337,6 +375,11 @@ module "control_plane" {
     enable_aws_ccm                    = var.enable_aws_ccm
     aws_ccm_version                   = var.aws_ccm_version
     cluster_name                      = local.cluster_name
+    cni                               = var.cni
+    cilium_eni_mode                   = var.cilium_eni_mode
+    cilium_enable_prefix_delegation   = var.cilium_enable_prefix_delegation
+    cilium_enable_hubble              = var.cilium_enable_hubble
+    cilium_kube_proxy_replacement     = var.cilium_kube_proxy_replacement
   }))
 
   depends_on = [aws_lb.rke2]
@@ -389,6 +432,9 @@ module "worker" {
     harbor_auth_enabled               = var.harbor_auth_enabled
     harbor_username                   = var.harbor_username
     harbor_password                   = var.harbor_password
+    cni                               = var.cni
+    cilium_kube_proxy_replacement     = var.cilium_kube_proxy_replacement
+    enable_aws_ccm                    = var.enable_aws_ccm
   }))
 
   depends_on = [module.control_plane]

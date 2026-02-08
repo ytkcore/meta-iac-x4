@@ -40,6 +40,14 @@
 | 12 | [platform-identity-architecture](12-platform-identity-architecture.md) | 4-Layer Identity Stack — Keycloak + SPIRE + Vault + Teleport |
 | 13 | [access-gateway-architecture](13-access-gateway-architecture.md) | 솔루션 독립적 접근 제어 — `service_endpoint` 패턴, 80-access-gateway |
 | 14 | [future-roadmap](14-future-roadmap.md) | 고도화 로드맵 — ALBC, Keycloak, Vault, SPIRE, Guacamole 도입 계획 |
+| 15 | [teleport-replacement-strategy](15-teleport-replacement-strategy.md) | Teleport 교체 전략 — 솔루션 평가 및 마이그레이션 계획 |
+| 16 | [architecture-evolution-decision](16-architecture-evolution-decision.md) | 최종 의사결정 — 전체 아키텍처 고도화 결정 흐름 |
+
+### Phase 5: Network Evolution — 네트워크 기반 전환
+
+| # | 문서 | 설명 |
+|---|------|------|
+| 17 | [cilium-cni-architecture](17-cilium-cni-architecture.md) | Cilium ENI Mode — Canal→Cilium 전환, eBPF 기반 VPC-native Pod 네트워킹 |
 
 ---
 

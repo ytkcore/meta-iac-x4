@@ -104,6 +104,43 @@ spec:
 YAML
 %{ endif }
 
+# -----------------------------------------------------------------------------
+# Cilium HelmChartConfig (ENI Mode)
+# - RKE2 bundled Cilium chart의 values를 오버라이드
+# - cni=cilium 설정 시에만 배포
+# -----------------------------------------------------------------------------
+%{ if cni == "cilium" && cilium_eni_mode }
+cat >/var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml <<YAML
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: rke2-cilium
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    eni:
+      enabled: true
+      awsEnablePrefixDelegation: ${cilium_enable_prefix_delegation}
+    ipam:
+      mode: eni
+    egressMasqueradeInterfaces: eth0
+    routingMode: native
+%{ if cilium_kube_proxy_replacement }
+    kubeProxyReplacement: true
+    k8sServiceHost: "${tls_san}"
+    k8sServicePort: "6443"
+%{ endif }
+%{ if cilium_enable_hubble }
+    hubble:
+      enabled: true
+      relay:
+        enabled: true
+      ui:
+        enabled: true
+%{ endif }
+YAML
+%{ endif }
+
 cat >/etc/rancher/rke2/config.yaml <<'YAML'
 token: "${token}"
 write-kubeconfig-mode: "0644"
@@ -121,8 +158,14 @@ server: "${server_url}"
 %{ if disable_default_registry_fallback }
 # disable-default-registry-endpoint: true # [REMOVED] Fallback needed for bootstrap images
 %{ endif }
+%{ if enable_aws_ccm }
 cloud-provider-name: "external"
+%{ endif }
+cni: ${cni}
 disable: rke2-ingress-nginx
+%{ if cilium_kube_proxy_replacement && cni == "cilium" }
+disable-kube-proxy: true
+%{ endif }
 YAML
 
 # -----------------------------------------------------------------------------

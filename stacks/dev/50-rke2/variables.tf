@@ -227,3 +227,42 @@ variable "interface_services" {
   type    = any
   default = {} # Unused, suppresses warning
 }
+
+##############################
+# Cilium CNI (Phase 6)
+##############################
+variable "cni" {
+  description = "CNI 플러그인 선택 (canal, cilium, none)"
+  type        = string
+  default     = "canal"
+}
+
+variable "cilium_eni_mode" {
+  description = "Cilium AWS ENI IPAM 모드 활성화"
+  type        = bool
+  default     = false
+}
+
+variable "cilium_enable_prefix_delegation" {
+  description = "AWS ENI Prefix Delegation (/28)"
+  type        = bool
+  default     = true
+}
+
+variable "cilium_enable_hubble" {
+  description = "Hubble 네트워크 관측성 활성화"
+  type        = bool
+  default     = true
+}
+
+variable "cilium_kube_proxy_replacement" {
+  description = "Cilium eBPF로 kube-proxy 대체"
+  type        = bool
+  default     = true
+}
+
+variable "enable_aws_ccm" {
+  description = "AWS Cloud Controller Manager 활성화 (Cilium ENI에서 불필요)"
+  type        = bool
+  default     = true
+}
