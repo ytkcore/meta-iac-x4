@@ -175,8 +175,10 @@ resource "aws_iam_policy" "albc" {
   })
 }
 
-# Phase 1: Node IAM Role에 직접 부착 (current — Vault 전환 후 제거 예정)
+# Phase 1: Node IAM Role에 직접 부착
+# Vault 전환 완료 후 자동 비활성화 (enable_vault_integration=true → count=0)
 resource "aws_iam_role_policy_attachment" "albc" {
+  count      = var.enable_vault_integration ? 0 : 1
   role       = var.node_iam_role_name
   policy_arn = aws_iam_policy.albc.arn
 }
