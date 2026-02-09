@@ -49,6 +49,7 @@
 | [golden-image-restructure](2026-02-04-golden-image-stack-restructure.md) | Golden Image v2 + 전체 스택 재구조화 | ✅ 완료 |
 | [teleport-ha](2026-02-04-teleport-ha-access-control.md) | Teleport HA 배포 + Access Control 체계 | ✅ 완료 |
 | [teleport-kube-agent-pod](2026-02-04-teleport-kube-agent-pod.md) | Teleport Kube Agent Pod 배포 | ✅ 완료 |
+| [ssh-operational-policy](2026-02-04-ssh-operational-policy.md) | SSH 운영 정책 표준화 수립 | ✅ 완료 |
 
 ### 2026-02-06 — Bugfix
 

@@ -266,3 +266,9 @@ variable "enable_aws_ccm" {
   type        = bool
   default     = false
 }
+
+variable "enable_public_nlb" {
+  description = "Public NLB IP-mode 사용 시 Worker 노드 SG에 0.0.0.0/0 HTTP/HTTPS 허용"
+  type        = bool
+  default     = true
+}
