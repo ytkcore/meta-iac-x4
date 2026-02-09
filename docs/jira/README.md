@@ -88,6 +88,9 @@
 | [nlb-sg-public-access-fix](2026-02-09-nlb-sg-public-access-fix.md) | NLB IP-mode Security Group 외부 접근 수정 | ✅ 완료 |
 | [cilium-cnp-cross-namespace-fix](2026-02-09-cilium-cnp-cross-namespace-fix.md) | CiliumNetworkPolicy Cross-namespace 수정 | ✅ 완료 |
 | [teleport-keycloak-rewrite-fix](2026-02-09-teleport-keycloak-rewrite-fix.md) | Teleport keycloak-admin rewrite.redirect 수정 | ✅ 완료 |
+| [argocd-secret-security-hardening](2026-02-09-argocd-secret-security-hardening.md) | ArgoCD Secret 보안 강화 — Prune 방지 + 평문 제거 | ✅ 완료 |
+| [infra-codification-sg-teleport](2026-02-09-infra-codification-sg-teleport.md) | SG 코드화 + Teleport Observability 앱 등록 | ✅ 완료 |
+| [loki-gateway-dns-fix](2026-02-09-loki-gateway-dns-fix.md) | Loki Gateway CrashLoopBackOff — RKE2 CoreDNS Resolver | ✅ 완료 |
 
 ---
 
@@ -103,7 +106,7 @@
 | **2/6** | 목 | **ArgoCD 앱 안정화** | Longhorn hook race condition 해결 | 1 |
 | **2/7** | 금 | **플랫폼 고도화 설계 + Phase 1-2-4 배포** | DNS-01 전환, Dual NLB, Keycloak SSO, ALBC, Vault | 9 |
 | **2/8** | 토 | **Vault Workload Identity + Cilium 계획 + SSO** | Vault AWS SE, Cilium ENI, ArgoCD Drift Fix, Keycloak SSO | 6 |
-| **2/9** | 일 | **Keycloak K8s 전환 실행 + 네트워크 디버깅** | K8s Deployment, SG Fix, CNP Fix, Teleport Rewrite | 4 |
+| **2/9** | 일 | **Keycloak K8s 전환 + 보안 강화 + Loki 수정** | K8s Deployment, SG/CNP/Teleport Fix, Secret 보안, Loki DNS | 7 |
 
 ### 🔑 주간 핵심 흐름
 
@@ -129,10 +132,10 @@
 
 | 지표 | 값 |
 |:-----|:---|
-| 총 커밋 수 | 58+ |
+| 총 커밋 수 | 62+ |
 | 신규 Terraform 모듈 | 5개 (`albc-iam`, `keycloak-ec2`, `teleport-ec2`, `waf-acl`, `ec2-instance` 개선) |
 | 신규 Terraform 스택 | 5개 (`05-security`, `10-golden-image`, `15-teleport`, `20-waf`, `25-keycloak`) |
 | 삭제 스택 | 1개 (`15-vpn`) |
 | ArgoCD 앱 | 12+ 앱 자동 배포 |
 | 문서 | 20+ 문서 (architecture, security, troubleshooting, guides) |
-| Jira 티켓 | **30건** (이 디렉토리) |
+| Jira 티켓 | **33건** (이 디렉토리) |
