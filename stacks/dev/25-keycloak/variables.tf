@@ -38,35 +38,6 @@ variable "base_domain" {
   type        = string
 }
 
-# ------------------------------------------------------------------------------
-# Keycloak Configuration
-# ------------------------------------------------------------------------------
-
-variable "keycloak_admin_password" {
-  description = "Keycloak 초기 관리자 비밀번호"
-  type        = string
-  sensitive   = true
-  default     = "Keycloak12345"
-}
-
-variable "keycloak_version" {
-  description = "Keycloak Docker 이미지 버전"
-  type        = string
-  default     = "25.0"
-}
-
-variable "instance_type" {
-  description = "Keycloak EC2 인스턴스 타입"
-  type        = string
-  default     = "t3.medium"
-}
-
-variable "ami_id" {
-  description = "AMI ID Override (Golden Image 대신 직접 지정)"
-  type        = string
-  default     = null
-}
-
 # Unused (env.tfvars 공통 변수 suppression)
 variable "azs" {
   type    = any
