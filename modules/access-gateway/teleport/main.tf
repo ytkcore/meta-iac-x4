@@ -39,7 +39,7 @@ locals {
         # rewrite redirect 설정 (내부 호스트명 → Teleport 프록시 호스트명 변환)
         length(app.rewrite_redirect) > 0 ? concat(
           ["      rewrite:", "        redirect:"],
-          [for r in app.rewrite_redirect : "          - \"${r}\""]
+          [for r in app.rewrite_redirect : "          - ${r}"]
         ) : [],
         [
           "      labels:",
