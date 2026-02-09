@@ -1,0 +1,113 @@
+################################################################################
+# Tempo — Distributed Tracing Backend (ArgoCD Application)
+#
+# Grafana Tempo: 분산 트레이싱 수집/저장/조회
+# - Monolithic 모드
+# - OTLP, Jaeger, Zipkin 프로토콜 수신
+# - Grafana Explore에서 TraceID 검색
+################################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: observability
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "31"
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: tempo
+    targetRevision: "1.10.3"
+    helm:
+      releaseName: tempo
+      values: |
+        # ====================================================================
+        # Tempo Configuration
+        # ====================================================================
+        tempo:
+          # Trace Retention
+          retention: 168h  # 7일
+
+          # Receivers (수신 프로토콜)
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: "0.0.0.0:4317"
+                http:
+                  endpoint: "0.0.0.0:4318"
+            jaeger:
+              protocols:
+                thrift_http:
+                  endpoint: "0.0.0.0:14268"
+                grpc:
+                  endpoint: "0.0.0.0:14250"
+            zipkin:
+              endpoint: "0.0.0.0:9411"
+
+          # Storage
+          storage:
+            trace:
+              backend: local
+              local:
+                path: /var/tempo/traces
+              wal:
+                path: /var/tempo/wal
+
+          # Resource limits
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+
+        # ====================================================================
+        # Persistence (Longhorn)
+        # ====================================================================
+        persistence:
+          enabled: true
+          storageClassName: longhorn
+          size: 10Gi
+
+        # ====================================================================
+        # Service (트레이스 수신 포트 노출)
+        # ====================================================================
+        service:
+          type: ClusterIP
+
+        # ServiceMonitor (Prometheus 연동)
+        serviceMonitor:
+          enabled: true
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jqPathExpressions:
+        - .spec.template.metadata
+        - .spec.volumeClaimTemplates

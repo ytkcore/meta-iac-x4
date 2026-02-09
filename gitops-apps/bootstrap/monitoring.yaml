@@ -130,6 +130,36 @@ spec:
               - secretName: grafana-tls
                 hosts:
                   - grafana.unifiedmeta.net
+          # Observability Datasources (Loki + Tempo)
+          additionalDataSources:
+            - name: Loki
+              type: loki
+              access: proxy
+              url: http://loki-gateway.monitoring.svc.cluster.local
+              jsonData:
+                derivedFields:
+                  - datasourceUid: tempo
+                    matcherRegex: '"traceID":"(\w+)"'
+                    name: TraceID
+                    url: "$${__value.raw}"
+              isDefault: false
+            - name: Tempo
+              type: tempo
+              uid: tempo
+              access: proxy
+              url: http://tempo.monitoring.svc.cluster.local:3100
+              jsonData:
+                tracesToLogs:
+                  datasourceUid: loki
+                  filterByTraceID: true
+                  filterBySpanID: false
+                tracesToMetrics:
+                  datasourceUid: prometheus
+                serviceMap:
+                  datasourceUid: prometheus
+                nodeGraph:
+                  enabled: true
+              isDefault: false
           persistence:
             enabled: true
             storageClassName: longhorn

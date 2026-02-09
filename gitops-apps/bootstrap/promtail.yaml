@@ -1,0 +1,88 @@
+################################################################################
+# Promtail — Log Collector (ArgoCD Application)
+#
+# DaemonSet: 모든 노드에서 컨테이너 로그를 수집하여 Loki로 전송
+################################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: promtail
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: promtail
+    app.kubernetes.io/part-of: observability
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "32"
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: promtail
+    targetRevision: "6.16.6"
+    helm:
+      releaseName: promtail
+      values: |
+        # Loki endpoint
+        config:
+          clients:
+            - url: http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push
+
+        # DaemonSet 리소스
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+        # 로그 수집 경로 (RKE2 기본)
+        defaultVolumes:
+          - name: containers
+            hostPath:
+              path: /var/log/containers
+          - name: pods
+            hostPath:
+              path: /var/log/pods
+
+        defaultVolumeMounts:
+          - name: containers
+            mountPath: /var/log/containers
+            readOnly: true
+          - name: pods
+            mountPath: /var/log/pods
+            readOnly: true
+
+        # Tolerations (모든 노드에 배포)
+        tolerations:
+          - effect: NoSchedule
+            operator: Exists
+          - effect: NoExecute
+            operator: Exists
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+    - group: apps
+      kind: DaemonSet
+      jqPathExpressions:
+        - .spec.template.metadata
+        - .spec.template.spec

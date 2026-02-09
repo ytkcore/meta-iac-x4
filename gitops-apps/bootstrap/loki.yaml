@@ -1,0 +1,132 @@
+################################################################################
+# Loki — Log Aggregation (ArgoCD Application)
+#
+# Grafana Loki: 로그 수집/저장/조회 백엔드
+# - Monolithic 모드 (dev 환경, 리소스 효율적)
+# - Longhorn PVC 저장
+# - Grafana Explore에서 조회
+################################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/part-of: observability
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "31"
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: loki
+    targetRevision: "6.52.0"
+    helm:
+      releaseName: loki
+      values: |
+        # ====================================================================
+        # Deployment Mode: SingleBinary (Monolithic)
+        # ====================================================================
+        deploymentMode: SingleBinary
+
+        loki:
+          auth_enabled: false
+
+          commonConfig:
+            replication_factor: 1
+
+          schemaConfig:
+            configs:
+              - from: "2024-01-01"
+                store: tsdb
+                object_store: filesystem
+                schema: v13
+                index:
+                  prefix: index_
+                  period: 24h
+
+          storage:
+            type: filesystem
+
+          limits_config:
+            retention_period: 168h  # 7일
+            max_query_series: 1000
+
+        # ====================================================================
+        # SingleBinary 설정
+        # ====================================================================
+        singleBinary:
+          replicas: 1
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          persistence:
+            enabled: true
+            storageClass: longhorn
+            size: 10Gi
+
+        # ====================================================================
+        # 불필요한 컴포넌트 비활성화 (Monolithic 모드)
+        # ====================================================================
+        read:
+          replicas: 0
+        write:
+          replicas: 0
+        backend:
+          replicas: 0
+
+        gateway:
+          enabled: true
+          replicas: 1
+
+        # Monitoring (자체 모니터링)
+        monitoring:
+          selfMonitoring:
+            enabled: false
+            grafanaAgent:
+              installOperator: false
+          lokiCanary:
+            enabled: false
+
+        # Chunk Cache
+        chunksCache:
+          enabled: false
+        resultsCache:
+          enabled: false
+
+        # Test (비활성화)
+        test:
+          enabled: false
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jqPathExpressions:
+        - .spec.template.metadata
+        - .spec.volumeClaimTemplates
