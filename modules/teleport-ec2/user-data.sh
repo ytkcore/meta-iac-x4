@@ -72,6 +72,16 @@ mkdir -p /var/lib/teleport/audit/events
 chmod 700 /var/lib/teleport
 chmod -R 700 /var/lib/teleport/audit
 
+# 2-1. Generate self-signed wildcard cert for App Access subdomains
+echo ">>> Step 2-1: Generating wildcard self-signed certificate..."
+openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+  -keyout /var/lib/teleport/proxy.key \
+  -out /var/lib/teleport/proxy.crt \
+  -subj "/CN=$CLUSTER_NAME" \
+  -addext "subjectAltName=DNS:$CLUSTER_NAME,DNS:*.$CLUSTER_NAME,DNS:localhost,IP:127.0.0.1"
+chmod 600 /var/lib/teleport/proxy.key /var/lib/teleport/proxy.crt
+echo ">>> Wildcard cert generated for $CLUSTER_NAME and *.$CLUSTER_NAME"
+
 # 3. Configure Teleport
 echo ">>> Step 3: Creating Teleport configuration..."
 cat > /etc/teleport.yaml <<EOF
@@ -117,7 +127,9 @@ proxy_service:
   public_addr: "$CLUSTER_NAME:443"
   ssh_public_addr: "$CLUSTER_NAME:443"
   tunnel_public_addr: $(hostname):3024
-  https_keypairs: []
+  https_keypairs:
+  - key_file: /var/lib/teleport/proxy.key
+    cert_file: /var/lib/teleport/proxy.crt
   acme:
     enabled: "no"
 
