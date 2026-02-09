@@ -48,6 +48,7 @@
 | # | 문서 | 설명 |
 |---|------|------|
 | 17 | [cilium-cni-architecture](17-cilium-cni-architecture.md) | Cilium ENI Mode — Canal→Cilium 전환, eBPF 기반 VPC-native Pod 네트워킹 |
+| 18 | [architecture-evolution-story](18-architecture-evolution-story.md) | 🎤 **세미나용** — RKE2 채택부터 Cilium까지, 전체 아키텍처 진화 스토리 |
 
 ---
 
