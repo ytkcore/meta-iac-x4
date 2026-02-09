@@ -104,7 +104,7 @@ spec:
             # --- Proxy & Hostname ---
             - name: KC_PROXY_HEADERS
               value: "xforwarded"
-            - name: KC_HOSTNAME_URL
+            - name: KC_HOSTNAME
               value: "https://keycloak.dev.unifiedmeta.net"
             - name: KC_HOSTNAME_STRICT
               value: "false"
