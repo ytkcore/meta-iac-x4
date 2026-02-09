@@ -26,6 +26,8 @@ Public Ingress에 `/admin` 경로가 없어 404 반환.
 - [x] **1.2** Teleport EC2 → Keycloak 직접 curl 정상(302) 확인
 - [x] **1.3** `/etc/teleport.yaml`에 `rewrite.redirect` 추가
 - [x] **1.4** Teleport 서비스 재시작 → 정상 접근 확인
+- [x] **1.5** Terraform 모듈 `modules/access-gateway/teleport/main.tf` — YAML 렌더링 이중 따옴표 제거
+- [x] **1.6** `80-access-gateway/variables.tf` — `rewrite_redirect` type 추가 완료
 
 ## 🔧 변경 내용
 
@@ -41,9 +43,16 @@ Public Ingress에 `/admin` 경로가 없어 404 반환.
 
 ## ⚠️ 후속 과제
 
-- `modules/teleport-ec2/user-data.sh` 템플릿에 `rewrite` 렌더링 로직 미구현
-- 현재 keycloak-admin은 수동 추가 상태 → Terraform 코드화 필요
-- `80-access-gateway/variables.tf`의 `rewrite_redirect` 필드가 user-data 템플릿에 반영 안 됨
+- ~~`modules/teleport-ec2/user-data.sh` 템플릿에 `rewrite` 렌더링 로직 미구현~~ → `modules/access-gateway/teleport/main.tf`에서 동적 렌더링 확인
+- ~~현재 keycloak-admin은 수동 추가 상태 → Terraform 코드화 필요~~ → `80-access-gateway/variables.tf`에 코드화 완료
+- ~~`rewrite_redirect` 필드가 user-data 템플릿에 반영 안 됨~~ → `main.tf` YAML 렌더링으로 수정 완료
+
+## 📎 Commits
+
+| Hash | 설명 |
+|------|------|
+| (SSM 수동) | `/etc/teleport.yaml`에 rewrite.redirect 추가 |
+| `7d36143` | Terraform 모듈 rewrite_redirect YAML 이중 따옴표 제거 |
 
 ## 🔗 Dependencies
 
