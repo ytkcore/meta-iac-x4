@@ -32,6 +32,16 @@
 
 ## 1. 플랫폼 전체 그림 — 한눈에 보기
 
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **Terraform** | HashiCorp의 IaC(Infrastructure as Code) 도구. HCL로 인프라를 선언적으로 정의하고 `plan` → `apply`로 프로비저닝 |
+| **스택 (Stack)** | Terraform 코드의 논리적 단위. 본 플랫폼은 `00-network`부터 `80-access-gateway`까지 14개 스택으로 구성 |
+| **프로비저닝 (Provisioning)** | 인프라 자원(VPC, EC2, K8s 등)을 생성하고 사용 가능한 상태로 준비하는 것 |
+| **Golden Image (AMI)** | Docker, SSM Agent, Teleport Agent 등이 사전 설치된 불변(Immutable) EC2 이미지 |
+| **IaC (Infrastructure as Code)** | 인프라를 코드로 관리하여 버전 관리, 재현성, 자동화를 보장하는 방법론 |
+
 신규 서비스가 활용할 수 있는 기반 서비스들을 계층별로 정리하면:
 
 ```
@@ -65,6 +75,15 @@
 
 ## 2. 네이밍 — 혼란 없는 리소스 관리
 
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **SG (Security Group)** | AWS VPC의 가상 방화벽. 인바운드/아웃바운드 트래픽 규칙을 인스턴스 레벨에서 관리 |
+| **TG (Target Group)** | ALB/NLB의 라우팅 대상 그룹. EC2 Instance 또는 Pod IP를 타겟으로 등록 |
+| **ALB / NLB** | Application Load Balancer(L7) / Network Load Balancer(L4). 트래픽 분배용 AWS 관리형 서비스 |
+| **워크로드 (Workload)** | 특정 업무를 수행하는 서비스 단위. 네이밍에서 서비스를 구분하는 핵심 식별자 |
+
 ### 네이밍 포맷
 
 ```
@@ -92,6 +111,20 @@
 ---
 
 ## 3. GitOps — ArgoCD App 작성 팁
+
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **GitOps** | Git을 Single Source of Truth로 사용하여, Git push만으로 배포가 이뤄지는 운영 방법론 |
+| **ArgoCD** | K8s용 GitOps 컨트롤러. Git 리포지토리의 매니페스트를 클러스터에 지속적으로 동기화 |
+| **Application (CRD)** | ArgoCD가 관리하는 배포 단위. 하나의 Helm Chart 또는 매니페스트 디렉토리를 가리킴 |
+| **Sync Wave** | ArgoCD의 배포 순서 제어 메커니즘. 숫자가 낮을수록 먼저 배포됨 |
+| **Self-Heal** | 클러스터 상태가 Git과 달라지면 자동으로 Git 상태로 복구하는 기능 |
+| **Prune** | Git에서 삭제된 리소스를 클러스터에서도 자동 삭제하는 기능 |
+| **App-of-Apps** | Root Application이 하위 Application들을 관리하는 ArgoCD 패턴 |
+| **Helm Chart** | K8s 리소스의 패키징 포맷. 템플릿 + values로 재사용 가능한 배포 단위 |
+| **ServerSideApply** | K8s API 서버 측에서 리소스를 적용하는 방식. CRD 충돌 방지에 유리 |
 
 ### 올바른 배치 구조
 
@@ -167,6 +200,16 @@ spec:
 
 ## 4. Infra Context — 동적 인프라 값 안전하게 참조하기
 
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **Infra Context** | Terraform이 생성한 동적 인프라 값(VPC ID, ACM ARN 등)을 K8s Secret에 담아 앱에 전달하는 본 플랫폼 고유 패턴 |
+| **ARN (Amazon Resource Name)** | AWS 리소스의 고유 식별자. 예: `arn:aws:acm:ap-northeast-2:123456:certificate/abc-123` |
+| **ACM (AWS Certificate Manager)** | AWS 관리형 TLS/SSL 인증서 서비스. NLB/ALB 단에서 HTTPS를 처리 |
+| **K8s Secret** | Base64 인코딩된 민감 데이터를 저장하는 K8s 리소스. Pod에서 환경변수나 볼륨으로 참조 |
+| **lookup 함수** | Helm 템플릿에서 클러스터 내 기존 리소스를 조회하는 함수 |
+
 ### 핵심 개념
 
 Terraform이 생성한 동적 인프라 값(VPC ID, ACM ARN, 도메인 등)은 `infra-context` Secret에 담겨 있습니다.
@@ -201,6 +244,22 @@ domain: {{ index $infraCtx "base_domain" | b64dec }}
 ---
 
 ## 5. Ingress & TLS — 외부/내부 트래픽 분리 활용
+
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **Ingress** | K8s에서 외부 HTTP(S) 트래픽을 클러스터 내부 Service로 라우팅하는 규칙 정의 |
+| **IngressClass** | 어떤 Ingress Controller가 해당 Ingress를 처리할지 지정. 본 플랫폼은 `nginx`(Public)과 `nginx-internal` 두 가지 |
+| **NLB (Network Load Balancer)** | AWS L4 로드밸런서. TCP/UDP 수준에서 트래픽을 분배. 본 플랫폼은 Public/Internal 2개 운영 |
+| **North-South Traffic** | 클러스터 외부↔내부 간 트래픽 (사용자 요청). NLB → Ingress → Pod 경로 |
+| **East-West Traffic** | 클러스터 내부 Pod↔Pod 간 트래픽. NLB를 거치지 않음 |
+| **TLS Termination (SSL Offloading)** | 암호화된 HTTPS 연결을 LB 또는 Ingress에서 복호화하여 백엔드에는 HTTP로 전달 |
+| **cert-manager** | K8s에서 TLS 인증서를 자동 발급/갱신하는 컨트롤러. Let's Encrypt 연동 |
+| **DNS-01 Challenge** | 도메인 소유를 DNS TXT 레코드로 증명하는 TLS 인증서 발급 방식. Hairpin 문제 없음 |
+| **HTTP-01 Challenge** | 도메인 소유를 HTTP 요청으로 증명하는 방식. 본 플랫폼에서는 hairpin 문제로 **사용 금지** |
+| **Hairpin Routing** | Pod이 자신의 외부 주소(Ingress)로 요청을 보낼 때 NAT 루프가 발생하는 문제 |
+| **Split-Horizon** | 같은 도메인이 접근 위치에 따라 다른 IP를 반환하는 DNS 구성. Public/Private Zone 분리 |
 
 ### Dual Ingress Controller 이해
 
@@ -254,6 +313,17 @@ annotations:
 
 ## 6. DNS — 자동 등록 이해하기
 
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **Route53** | AWS 관리형 DNS 서비스. 도메인의 Hosted Zone을 관리 |
+| **Hosted Zone** | Route53에서 하나의 도메인에 대한 DNS 레코드 집합. Public Zone(인터넷)과 Private Zone(VPC 내부) 구분 |
+| **ExternalDNS** | K8s Ingress/Service 리소스를 감시하여 DNS 레코드를 자동 생성/삭제하는 컨트롤러 |
+| **A 레코드 (Alias)** | 도메인을 IP 또는 AWS 리소스(NLB 등)에 매핑하는 DNS 레코드 |
+| **TXT 레코드 (Registry)** | ExternalDNS가 DNS 레코드의 소유권을 주장하기 위해 생성하는 메타데이터 레코드 |
+| **CNAME** | 도메인을 다른 도메인에 매핑하는 DNS 레코드. 예: `harbor.unifiedmeta.net` → ALB DNS |
+
 ### Hybrid DNS 구조
 
 | 관리 주체 | 대상 | Zone |
@@ -277,6 +347,21 @@ annotations:
 ---
 
 ## 7. Keycloak SSO — 인증을 직접 만들지 마세요
+
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **Keycloak** | 오픈소스 IAM(Identity & Access Management) 솔루션. SSO, OIDC, SAML, 멀티테넌트 지원 |
+| **SSO (Single Sign-On)** | 한 번 로그인하면 연동된 모든 서비스에 자동 인증되는 방식 |
+| **OIDC (OpenID Connect)** | OAuth 2.0 위에 구축된 인증 프로토콜. ID Token으로 사용자 정보를 전달 |
+| **Realm** | Keycloak의 테넌트 단위. 사용자, 클라이언트, 롤을 격리하는 논리적 공간 |
+| **Client** | Keycloak에 등록된 애플리케이션. 각 서비스(Grafana, ArgoCD 등)는 별도 Client로 등록 |
+| **Client Secret** | Client 인증에 사용되는 비밀 키. Confidential Client에서만 사용 |
+| **Issuer URL** | OIDC Provider의 기준 URL. 토큰 검증, Discovery 엔드포인트의 시작점 |
+| **OIDC Discovery** | `/.well-known/openid-configuration` 경로로 OIDC Provider의 모든 엔드포인트를 자동 검색 |
+| **Role Mapping** | Keycloak 그룹/롤을 서비스 내부 권한(Admin, Editor 등)에 매핑하는 설정 |
+| **IdP (Identity Provider)** | 사용자 인증을 담당하는 중앙 서비스. 본 플랫폼에서는 Keycloak |
 
 ### 핵심 원칙
 
@@ -326,6 +411,19 @@ grafana.ini:
 
 ## 8. Vault — 시크릿을 하드코딩하지 마세요
 
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **Vault** | HashiCorp의 시크릿 관리 도구. 암호화, 동적 시크릿 생성, 접근 감사를 중앙에서 관리 |
+| **Dynamic Secrets** | 요청 시 생성되고 TTL 후 자동 폐기되는 일회용 자격증명. 예: DB 비밀번호 자동 생성/회전 |
+| **KV (Key-Value) Engine** | Vault의 정적 시크릿 저장소. v2는 버전 관리 지원 |
+| **Kubernetes Auth** | K8s ServiceAccount 토큰으로 Vault에 인증하는 방식. Pod → Vault 자동 인증 |
+| **Vault Agent Sidecar** | Pod 옆에서 실행되며, Vault에서 시크릿을 가져와 파일로 마운트해주는 자동 주입 컨테이너 |
+| **Auto-Unseal** | AWS KMS를 사용하여 Vault 재시작 시 자동 잠금 해제. 수동 unseal key 입력 불필요 |
+| **Recovery Key** | Auto-Unseal 환경에서 비상 복구에 사용되는 키. 최초 init 시 1회만 출력됨 |
+| **PKI Engine** | Vault의 내부 인증서 발급 엔진. self-signed CA 역할 수행 |
+
 ### 시크릿 관리 우선순위
 
 ```
@@ -360,6 +458,18 @@ metadata:
 
 ## 9. Access Gateway — 자동 서비스 등록
 
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **Access Gateway** | 내부 서비스에 대한 통합 접근 제어 계층. 현재 Teleport, 향후 Boundary/Guacamole 교체 가능 |
+| **Teleport** | SSH, K8s, DB, Web App 접근을 통합 관리하는 Zero Trust 접근 프록시. 세션 녹화, 감사 로그 지원 |
+| **App Access** | Teleport가 웹 애플리케이션에 대한 인증된 프록시를 제공하는 기능 |
+| **service_endpoint** | 본 플랫폼의 표준 인터페이스 패턴. Terraform output으로 서비스 접속 정보를 노출하면 Access Gateway가 자동 수집 |
+| **Solution-Agnostic** | 특정 솔루션에 의존하지 않는 설계. 서비스 코드 변경 없이 접근 제어 솔루션 교체 가능 |
+| **Remote State** | Terraform이 다른 스택의 output을 참조하는 방식. `80-access-gateway`가 각 서비스 스택의 endpoint를 수집하는 방법 |
+| **try() 함수** | Terraform에서 에러 발생 시 기본값을 반환하는 함수. 미배포 스택 참조 시 안전하게 null 처리 |
+
 ### service_endpoint 패턴
 
 내부 서비스에 Teleport App Access를 걸려면, 서비스 스택에 `service_endpoint` output만 추가하세요.
@@ -388,6 +498,21 @@ output "service_endpoint" {
 ---
 
 ## 10. Observability — 모니터링/로그/트레이스 연동
+
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **Observability (관측성)** | 시스템의 내부 상태를 메트릭/로그/트레이스 3가지 신호로 외부에서 파악하는 능력 |
+| **Prometheus** | Pull 기반 메트릭 수집 시스템. `/metrics` 엔드포인트를 주기적으로 스크래핑 |
+| **ServiceMonitor** | Prometheus Operator의 CRD. 어떤 Service에서 메트릭을 수집할지 선언적으로 정의 |
+| **Loki** | Grafana Labs의 로그 집계 시스템. 인덱스 최소화로 비용 효율적. 라벨 기반 쿼리(LogQL) |
+| **Promtail** | Loki용 로그 수집 에이전트. DaemonSet으로 모든 Node의 Pod 로그를 자동 수집 |
+| **Tempo** | Grafana Labs의 분산 트레이싱 백엔드. OpenTelemetry 호환. 요청의 서비스 간 흐름 추적 |
+| **OpenTelemetry (OTel)** | CNCF의 관측성 표준. 메트릭/로그/트레이스를 수집하는 통합 SDK/Collector |
+| **traceID** | 하나의 요청이 여러 서비스를 거치는 전체 경로를 추적하는 고유 ID |
+| **Grafana** | 메트릭/로그/트레이스를 통합 시각화하는 대시보드 도구. SSO 연동(Keycloak) 지원 |
+| **Scraping** | Prometheus가 타겟의 `/metrics` 엔드포인트를 주기적으로 호출하여 메트릭을 수집하는 동작 |
 
 ### 이미 구축된 관측성 스택
 
@@ -455,6 +580,20 @@ OTEL_SERVICE_NAME: "my-service"
 
 ## 11. Cilium NetworkPolicy — L7 수준 접근 제어
 
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **Cilium** | eBPF 기반 CNI(Container Network Interface) 플러그인. 네트워킹, 보안, 관측성을 커널 레벨에서 처리 |
+| **eBPF** | Linux 커널에서 실행되는 샌드박스 프로그램. 커널 수정 없이 네트워크 패킷 처리, 보안 정책 적용 가능 |
+| **ENI Mode** | Cilium이 AWS ENI(Elastic Network Interface)를 직접 관리하여 Pod에 VPC IP를 할당하는 모드 |
+| **VPC-native Pod IP** | Pod IP가 VPC 서브넷 IP와 동일. overlay 없이 VPC 내 어디서든 직접 라우팅 가능 |
+| **L3/L4 NetworkPolicy** | IP 주소(L3)와 포트(L4) 기반의 기본 K8s 네트워크 정책 |
+| **L7 NetworkPolicy** | HTTP method, path, header 수준까지 제어 가능한 Cilium 전용 확장 정책 |
+| **CiliumNetworkPolicy** | Cilium의 CRD. K8s 기본 NetworkPolicy보다 세밀한 L7 규칙 지원 |
+| **Hubble** | Cilium의 실시간 네트워크 관측성 도구. Pod 간 트래픽 흐름을 시각화 |
+| **endpointSelector** | CiliumNetworkPolicy에서 정책 대상 Pod을 라벨로 선택하는 필드 |
+
 ### 기존 NetworkPolicy 대비 장점
 
 Cilium은 **L7 수준**(HTTP path, header)까지 제어할 수 있습니다.
@@ -507,6 +646,17 @@ spec:
 
 ## 12. 스토리지 — Longhorn 활용 팁
 
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **Longhorn** | Rancher에서 만든 K8s 네이티브 분산 블록 스토리지. 자동 복제, 스냅샷, S3 백업 지원 |
+| **PVC (PersistentVolumeClaim)** | Pod이 스토리지를 요청하는 K8s 리소스. StorageClass에 따라 자동 프로비저닝 |
+| **PV (PersistentVolume)** | 실제 스토리지를 나타내는 K8s 리소스. PVC와 바인딩되어 Pod에 마운트 |
+| **StorageClass** | 스토리지 프로비저닝 방식을 정의. 본 플랫폼은 `longhorn` StorageClass 사용 |
+| **Replica** | Longhorn이 볼륨 데이터를 복제하는 수. 기본 3으로 설정되어 1 Node 장애에도 안전 |
+| **ReadWriteOnce (RWO)** | 하나의 Node에서만 읽기/쓰기 가능한 접근 모드. 대부분의 스테이트풀 서비스에 적합 |
+
 ### PVC 사용
 
 ```yaml
@@ -533,6 +683,17 @@ spec:
 ---
 
 ## 13. Harbor — 이미지/차트 레지스트리 활용
+
+### 📖 용어 정리
+
+| 용어 | 설명 |
+|:---|:---|
+| **Harbor** | VMware가 만든 오픈소스 컨테이너 레지스트리. 이미지 저장, 취약점 스캔, 프록시 캐시, RBAC 지원 |
+| **OCI (Open Container Initiative)** | 컨테이너 이미지 및 런타임의 개방형 표준. Helm Chart도 OCI 형식으로 저장 가능 |
+| **Container Image** | 애플리케이션과 실행 환경이 패키징된 불변 이미지. `docker build`로 생성 |
+| **프록시 캐시 (Proxy Cache)** | Harbor가 Docker Hub 등 공용 레지스트리의 이미지를 캐싱. Rate Limit 회피 + 폐쇄망 지원 |
+| **Garbage Collection** | 미사용(untagged/unreferenced) 이미지를 자동 정리하여 스토리지를 확보하는 기능 |
+| **chartrepo** | Harbor에서 Helm Chart를 저장하는 엔드포인트. `https://harbor.unifiedmeta.net/chartrepo/library` |
 
 ### 이미지 Push/Pull
 
@@ -634,3 +795,4 @@ helm push my-chart-1.0.0.tgz oci://harbor.unifiedmeta.net/platform
 | 버전 | 날짜 | 변경 내용 |
 |:---|:---|:---|
 | 1.0 | 2026-02-09 | 초안 작성 — 15개 영역 아키텍처 활용 팁 |
+| 1.1 | 2026-02-09 | 각 섹션별 📖 용어 정리(Glossary) 추가 |

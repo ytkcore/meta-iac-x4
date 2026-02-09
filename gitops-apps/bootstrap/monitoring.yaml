@@ -70,6 +70,18 @@ spec:
                       storage: 20Gi
             serviceMonitorSelectorNilUsesHelmValues: false
             podMonitorSelectorNilUsesHelmValues: false
+          ingress:
+            enabled: true
+            ingressClassName: nginx-internal
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
+            hosts:
+              - prometheus.unifiedmeta.net
+            tls:
+              - secretName: prometheus-tls
+                hosts:
+                  - prometheus.unifiedmeta.net
 
         # ====================================================================
         # 2. Alertmanager (High Availability)
@@ -87,6 +99,18 @@ spec:
                   resources:
                     requests:
                       storage: 5Gi
+          ingress:
+            enabled: true
+            ingressClassName: nginx-internal
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
+            hosts:
+              - alertmanager.unifiedmeta.net
+            tls:
+              - secretName: alertmanager-tls
+                hosts:
+                  - alertmanager.unifiedmeta.net
 
         # ====================================================================
         # 3. Grafana (Security, Network & UX)
