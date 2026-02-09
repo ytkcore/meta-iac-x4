@@ -26,7 +26,7 @@ output "service_endpoint" {
   description = "Service endpoint for access-gateway integration"
   value = length(aws_route53_record.neo4j) > 0 ? {
     name             = "neo4j"
-    uri              = "http://${aws_route53_record.neo4j[0].fqdn}:7474"
+    uri              = "http://${aws_route53_record.neo4j[0].fqdn}:7474/browser/"
     type             = "web"
     internal         = true
     rewrite_redirect = ["${aws_route53_record.neo4j[0].fqdn}:7474"]
