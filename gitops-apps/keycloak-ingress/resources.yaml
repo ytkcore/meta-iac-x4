@@ -2,7 +2,7 @@
 # Keycloak Split-Horizon Ingress + WAF-Equivalent Protection
 #
 # Split-Horizon 패턴: Public (인증 API) + Internal (Admin Console) 분리
-# Keycloak EC2 (private subnet)를 K8s nginx ingress를 통해 노출
+# Keycloak K8s Pod를 nginx ingress를 통해 노출
 # AWS IAM OIDC Provider가 OIDC Discovery endpoint에 접근할 수 있도록 구성
 #
 # Public:   keycloak.dev.unifiedmeta.net   → 인증 API (/realms, /resources, /js)
@@ -13,10 +13,10 @@
 # - nginx request-size: 대용량 요청 차단
 # - CiliumNetworkPolicy: L7 경로 기반 접근 제어
 #
-# Flow: Internet/VPN → NLB → nginx-ingress → K8s Service → Keycloak EC2:8080
+# Flow: Internet/VPN → NLB → nginx-ingress → K8s Service → Keycloak Pod:8080
 # ==============================================================================
 ---
-# Headless Service + Manual Endpoints → Keycloak EC2 private IP
+# Service — Keycloak Pod auto-discovery via selector
 apiVersion: v1
 kind: Service
 metadata:
@@ -26,34 +26,13 @@ metadata:
     app: keycloak
 spec:
   type: ClusterIP
+  selector:
+    app: keycloak
   ports:
     - name: http
       port: 8080
       targetPort: 8080
       protocol: TCP
-    - name: https
-      port: 8443
-      targetPort: 8443
-      protocol: TCP
----
-# Manual Endpoints — Keycloak EC2 private IP
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: keycloak
-  namespace: keycloak
-  labels:
-    app: keycloak
-subsets:
-  - addresses:
-      - ip: 10.0.101.201
-    ports:
-      - name: http
-        port: 8080
-        protocol: TCP
-      - name: https
-        port: 8443
-        protocol: TCP
 ---
 # ====================================================================
 # 1. Public Ingress — 인증 API 전용 (OIDC, SSO 로그인)
