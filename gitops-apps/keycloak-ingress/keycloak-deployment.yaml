@@ -17,7 +17,10 @@
 #     참조: docs/guides/post-deployment-operations-guide.md
 # ==============================================================================
 ---
-# DB Credentials Secret (Placeholder — 실제 값은 배포 후 수동 설정)
+# DB Credentials Secret (Shell — 배포 후 수동 설정, ArgoCD ignoreDifferences 보호)
+# kubectl -n keycloak create secret generic keycloak-db-secret \
+#   --from-literal=KC_DB_USERNAME=keycloak \
+#   --from-literal=KC_DB_PASSWORD='<PASSWORD>' --dry-run=client -o yaml | kubectl apply -f -
 apiVersion: v1
 kind: Secret
 metadata:
@@ -26,11 +29,11 @@ metadata:
   labels:
     app: keycloak
 type: Opaque
-stringData:
-  KC_DB_USERNAME: "CHANGE_ME"
-  KC_DB_PASSWORD: "CHANGE_ME"
 ---
-# Admin Credentials Secret (Placeholder — 배포 후 즉시 변경)
+# Admin Credentials Secret (Shell — 배포 후 수동 설정)
+# kubectl -n keycloak create secret generic keycloak-admin-secret \
+#   --from-literal=KEYCLOAK_ADMIN=admin \
+#   --from-literal=KEYCLOAK_ADMIN_PASSWORD='<PASSWORD>' --dry-run=client -o yaml | kubectl apply -f -
 apiVersion: v1
 kind: Secret
 metadata:
@@ -39,9 +42,6 @@ metadata:
   labels:
     app: keycloak
 type: Opaque
-stringData:
-  KEYCLOAK_ADMIN: "admin"
-  KEYCLOAK_ADMIN_PASSWORD: "CHANGE_ME"
 ---
 
 apiVersion: apps/v1
