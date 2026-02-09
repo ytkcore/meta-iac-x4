@@ -80,6 +80,15 @@
 | [cluster-stabilization](2026-02-08-cluster-stabilization.md) | CCM 정리 + 관리도구 Internal 전환 (11건) | ✅ 완료 |
 | ↳ [sub-tickets/](2026-02-08-cluster-stabilization/) | T01~T11 상세 워크스루 (디렉토리) | ✅ 11건 |
 
+### 2026-02-09 — Keycloak K8s 전환 실행 + 네트워크 디버깅
+
+| 파일 | 제목 | 상태 |
+|:-----|:-----|:-----|
+| [keycloak-k8s-native-deployment](2026-02-09-keycloak-k8s-native-deployment.md) | Keycloak EC2 → K8s Native Deployment 실행 | ✅ 완료 |
+| [nlb-sg-public-access-fix](2026-02-09-nlb-sg-public-access-fix.md) | NLB IP-mode Security Group 외부 접근 수정 | ✅ 완료 |
+| [cilium-cnp-cross-namespace-fix](2026-02-09-cilium-cnp-cross-namespace-fix.md) | CiliumNetworkPolicy Cross-namespace 수정 | ✅ 완료 |
+| [teleport-keycloak-rewrite-fix](2026-02-09-teleport-keycloak-rewrite-fix.md) | Teleport keycloak-admin rewrite.redirect 수정 | ✅ 완료 |
+
 ---
 
 ## 📅 일자별 커버리지 요약
@@ -94,6 +103,7 @@
 | **2/6** | 목 | **ArgoCD 앱 안정화** | Longhorn hook race condition 해결 | 1 |
 | **2/7** | 금 | **플랫폼 고도화 설계 + Phase 1-2-4 배포** | DNS-01 전환, Dual NLB, Keycloak SSO, ALBC, Vault | 9 |
 | **2/8** | 토 | **Vault Workload Identity + Cilium 계획 + SSO** | Vault AWS SE, Cilium ENI, ArgoCD Drift Fix, Keycloak SSO | 6 |
+| **2/9** | 일 | **Keycloak K8s 전환 실행 + 네트워크 디버깅** | K8s Deployment, SG Fix, CNP Fix, Teleport Rewrite | 4 |
 
 ### 🔑 주간 핵심 흐름
 
@@ -111,16 +121,18 @@
 2/7  ★ 플랫폼 고도화 Day — ALBC + Keycloak + Vault + Dual NLB
  ↓
 2/8  ★ Vault Workload Identity — ALBC 동적 STS 자격증명 + Cilium 전환 계획
+ ↓
+2/9  ★ Keycloak K8s 전환 — EC2 탈피 + SG/CNP/Teleport 디버깅
 ```
 
 ### 📈 성과 지표
 
 | 지표 | 값 |
 |:-----|:---|
-| 총 커밋 수 | 55+ |
+| 총 커밋 수 | 58+ |
 | 신규 Terraform 모듈 | 5개 (`albc-iam`, `keycloak-ec2`, `teleport-ec2`, `waf-acl`, `ec2-instance` 개선) |
 | 신규 Terraform 스택 | 5개 (`05-security`, `10-golden-image`, `15-teleport`, `20-waf`, `25-keycloak`) |
 | 삭제 스택 | 1개 (`15-vpn`) |
 | ArgoCD 앱 | 12+ 앱 자동 배포 |
 | 문서 | 20+ 문서 (architecture, security, troubleshooting, guides) |
-| Jira 티켓 | **26건** (이 디렉토리) |
+| Jira 티켓 | **30건** (이 디렉토리) |
