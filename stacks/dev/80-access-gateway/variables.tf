@@ -105,6 +105,18 @@ variable "kubernetes_services" {
       type              = "web"
       internal          = true
       rewrite_redirect  = ["keycloak.dev.unifiedmeta.net"]
+    },
+    {
+      name     = "alertmanager"
+      uri      = "https://alertmanager.unifiedmeta.net"
+      type     = "web"
+      internal = true
+    },
+    {
+      name     = "prometheus"
+      uri      = "https://prometheus.unifiedmeta.net"
+      type     = "web"
+      internal = true
     }
   ]
 }
