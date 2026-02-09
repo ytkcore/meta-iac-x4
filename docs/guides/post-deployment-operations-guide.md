@@ -24,6 +24,39 @@
 
 > **왜 가장 먼저?** Grafana, ArgoCD 등 대부분의 서비스가 Keycloak SSO에 의존합니다.
 
+### 1.0 사전 준비 — Secret 생성 (최초 배포 시)
+
+> [!CAUTION]
+> Keycloak의 DB/Admin 비밀번호는 **Git에 포함하지 않습니다**.
+> ArgoCD sync 전에 반드시 아래 Secret을 수동 생성해야 합니다.
+
+```bash
+# 1. 강력한 비밀번호 생성
+KC_DB_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 20)
+KC_ADMIN_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 20)
+echo "DB Password: $KC_DB_PASS"
+echo "Admin Password: $KC_ADMIN_PASS"
+
+# 2. K8s Secret 생성
+kubectl create namespace keycloak --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic keycloak-db-secret -n keycloak \
+  --from-literal=KC_DB_USERNAME=keycloak \
+  --from-literal=KC_DB_PASSWORD="$KC_DB_PASS" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic keycloak-admin-secret -n keycloak \
+  --from-literal=KEYCLOAK_ADMIN=admin \
+  --from-literal=KEYCLOAK_ADMIN_PASSWORD="$KC_ADMIN_PASS" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# 3. 비밀번호를 안전한 곳(Vault, 1Password 등)에 저장
+```
+
+> [!IMPORTANT]
+> DB 비밀번호는 PostgreSQL의 `keycloak` 사용자 비밀번호와 일치해야 합니다.
+> `scripts/keycloak/setup-keycloak-db.sh`로 사전 생성하거나 기존 비밀번호를 사용하세요.
+
 ### 1.1 Admin Console 접근
 
 Keycloak Admin Console은 **Internal Ingress**를 통해서만 접근 가능합니다.  
@@ -534,12 +567,15 @@ kubectl port-forward svc/monitoring-prometheus 9090:9090 -n monitoring
 
 | # | 항목 | 확인 방법 |
 |:---:|:---|:---|
-| 1 | 모든 기본 비밀번호 변경 | Rancher(`admin`), ArgoCD, Harbor, Grafana |
-| 2 | Keycloak Client Secret 변경 | Grafana 연동 Secret이 약한 값이면 즉시 교체 |
-| 3 | Public 노출 서비스 점검 | Internal 서비스가 Public NLB로 노출되지 않는지 확인 |
-| 4 | SSH 직접 접근 차단 확인 | Port 22가 Security Group에서 차단되어 있는지 확인 |
-| 5 | Vault Root Token 폐기 | 초기화 후 Root Token 사용 → 일반 관리자 토큰으로 전환 |
-| 6 | Recovery Key 백업 | Vault Recovery Key를 암호화된 저장소에 분산 보관 |
+| 1 | **Keycloak Admin 비밀번호 변경** | Admin Console → Admin 사용자 → Credentials → Reset Password |
+| 2 | 모든 기본 비밀번호 변경 | Rancher(`admin`), ArgoCD, Harbor, Grafana |
+| 3 | Keycloak Client Secret 재생성 | 각 Client → Credentials → Regenerate (Grafana 등 연동 Secret 동기화) |
+| 4 | Keycloak DB 비밀번호 로테이션 | `setup-keycloak-db.sh`로 변경 후 K8s Secret 업데이트 |
+| 5 | Public 노출 서비스 점검 | Internal 서비스가 Public NLB로 노출되지 않는지 확인 |
+| 6 | SSH 직접 접근 차단 확인 | Port 22가 Security Group에서 차단되어 있는지 확인 |
+| 7 | Vault Root Token 폐기 | 초기화 후 Root Token 사용 → 일반 관리자 토큰으로 전환 |
+| 8 | Recovery Key 백업 | Vault Recovery Key를 암호화된 저장소에 분산 보관 |
+| 9 | Git 히스토리 정리 | 평문 비밀번호 포함 커밋 확인 → `git filter-branch` 또는 `BFG Repo-Cleaner` |
 
 ---
 
@@ -563,3 +599,4 @@ kubectl port-forward svc/monitoring-prometheus 9090:9090 -n monitoring
 | 버전 | 날짜 | 변경 내용 |
 |:---|:---|:---|
 | 1.0 | 2026-02-09 | 초안 작성 — 전체 스택 기반 구축 후 필수 운영 가이드 |
+| 1.1 | 2026-02-09 | §1.0 Secret 사전 생성 절차 추가, §10 Keycloak 보안 항목 보강 |
