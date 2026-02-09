@@ -50,6 +50,7 @@ metadata:
     tier: public
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    external-dns.alpha.kubernetes.io/hostname: keycloak.dev.unifiedmeta.net
     # --- Buffer ---
     nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
     nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
@@ -128,7 +129,6 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
     nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
-    external-dns.alpha.kubernetes.io/hostname: keycloak.dev.unifiedmeta.net
 spec:
   ingressClassName: nginx-internal
   tls:
