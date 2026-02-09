@@ -68,6 +68,7 @@ module "neo4j" {
 
   # Harbor
   harbor_registry_hostport = module.common.harbor_registry_hostport
+  harbor_scheme            = module.common.harbor_scheme
   harbor_project           = module.common.harbor_project
   harbor_insecure          = true
 }
