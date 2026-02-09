@@ -80,6 +80,23 @@ RKE2는 **"Cloud Agnostic"** — 어떤 클라우드에서든 동일하게 동�
 > **핵심 문제**: 외부 트래픽을 클러스터로 유입시키려면 NLB가 필요한데,  
 > K8s가 AWS를 모르니 NLB를 자동으로 만들 수도, Target을 등록할 수도 없었다.
 
+**💡 "K8s가 AWS를 모른다"는 게 무슨 뜻인가?**
+
+Kubernetes 자체는 "NLB가 뭔지" 모릅니다. K8s가 아는 건 `Service(type: LoadBalancer)`라는 **추상적인 선언**뿐이고, 이걸 실제 AWS NLB로 만들어주는 건 별도의 컨트롤러입니다.
+
+```
+사용자가 Service(type: LoadBalancer) 생성
+  │
+  ├─ 컨트롤러(CCM)가 있을 때:
+  │    CCM이 AWS API 호출 → NLB 생성 → TG에 Node 등록 → 트래픽 유입 ✅
+  │
+  └─ 컨트롤러가 없을 때 (우리의 상황):
+       K8s는 "누군가 처리해주겠지" 하고 대기
+       → 아무도 처리 안 함 → EXTERNAL-IP가 영원히 <pending> ❌
+```
+
+K8s는 **선언만 받고, 실행은 위임하는 구조**입니다. 위임받을 컨트롤러가 없으면 아무 일도 일어나지 않습니다. EKS에서는 이런 고민이 없는데, AWS가 CCM과 VPC CNI를 **기본 내장**해서 제공하기 때문입니다.
+
 ### 수동 운영의 고통
 
 NLB를 Terraform으로 별도 생성하고, Worker Node를 **수동으로** Target Group에 등록해야 했습니다:
@@ -111,6 +128,10 @@ Terraform으로 NLB 생성 → AWS Console에서 수동 Target 등록
 
 이 세 가지를 제공하는 컴포넌트가 **Cloud Controller Manager(CCM)** 입니다.
 
+**💡 CCM을 한마디로 표현하면?**
+
+CCM은 **K8s와 클라우드 사이의 통역사**입니다. K8s는 "로드밸런서 만들어줘"라고 말할 줄만 알고, AWS는 "NLB를 만들려면 API 이렇게 호출해"라고 답할 줄만 압니다. 서로 다른 언어를 쓰는 두 시스템을 이어주는 것이 CCM의 역할입니다.
+
 ### CCM의 3가지 역할
 
 ```
@@ -125,7 +146,7 @@ Terraform으로 NLB 생성 → AWS Console에서 수동 Target 등록
 │     → Pod 네트워크 경로를 VPC Route Table에 등록              │
 │     → 다른 Node의 Pod이 통신할 수 있게 라우팅                │
 │                                                              │
-│  3. LoadBalancer Controller                                  │
+│  3. Service Controller                                       │
 │     → Service(type: LB) 생성 시 NLB 자동 프로비저닝          │
 │     → Worker Node를 Target Group에 자동 등록                 │
 └─────────────────────────────────────────────────────────────┘
@@ -137,26 +158,34 @@ Terraform으로 NLB 생성 → AWS Console에서 수동 Target 등록
 
 과거에는 이 클라우드 연동 로직이 K8s 핵심 바이너리(`kube-controller-manager`) 안에 **내장(In-tree)** 되어 있었습니다.
 
+**💡 비유하자면?**
+
 ```
-과거 (In-tree):
+과거 (In-tree) — "스마트폰에 모든 앱이 OS에 내장된 상태"
   kube-controller-manager 안에 AWS, GCP, Azure 코드가 모두 포함
+  → 하나 고치려면 OS(K8s) 전체를 업데이트해야 함
   → 바이너리 비대화, 릴리즈 종속, 보안 리스크
 
-현재 (Out-of-tree / External):
+현재 (Out-of-tree / External) — "앱스토어에서 개별 앱을 설치하는 상태"
   Cloud Controller Manager를 별도 Pod으로 분리 배포
+  → AWS 연동만 독립적으로 업데이트 가능
   → 독립 업데이트, 경량 코어, 플러그인 아키텍처
 ```
 
-**Kubernetes v1.27부터 In-tree Provider 코드가 완전히 삭제(Removed)** 되었습니다.
+Kubernetes는 단계적으로 In-tree Provider를 제거해 왔습니다:
 
-| | In-tree (v1.26 이하) | External CCM (v1.27+) |
+- **v1.27**: In-tree Cloud Provider 사용 시 deprecation 경고 출력 (코드는 동작)
+- **v1.29**: `--cloud-provider` 플래그에서 In-tree 옵션이 기본 비활성화, External CCM이 기본값으로 전환
+- **v1.30~v1.31**: In-tree Provider 코드가 **완전히 제거(Removed)**
+
+| | In-tree (v1.28 이하) | External CCM (v1.29+) |
 |---|---|---|
 | **위치** | kube-controller-manager 내장 | 별도 Pod으로 배포 |
 | **설정** | `cloud-provider: "aws"` | `cloud-provider: "external"` |
 | **Node 초기화** | 부팅 즉시 `Ready` | 부팅 시 `NotReady` + Taint → CCM이 초기화 |
 | **업데이트** | K8s 전체 업그레이드 필요 | CCM만 독립 업데이트 |
 
-> **우리의 상황**: RKE2 v1.31 → In-tree 코드 없음 → **External CCM 설치가 선택이 아닌 필수**
+> **우리의 상황**: RKE2 v1.31 → In-tree 코드 완전 제거됨 → **External CCM 설치가 선택이 아닌 필수**
 
 ---
 
@@ -166,13 +195,19 @@ External CCM 도입은 순탄하지 않았습니다.
 
 ### 난관 1: 순환 의존성 (Deadlock)
 
+**💡 핵심 딜레마**: External CCM에서는 Node가 Ready가 되려면 CCM이 먼저 떠야 합니다. 그런데 CCM도 Pod이기 때문에 Ready인 Node가 있어야 스케줄링됩니다.
+
 ```
 CCM Pod를 띄워야 → Node가 초기화(Ready)되는데
   → Node가 Ready가 아니면 → CCM Pod가 스케줄링 안 됨
-    → 닭이 먼저냐 알이 먼저냐
+    → 영원히 서로를 기다리는 교착 상태 (Deadlock)
 ```
 
+이 문제는 EKS에서는 발생하지 않습니다. EKS는 CCM이 AWS 관리형 컨트롤 플레인에 내장되어 있어서, 사용자의 Node가 생성되기도 전에 이미 동작하고 있기 때문입니다.
+
 **해결**: RKE2의 **Static Manifests** 기능 활용
+
+일반적인 Pod은 API Server를 통해 스케줄링되지만, Static Manifest는 **파일 시스템에 YAML을 놓기만 하면** kubelet이 직접 Pod를 띄웁니다. API Server나 스케줄러에 의존하지 않으므로, Node가 NotReady여도 실행할 수 있습니다.
 
 ```
 EC2 부팅 → UserData 실행
@@ -213,31 +248,60 @@ Static Manifests + Toleration + 태그 체계 정비로 CCM 도입 성공:
 
 NLB Target 미등록 현상을 파고들면서, 이것이 단순한 소프트웨어 버그가 아닌 **구조적 비호환**임을 발견했습니다.
 
-### 문제 체인 (Root Cause Analysis)
+**💡 문제를 쉽게 이해하기 위한 배경**
+
+NLB가 트래픽을 클러스터로 보내는 방식은 두 가지입니다:
 
 ```
-① Canal VXLAN Overlay
-   Pod IP가 10.42.x.x (overlay 대역) → VPC에서 라우팅 불가능
+방식 1: Instance Mode — "건물 정문으로 보내기"
+  NLB → Worker Node(EC2)의 NodePort로 전송 → kube-proxy가 Pod에 전달
+  전제조건: CCM이 "이 Node = 이 EC2 인스턴스"를 알아야 함 (providerID)
+
+방식 2: IP Mode — "사람에게 직접 보내기"
+  NLB → Pod IP로 직접 전송
+  전제조건: Pod IP가 VPC 네트워크에서 실제로 도달 가능해야 함
+```
+
+우리 환경에서는 **두 방식 모두 작동하지 않았습니다.** 각각 다른 이유로:
+
+### 문제 체인 (Root Cause Analysis)
+
+NLB Target 미등록에는 **두 가지 독립적인 실패 경로**가 있었습니다:
+
+```
+실패 경로 A — Instance Mode (Worker:NodePort → TG 등록)
+─────────────────────────────────────────────────────
+  ③ providerID 미설정
+     External CCM 모드에서 CCM Node Controller가 EC2 태그/권한 부족으로
+     Node ↔ EC2 인스턴스 매핑 실패
+       → NLB Target Group에 Worker 등록 불가
+
+실패 경로 B — IP Mode (Pod IP → TG 직접 등록)
+─────────────────────────────────────────────────────
+  ① Canal VXLAN Overlay
+     Pod IP가 10.42.x.x (overlay 대역) → VPC에서 라우팅 불가능
 
      ② CCM Route Controller 비활성화
         --configure-cloud-routes=false 상태
         → VPC Route Table에 Pod CIDR 우회 경로도 없음
 
-           ③ providerID 미설정
-              RKE2 External 모드에서 자동 주입되지 않음
-              → CCM이 Node ↔ EC2 인스턴스를 매핑하지 못함
-
-                 → NLB Target Group에 Worker 등록 불가
+       → Pod IP가 VPC unreachable → IP Mode 사용 불가
 ```
 
 ### 각 요인 상세
 
 #### ① Canal VXLAN Overlay — 근본 원인
 
+**💡 Overlay 네트워크란?**
+
+실제 VPC 네트워크(10.0.x.x) 위에 **가상의 터널 네트워크(10.42.x.x)**를 덮어씌운 것입니다. Pod끼리는 이 터널을 통해 잘 통신하지만, 터널 바깥(AWS NLB, VPC 등)에서는 이 가상 IP를 알 수 없습니다.
+
+비유하면, **사내 내선번호(10.42.x.x)**로는 사내 통화가 되지만, **외부(NLB)**에서 내선번호로 전화를 걸 수 없는 것**과 같습니다.
+
 ```
 Canal CNI (Flannel 기반):
-  Pod IP = 10.42.x.x   ← VXLAN 터널로 캡슐화된 가상 IP
-  VPC IP = 10.0.x.x    ← AWS VPC가 실제로 라우팅하는 IP
+  Pod IP = 10.42.x.x   ← VXLAN 터널 안에서만 유효한 가상 IP (= 내선번호)
+  VPC IP = 10.0.x.x    ← AWS VPC가 실제로 라우팅하는 IP (= 외부 전화번호)
 
   결과: NLB가 Pod IP(10.42.x.x)로 트래픽을 보내면 → VPC에서 DROP
         → NLB Target Health: unhealthy
@@ -247,12 +311,12 @@ Canal CNI (Flannel 기반):
 
 #### ② CCM Route Controller 비활성화
 
-overlay 환경에서도 CCM Route Controller가 VPC Route Table에 `10.42.x.x/24 → Node` 경로를 만들어주면 우회할 수 있습니다. 그러나:
+overlay 환경에서도 CCM Route Controller가 VPC Route Table에 `10.42.x.x/24 → Node` 경로를 만들어주면 우회할 수 있습니다. 이는 "내선번호(10.42.x.x)로 전화가 오면 이 건물(Node)로 연결해줘"라는 안내판을 VPC에 설치하는 것과 같습니다. 그러나:
 
-- `--configure-cloud-routes=false`로 설정 → Route를 **아예 만들지 않음**
-- 설령 활성화해도 **AWS VPC Route Table 50개 Route 한도** → 근본 해결이 아님
+- `--configure-cloud-routes=false`로 설정 → Route를 **아예 만들지 않음** (안내판 자체가 없음)
+- 설령 활성화해도 **AWS VPC Route Table 50개 Route 한도** → Node가 많아지면 한도 초과 → 근본 해결이 아님
 
-#### ③ providerID 미설정
+#### ③ providerID 미설정 — Instance Mode조차 실패시킨 독립적 원인
 
 CCM이 K8s Node 객체와 EC2 인스턴스를 매핑하려면 `providerID`가 필요합니다:
 
@@ -261,16 +325,19 @@ Expected: spec.providerID: aws:///ap-northeast-2a/i-0abc123def456
 Actual:   spec.providerID: (없음)
 ```
 
-RKE2 External Cloud Provider 모드에서 자동 주입이 되지 않아, CCM이 **"이 Node가 어떤 EC2인지 모르는"** 상태.
+External CCM 모드(`--cloud-provider=external`)에서는 kubelet이 providerID를 설정하지 않는 것이 **정상 동작**입니다. providerID 설정은 **CCM Node Controller의 책임**이며, CCM이 EC2 태그(예: `kubernetes.io/cluster/<name>=owned`)나 IAM 권한이 불완전하면 매핑에 실패합니다.
+
+> **주의**: 이 문제는 ①②의 overlay 문제와는 **독립적**입니다. overlay를 해결하더라도 providerID가 없으면 Instance Mode(NodePort 방식)에서도 Target 등록이 실패합니다.
 
 ### "버그"가 아니라 "구조적 비호환"
 
-| 요인 | 요약 |
-|------|------|
-| **Canal overlay** | Pod IP가 VPC unreachable → AWS 통합 전체 무력화 |
-| **Route Controller 비활성** | 우회 경로조차 없음 |
-| **providerID 미설정** | CCM이 Node ↔ EC2 매핑 실패 |
-| **종합** | **RKE2 + Canal + External CCM** 조합의 구조적 한계 |
+**두 가지 독립적인 실패 경로**가 동시에 존재했습니다:
+
+| 실패 경로 | 요인 | 영향 |
+|-----------|------|------|
+| **Instance Mode 실패** | ③ providerID 미설정 (CCM의 태그/권한 매핑 실패) | CCM이 Node ↔ EC2 매핑 불가 → TG에 Worker 등록 불가 |
+| **IP Mode 실패** | ① Canal overlay (Pod IP가 VPC unreachable) + ② Route Controller 비활성 (우회 경로도 없음) | NLB가 Pod IP로 트래픽 전달 불가 |
+| **종합** | **RKE2 + Canal + External CCM** 조합에서 **두 모드 모두 동작하지 않는** 구조적 한계 |
 
 > 📎 상세: [07-cloud-provider-migration-report.md](07-cloud-provider-migration-report.md), [08-nlb-architecture.md](08-nlb-architecture.md)
 
@@ -279,6 +346,12 @@ RKE2 External Cloud Provider 모드에서 자동 주입이 되지 않아, CCM이
 ## 6. ALBC + IP Mode 시도 — 그리고 두 번째 벽
 
 CCM의 LoadBalancer 기능이 제대로 동작하지 않으므로, **전용 로드밸런서 컨트롤러인 ALBC(AWS Load Balancer Controller)** 를 도입하기로 했습니다.
+
+**💡 CCM vs ALBC — 왜 전용 컨트롤러가 필요한가?**
+
+CCM은 "만능 통역사"입니다. Node 관리, 라우팅, 로드밸런서를 모두 다루지만, 그만큼 각 기능이 깊지 않습니다. 특히 로드밸런서 관련해서 CCM은 **Instance Mode(Worker Node 단위)**만 지원합니다.
+
+ALBC는 "로드밸런서 전문가"입니다. 로드밸런서만 다루되, **IP Mode(Pod 단위 직접 연결)**까지 지원하여 더 효율적인 트래픽 라우팅이 가능합니다.
 
 ### CCM vs ALBC 비교
 
@@ -295,12 +368,21 @@ CCM의 LoadBalancer 기능이 제대로 동작하지 않으므로, **전용 로�
 ALBC Pod가 AWS API(NLB/ALB 관리)를 호출하려면 **IAM 인증**이 필요합니다.  
 EKS에서는 IRSA(IAM Roles for Service Accounts)가 자동으로 제공되지만:
 
+**💡 IRSA란?**
+
+Pod가 AWS 리소스를 사용하려면 "나는 이 권한을 가진 Pod이야"라고 AWS에 증명해야 합니다. 이때 필요한 것이 **신뢰할 수 있는 신원 보증 기관(OIDC Provider)**입니다. IRSA의 흐름은 다음과 같습니다:
+
 ```
-EKS:  K8s ServiceAccount → EKS OIDC Provider (자동) → AWS STS → IAM Role
-RKE2: K8s ServiceAccount → OIDC Provider ???  → 연결 불가 ❌
+EKS:
+  Pod가 "나 ALBC야" → EKS OIDC Provider가 "맞아, 이 Pod은 진짜야" (신원 보증)
+    → AWS STS가 "확인, 임시 자격증명 줄게" → ALBC가 NLB 관리 ✅
+
+RKE2:
+  Pod가 "나 ALBC야" → OIDC Provider ???  → 신원을 보증해줄 기관이 없음
+    → AWS STS: "누군지 모르니 거부" → ALBC가 AWS API 호출 불가 ❌
 ```
 
-**RKE2에는 OIDC Provider가 없습니다.** ALBC Pod가 AWS 자격증명을 얻을 방법이 없었습니다.
+**RKE2에는 OIDC Provider가 없습니다.** EKS는 클러스터 생성 시 OIDC Provider가 자동으로 만들어지지만, RKE2는 CSP 독립적이므로 이런 AWS 전용 기능이 포함되어 있지 않습니다.
 
 ### 차단 ②: Overlay로 IP Mode 불가
 
@@ -326,24 +408,26 @@ IP Mode 전제조건: Pod IP가 VPC에서 라우팅 가능해야 함
 
 ### 의사결정 체인
 
+**💡 하나의 문제를 해결하려다 보니, 도미노처럼 연쇄적으로 결정이 이어졌습니다.**
+
 ```
 CCM 버그 → NLB를 어떻게 고치지?
   → ALBC 도입하자
     → ALBC에 IAM 인증이 필요한데 RKE2엔 IRSA가 없다
-      → 어떻게 해결하지?
+      → Pod에게 AWS 자격증명을 줄 방법이 필요하다
 
         → Keycloak이면 SSO도 되고 OIDC Provider도 된다
-          → Keycloak 도입 결정 ✅
+          → Keycloak 도입 결정 ✅ (사람의 인증 해결)
 
-            → 그런데 Workload Identity는 Keycloak OIDC로 안 된다
+            → 그런데 Workload Identity(Pod 인증)는 Keycloak OIDC로 안 된다
               → Vault AWS Secrets Engine이면?
                 → K8s SA Token → Vault K8s Auth → AWS SE → STS 임시 자격증명
-                  → Vault 도입 결정 ✅
+                  → Vault 도입 결정 ✅ (Pod의 인증 해결)
 
                     → NLB IP-mode는 왜 안 되지?
                       → Pod IP가 10.42.x.x (overlay) → VPC unreachable
-                        → 근본 원인: Canal VXLAN overlay
-                          → Cilium ENI Mode로 전환 결정 ✅
+                        → 근본 원인: Canal VXLAN overlay (내선번호 문제)
+                          → Cilium ENI Mode로 전환 결정 ✅ (네트워크 근본 해결)
 ```
 
 ### 각 컴포넌트가 해소하는 것
@@ -362,11 +446,24 @@ CCM 버그 → NLB를 어떻게 고치지?
 
 #### Vault AWS Secrets Engine — Workload Identity (IRSA 대체)
 
-ALBC Pod의 IAM 인증을 Keycloak OIDC가 아닌 **Vault**가 담당합니다:
+ALBC Pod의 IAM 인증을 Keycloak OIDC가 아닌 **Vault**가 담당합니다.
+
+**💡 왜 Keycloak으로 IRSA를 대체하지 않는가?**
+
+Keycloak은 **사람(Human)의 신원을 증명**하는 데 최적화되어 있습니다. 브라우저 로그인, SSO, MFA 등이 그 영역입니다. 반면 IRSA가 하는 일은 **Pod(Machine)에게 AWS 임시 자격증명을 발급**하는 것입니다.
+
+Pod는 브라우저로 로그인할 수 없고, AWS STS는 Keycloak을 신뢰하도록 설정되어 있지 않습니다. 따라서 Pod → AWS 자격증명 경로에는 **Vault**라는 별도의 중개자가 필요합니다.
 
 ```
-ALBC Pod → K8s ServiceAccount Token
-  → Vault (K8s Auth Method로 인증)
+사람의 인증: Keycloak (브라우저 SSO, OIDC 토큰)
+Pod의 인증:  Vault    (K8s SA Token → AWS STS 임시 자격증명)
+```
+
+구체적인 흐름:
+
+```
+ALBC Pod → K8s ServiceAccount Token (Pod의 신분증)
+  → Vault (K8s Auth Method로 "이 Pod이 진짜 ALBC 맞는지" 검증)
     → Vault AWS Secrets Engine (AssumeRole)
       → STS 임시 자격증명 발급 (15분 TTL, 자동 rotation)
         → ALBC가 NLB/ALB Target Group 관리
@@ -375,23 +472,27 @@ ALBC Pod → K8s ServiceAccount Token
 | 항목 | IRSA (EKS 방식) | Vault AWS SE (우리 방식) |
 |------|----------------|------------------------|
 | OIDC Provider | EKS 자동 | 불필요 (Vault K8s Auth) |
-| 자격증명 수명 | 12시간 | **15분** (더 안전) |
+| 자격증명 수명 | **1시간** (기본, 최대 12시간) | **15분** (더 안전) |
 | CSP 종속 | AWS 전용 | **CSP 무관** (GCP, Azure 확장 가능) |
 | 기존 인프라 | 신규 구축 | ✅ Vault + K8s Auth 재활용 |
 
 #### Cilium ENI Mode — VPC-native Pod IP (차단 ② 해소)
 
+**💡 Canal → Cilium 전환을 한마디로 표현하면?**
+
+Canal은 Pod에게 **내선번호(10.42.x.x)**를 부여했습니다. 사내 통화는 되지만 외부에서 직접 전화할 수 없었죠. Cilium ENI Mode는 Pod에게 **외부 전화번호(10.0.x.x)**를 직접 부여합니다. AWS VPC에서 직접 라우팅되는 진짜 IP이므로, NLB든 다른 EC2든 어디서든 직접 접근할 수 있습니다.
+
 ```
-Canal (Before):
+Canal (Before) — 가상 IP (내선번호):
   Pod IP = 10.42.x.x (VXLAN overlay)
   → VPC에서 라우팅 불가 → NLB IP-mode 불가
 
-Cilium ENI Mode (After):
+Cilium ENI Mode (After) — 실제 VPC IP (외부 전화번호):
   Pod IP = 10.0.x.x (VPC Subnet IP)
   → VPC에서 직접 라우팅 → NLB IP-mode 네이티브 동작
 ```
 
-Cilium은 AWS ENI(Elastic Network Interface)의 Secondary IP를 Pod에 할당합니다:
+**어떻게 가능한가?** Cilium은 AWS ENI(Elastic Network Interface)의 Secondary IP를 Pod에 할당합니다. EC2 인스턴스에 추가 네트워크 카드(ENI)를 꽂고, 그 카드에 할당된 IP를 각 Pod에게 하나씩 나눠주는 방식입니다:
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -414,7 +515,7 @@ overlay가 아닌 VPC-native IP이므로 **NLB, ALB, EC2 어디서든 직접 접
 | **NLB IP-mode** | ❌ unreachable | ✅ 네이티브 |
 | **CCM 의존성** | Route Controller 필요 | **불필요** |
 | **NetworkPolicy** | L3-L4 (Calico) | L3-**L7** (eBPF, HTTP path 수준) |
-| **kube-proxy** | iptables O(n) | eBPF O(1) |
+| **kube-proxy** | iptables (규칙 수에 비례하여 갱신 지연) | eBPF (hash map 기반 O(1) 조회) |
 | **네트워크 관측성** | 없음 | Hubble (실시간 flow) |
 
 > Cilium 전환은 Canal overlay가 만든 **근본적인 문제 체인**(NLB Target unhealthy, CCM Route 미동작, ALBC IP-mode 불가)을 **일괄 해소**합니다.
@@ -496,9 +597,12 @@ CCM의 NLB Target 미등록이라는 **하나의 증상**을 추적한 결과:
 ### ② "왜?"를 5번 물어야 근본 원인이 나온다
 
 ```
-왜 NLB Target이 등록 안 되지?     → CCM bug
+[Instance Mode 경로]
+왜 NLB Target이 등록 안 되지?     → CCM이 Worker를 TG에 넣지 못함
 왜 CCM이 안 동작하지?             → providerID 미설정
-왜 providerID가 없지?             → External CCM 전환 시 누락
+왜 providerID가 없지?             → CCM Node Controller가 EC2 태그/권한 부족으로 매핑 실패
+
+[IP Mode 경로]
 왜 IP-mode가 안 되지?             → Pod IP가 VPC unreachable
 왜 Pod IP가 unreachable이지?      → Canal VXLAN overlay ← 근본 원인
 ```
@@ -508,12 +612,14 @@ CCM의 NLB Target 미등록이라는 **하나의 증상**을 추적한 결과:
 RKE2의 CSP 독립성은 **멀티클라우드/온프렘 납품**이라는 비즈니스 가치를 제공하지만,  
 EKS가 자동으로 해주는 것들(OIDC, IRSA, NLB 관리)을 **직접 구축해야 하는 비용**이 있습니다.
 
-| EKS가 자동으로 해주는 것 | RKE2에서 우리가 구축한 것 |
-|------------------------|------------------------|
-| OIDC Provider | Keycloak |
-| IRSA (Pod IAM) | Vault AWS Secrets Engine |
-| VPC CNI (IP Mode) | Cilium ENI Mode |
-| NLB 자동 관리 | ALBC |
+**💡 비유하면**: EKS는 **풀옵션 아파트**(입주 즉시 생활 가능하지만, 그 단지에서만 살 수 있음)이고, RKE2는 **빈 땅**(전기·수도·가스를 직접 끌어와야 하지만, 어디에든 지을 수 있음)입니다.
+
+| EKS가 자동으로 해주는 것 | 우리가 직접 구축한 것 | 비유 |
+|------------------------|------------------------|------|
+| OIDC Provider | Keycloak | 신원 보증 기관 |
+| IRSA (Pod IAM) | Vault AWS Secrets Engine | Pod용 신분증 발급기 |
+| VPC CNI (IP Mode) | Cilium ENI Mode | 외부 전화번호 부여 |
+| NLB 자동 관리 | ALBC | 로드밸런서 전문가 |
 
 > **하지만 그 결과**: EKS보다 **더 유연하고, 더 안전하며, CSP에 종속되지 않는** 아키텍처를 갖게 되었습니다.
 
