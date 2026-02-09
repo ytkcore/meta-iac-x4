@@ -118,6 +118,7 @@ spec:
         grafana:
           enabled: true
           assertNoLeakedSecrets: false
+          envFromSecret: "monitoring-grafana-secret"
           admin:
             existingSecret: "monitoring-grafana-secret"
             userKey: admin-user
@@ -133,7 +134,7 @@ spec:
               allow_sign_up: true
               auto_login: false
               client_id: "grafana"
-              client_secret: "cb3ac87e35b9560110b2667e43bcc503"
+              client_secret: "$__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}"
               scopes: "openid email profile roles"
               auth_url: "https://keycloak.dev.unifiedmeta.net/realms/platform/protocol/openid-connect/auth"
               token_url: "https://keycloak.dev.unifiedmeta.net/realms/platform/protocol/openid-connect/token"
