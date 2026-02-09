@@ -46,7 +46,7 @@ docker rm -f opensearch-dashboards > /dev/null 2>&1 || true
 # Create Docker network
 docker network create opensearch-net > /dev/null 2>&1 || true
 
-# Run OpenSearch (single-node mode)
+# Run OpenSearch (single-node mode, security disabled for private network)
 docker run -d --name opensearch \
   --restart unless-stopped \
   --network opensearch-net \
@@ -54,7 +54,7 @@ docker run -d --name opensearch \
   -p 9600:9600 \
   -e "discovery.type=single-node" \
   -e "OPENSEARCH_INITIAL_ADMIN_PASSWORD=$ADMIN_PASSWORD" \
-  -e "DISABLE_SECURITY_PLUGIN=false" \
+  -e "DISABLE_SECURITY_PLUGIN=true" \
   -e "DISABLE_INSTALL_DEMO_CONFIG=true" \
   -v /data/opensearch:/usr/share/opensearch/data \
   "$OPENSEARCH_IMAGE"
@@ -67,8 +67,8 @@ docker run -d --name opensearch-dashboards \
   --restart unless-stopped \
   --network opensearch-net \
   -p 5601:5601 \
-  -e "OPENSEARCH_HOSTS=https://opensearch:9200" \
-  -e "DISABLE_SECURITY_DASHBOARDS_PLUGIN=false" \
+  -e "OPENSEARCH_HOSTS=http://opensearch:9200" \
+  -e "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true" \
   "$DASHBOARDS_IMAGE"
 
 touch "$MARKER"
