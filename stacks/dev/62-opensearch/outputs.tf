@@ -41,7 +41,7 @@ output "service_endpoint" {
   description = "Service endpoint for access-gateway integration (OpenSearch Dashboards)"
   value = length(aws_route53_record.opensearch_dashboards) > 0 ? {
     name     = "opensearch"
-    uri      = "https://${aws_route53_record.opensearch_dashboards[0].fqdn}:5601"
+    uri      = "http://${aws_route53_record.opensearch_dashboards[0].fqdn}:5601"
     type     = "web"
     internal = true
   } : null
