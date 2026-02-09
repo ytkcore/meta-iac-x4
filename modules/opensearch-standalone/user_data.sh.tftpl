@@ -17,6 +17,7 @@ DASHBOARDS_IMAGE="$REGISTRY_HOSTPORT/$PROJECT/opensearchproject/opensearch-dashb
 ADMIN_PASSWORD='${admin_password}'
 
 mkdir -p /opt/opensearch /data/opensearch
+chown -R 1000:1000 /data/opensearch
 
 if ! command -v docker > /dev/null 2>&1; then
   echo "ERROR: docker is not installed. Use Golden Image with Docker pre-installed."
