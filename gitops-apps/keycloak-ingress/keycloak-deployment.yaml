@@ -108,6 +108,8 @@ spec:
               value: "keycloak.dev.unifiedmeta.net"
             - name: KC_HOSTNAME_STRICT
               value: "false"
+            - name: KC_HOSTNAME_ADMIN_URL
+              value: "https://keycloak-admin.teleport.unifiedmeta.net"
             - name: KC_HTTP_ENABLED
               value: "true"
             - name: KC_HEALTH_ENABLED

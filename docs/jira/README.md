@@ -41,6 +41,7 @@
 |:-----|:-----|:-----|
 | [split-horizon-dns](2026-02-03-split-horizon-dns.md) | Split-Horizon DNS — ExternalDNS Dual Zone 분리 | ✅ 완료 |
 | [ccm-observability](2026-02-03-ccm-observability-stack.md) | AWS CCM 통합 + Observability 스택 구축 | ✅ 완료 |
+| [longhorn-distributed-storage](2026-02-03-longhorn-distributed-storage.md) | Longhorn 분산 스토리지 도입 및 안정화 | ✅ 완료 |
 
 ### 2026-02-04 — Golden Image + Teleport HA
 
@@ -93,6 +94,7 @@
 | [argocd-secret-security-hardening](2026-02-09-argocd-secret-security-hardening.md) | ArgoCD Secret 보안 강화 — Prune 방지 + 평문 제거 | ✅ 완료 |
 | [infra-codification-sg-teleport](2026-02-09-infra-codification-sg-teleport.md) | SG 코드화 + Teleport Observability 앱 등록 | ✅ 완료 |
 | [loki-gateway-dns-fix](2026-02-09-loki-gateway-dns-fix.md) | Loki Gateway CrashLoopBackOff — RKE2 CoreDNS Resolver | ✅ 완료 |
+| [teleport-app-service-completion](2026-02-09-teleport-app-service-completion.md) | Teleport App Service 구축 마무리 | ✅ 완료 |
 
 ---
 
