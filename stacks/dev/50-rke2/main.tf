@@ -255,3 +255,34 @@ module "albc_iam" {
 
   tags = local.common_tags
 }
+
+# ==============================================================================
+# NLB IP-mode Public Access — Security Group Rules
+# IP-mode NLB는 client source IP를 preserve하므로,
+# 인터넷 트래픽이 Worker 노드에 직접 도달하려면 0.0.0.0/0 허용 필수.
+# (Instance-mode NLB는 NLB 자체가 source IP를 변환하므로 VPC CIDR만으로 충분)
+# ==============================================================================
+
+resource "aws_security_group_rule" "nlb_public_http" {
+  count = var.enable_public_nlb ? 1 : 0
+
+  type              = "ingress"
+  from_port         = 80
+  to_port           = 80
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = module.rke2.nodes_security_group_id
+  description       = "NLB IP-mode: Public HTTP ingress"
+}
+
+resource "aws_security_group_rule" "nlb_public_https" {
+  count = var.enable_public_nlb ? 1 : 0
+
+  type              = "ingress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = module.rke2.nodes_security_group_id
+  description       = "NLB IP-mode: Public HTTPS ingress"
+}

@@ -62,10 +62,11 @@ variable "access_solution" {
 variable "kubernetes_services" {
   description = "Kubernetes services to register (manually specified, not auto-discovered)"
   type = list(object({
-    name     = string
-    uri      = string
-    type     = optional(string, "web")
-    internal = optional(bool, true)
+    name             = string
+    uri              = string
+    type             = optional(string, "web")
+    internal         = optional(bool, true)
+    rewrite_redirect = optional(list(string), [])
   }))
   default = [
     {

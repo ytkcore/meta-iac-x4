@@ -16,9 +16,16 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: keycloak
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+        - /stringData
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - RespectIgnoreDifferences=true
