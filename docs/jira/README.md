@@ -1,6 +1,6 @@
 # Jira 티켓 인덱스
 
-> **최종 업데이트**: 2026-02-08  
+> **최종 업데이트**: 2026-02-09  
 > **근거**: [16-architecture-evolution-decision.md](../architecture/16-architecture-evolution-decision.md)
 
 ---
@@ -95,6 +95,7 @@
 | [infra-codification-sg-teleport](2026-02-09-infra-codification-sg-teleport.md) | SG 코드화 + Teleport Observability 앱 등록 | ✅ 완료 |
 | [loki-gateway-dns-fix](2026-02-09-loki-gateway-dns-fix.md) | Loki Gateway CrashLoopBackOff — RKE2 CoreDNS Resolver | ✅ 완료 |
 | [teleport-app-service-completion](2026-02-09-teleport-app-service-completion.md) | Teleport App Service 구축 마무리 | ✅ 완료 |
+| [keycloak-admin-oidc-https-fix](2026-02-09-keycloak-admin-oidc-https-fix.md) | Keycloak Admin Console OIDC HTTPS + ArgoCD Secret 보호 | ✅ 완료 |
 
 ---
 
@@ -110,7 +111,7 @@
 | **2/6** | 목 | **ArgoCD 앱 안정화** | Longhorn hook race condition 해결 | 1 |
 | **2/7** | 금 | **플랫폼 고도화 설계 + Phase 1-2-4 배포** | DNS-01 전환, Dual NLB, Keycloak SSO, ALBC, Vault | 9 |
 | **2/8** | 토 | **Vault Workload Identity + Cilium 계획 + SSO** | Vault AWS SE, Cilium ENI, ArgoCD Drift Fix, Keycloak SSO | 6 |
-| **2/9** | 일 | **Keycloak K8s 전환 + 보안 강화 + Loki 수정** | K8s Deployment, SG/CNP/Teleport Fix, Secret 보안, Loki DNS | 7 |
+| **2/9** | 일 | **Keycloak K8s 전환 + 보안 강화 + Loki 수정** | K8s Deployment, SG/CNP/Teleport Fix, Secret 보안, Loki DNS, **OIDC HTTPS** | 8 |
 
 ### 🔑 주간 핵심 흐름
 
@@ -142,4 +143,4 @@
 | 삭제 스택 | 1개 (`15-vpn`) |
 | ArgoCD 앱 | 12+ 앱 자동 배포 |
 | 문서 | 20+ 문서 (architecture, security, troubleshooting, guides) |
-| Jira 티켓 | **33건** (이 디렉토리) |
+| Jira 티켓 | **34건** (이 디렉토리) |
