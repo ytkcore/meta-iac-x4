@@ -215,6 +215,8 @@ spec:
         prometheusOperator:
           admissionWebhooks:
             enabled: false
+          tls:
+            enabled: false
 
   destination:
     server: https://kubernetes.default.svc

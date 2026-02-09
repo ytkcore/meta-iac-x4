@@ -433,26 +433,140 @@ grafana.ini:
 ❌ 절대 금지: Git에 평문 시크릿 커밋
 ```
 
-### Pod에서 Vault 사용하기 (Kubernetes Auth)
+### 현재 플랫폼 상태
+
+> [!IMPORTANT]
+> Vault **서버와 Agent Injector는 이미 배포**되어 있습니다 (`injector.enabled: true`).
+> 신규 서비스가 Sidecar 주입을 사용하려면 아래 **Step 1~3만 수행**하면 됩니다.
+
+| 구성 요소 | 상태 | 비고 |
+|:---|:---:|:---|
+| Vault Server (Standalone) | ✅ 완료 | AWS KMS Auto-Unseal, Longhorn 10Gi |
+| KV v2 시크릿 엔진 | ✅ 완료 | `secret/` 경로 활성화 |
+| Kubernetes Auth | ✅ 완료 | 모든 namespace에서 인증 가능 |
+| Agent Injector (MutatingWebhook) | ✅ 완료 | `kube-public`만 제외 |
+| **Policy / Role (서비스별)** | ⚠️ **서비스마다 추가 필요** | 아래 Step 1~2 참조 |
+
+### Step 1: 시크릿 저장 (최초 1회)
+
+Vault Pod에 접속하여 시크릿을 KV에 저장합니다:
+
+```bash
+kubectl exec -it vault-0 -n vault -- sh
+
+# 로그인 (Root Token 또는 적절한 토큰 사용)
+vault login <TOKEN>
+
+# 서비스별 시크릿 저장
+vault kv put secret/apps/my-service \
+  db-username='myservice' \
+  db-password='<SECURE_PASSWORD>' \
+  api-key='<API_KEY>'
+```
+
+> [!TIP]
+> 경로 규칙 권장: `secret/apps/{서비스명}/{키}` — `secret/platform/`은 플랫폼 전용입니다.
+
+### Step 2: Policy 생성 (서비스별 접근 범위 정의)
+
+```bash
+# my-service가 읽을 수 있는 시크릿 범위를 정의
+vault policy write my-service - <<EOF
+path "secret/data/apps/my-service" {
+  capabilities = ["read"]
+}
+path "secret/data/apps/my-service/*" {
+  capabilities = ["read"]
+}
+EOF
+```
+
+### Step 3: Role 생성 (K8s ServiceAccount ↔ Policy 매핑)
+
+```bash
+vault write auth/kubernetes/role/my-service \
+  bound_service_account_names=my-service \
+  bound_service_account_namespaces=my-service \
+  policies=my-service \
+  ttl=1h
+```
+
+이 설정의 의미: `my-service` namespace의 `my-service` ServiceAccount를 사용하는 Pod만 `my-service` Policy의 시크릿에 접근 가능.
+
+### Step 4: Deployment에 Sidecar Annotation 추가
 
 ```yaml
-# ServiceAccount에 Vault 인증 annotation 추가
-apiVersion: v1
-kind: ServiceAccount
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: my-service
-  annotations:
-    vault.hashicorp.com/agent-inject: "true"
-    vault.hashicorp.com/role: "my-service"
-    vault.hashicorp.com/agent-inject-secret-db: "secret/data/platform/database"
+  namespace: my-service
+spec:
+  template:
+    metadata:
+      annotations:
+        # ── Vault Agent Sidecar 자동 주입 ──
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "my-service"
+
+        # 시크릿을 /vault/secrets/db-creds 파일로 마운트
+        vault.hashicorp.com/agent-inject-secret-db-creds: "secret/data/apps/my-service"
+
+        # 파일 내용 포맷 (Go template)
+        vault.hashicorp.com/agent-inject-template-db-creds: |
+          {{- with secret "secret/data/apps/my-service" -}}
+          DB_USERNAME={{ .Data.data.db_username }}
+          DB_PASSWORD={{ .Data.data.db_password }}
+          API_KEY={{ .Data.data.api_key }}
+          {{- end }}
+    spec:
+      serviceAccountName: my-service    # ← Step 3에서 등록한 SA
+      containers:
+        - name: app
+          image: harbor.unifiedmeta.net/apps/my-service:1.0.0
+          # 앱은 파일만 읽으면 됨 — Vault SDK 불필요
+          command: ["sh", "-c"]
+          args:
+            - |
+              source /vault/secrets/db-creds
+              exec ./my-service
 ```
+
+### 동작 흐름 이해
+
+```
+1. Pod 생성 요청
+   ↓
+2. Vault Agent Injector (MutatingWebhook)가 Pod spec을 가로챔
+   ↓
+3. Init Container + Sidecar Container를 자동 주입
+   ↓
+4. Init Container:
+   - K8s ServiceAccount 토큰으로 Vault에 인증
+   - 시크릿 다운로드 → /vault/secrets/db-creds 파일에 기록
+   ↓
+5. 앱 컨테이너 시작 → 파일에서 시크릿 읽기
+   ↓
+6. Sidecar Container: TTL 만료 시 자동으로 파일 갱신 (백그라운드)
+```
+
+### ❌ 전통적 방식 vs ✅ Sidecar 방식
+
+| | ❌ 환경변수 직접 주입 | ✅ Vault Agent Sidecar |
+|:---|:---|:---|
+| 비밀번호 노출 | `kubectl describe pod`로 노출 | 파일만 존재, describe에 안 보임 |
+| 비밀번호 변경 | Pod 재배포 필요 | Sidecar가 자동 갱신 |
+| 코드 의존성 | 없음 | 없음 (파일 읽기만) |
+| 감사 로그 | 없음 | Vault Audit Log에 기록 |
+| 비밀번호 회전 | 수동 | Dynamic Secrets로 자동 회전 가능 |
 
 ### 💡 팁
 
-- DB 비밀번호를 환경변수로 직접 넣지 말고, **Vault Agent Sidecar**가 파일로 마운트하게 하세요.
-- Vault의 **Kubernetes Auth**는 이미 활성화되어 있으므로, Role/Policy만 추가하면 됩니다.
+- 앱 코드에서 **Vault SDK를 직접 호출하지 마세요** — Sidecar가 파일로 변환해주므로 앱은 파일만 읽으면 됩니다.
+- 시크릿 경로를 `secret/apps/{서비스명}`으로 통일하면 Policy 관리가 편합니다.
+- **Dynamic Secrets**(DB 비밀번호 자동 생성/회전)는 `vault secrets enable database` 후 DB 엔진 연동으로 확장 가능합니다 (향후 로드맵).
 - 비밀번호를 Git 히스토리에 남기지 않도록 주의 — 이미 커밋한 경우 `BFG Repo-Cleaner`로 정리하세요.
-- 상세: [vault-kms-auto-unseal.md](../vault/vault-kms-auto-unseal.md)
+- 상세: [Post-Deployment §3 Vault 초기 설정](post-deployment-operations-guide.md)
 
 ---
 
@@ -796,3 +910,4 @@ helm push my-chart-1.0.0.tgz oci://harbor.unifiedmeta.net/platform
 |:---|:---|:---|
 | 1.0 | 2026-02-09 | 초안 작성 — 15개 영역 아키텍처 활용 팁 |
 | 1.1 | 2026-02-09 | 각 섹션별 📖 용어 정리(Glossary) 추가 |
+| 1.2 | 2026-02-09 | §8 Vault: 현재 상태 정리, Policy/Role/Sidecar 단계별 가이드, 동작 흐름도, 비교표 추가 |
