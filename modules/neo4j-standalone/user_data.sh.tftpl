@@ -12,7 +12,7 @@ PROJECT="${harbor_project}"
 TAG="${neo4j_image_tag}"
 IMAGE="$REGISTRY_HOSTPORT/$PROJECT/library/neo4j:$TAG"
 
-NEO4J_AUTH="${neo4j_auth}"
+NEO4J_AUTH='${neo4j_auth}'
 
 mkdir -p /opt/neo4j /data/neo4j
 

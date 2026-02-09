@@ -14,7 +14,7 @@ DASHBOARDS_TAG="${dashboards_image_tag}"
 OPENSEARCH_IMAGE="$REGISTRY_HOSTPORT/$PROJECT/opensearchproject/opensearch:$OPENSEARCH_TAG"
 DASHBOARDS_IMAGE="$REGISTRY_HOSTPORT/$PROJECT/opensearchproject/opensearch-dashboards:$DASHBOARDS_TAG"
 
-ADMIN_PASSWORD="${admin_password}"
+ADMIN_PASSWORD='${admin_password}'
 
 mkdir -p /opt/opensearch /data/opensearch
 

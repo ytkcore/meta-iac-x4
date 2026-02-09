@@ -14,7 +14,7 @@ IMAGE="$REGISTRY_HOSTPORT/$PROJECT/library/postgres:$TAG"
 
 DB_NAME="${db_name}"
 DB_USER="${db_username}"
-DB_PASS="${db_password}"
+DB_PASS='${db_password}'
 
 mkdir -p /opt/postgres /data/postgres
 
