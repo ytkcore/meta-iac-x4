@@ -34,3 +34,9 @@ variable "longhorn_backup_bucket" {
   type        = string
   default     = ""
 }
+
+variable "velero_backup_bucket" {
+  description = "Velero S3 백업 버킷 이름 (Disaster Recovery)"
+  type        = string
+  default     = ""
+}

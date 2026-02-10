@@ -61,3 +61,55 @@ resource "aws_iam_role_policy_attachment" "longhorn_backup" {
   role       = try(data.terraform_remote_state.rke2.outputs.iam_role_name, "")
   policy_arn = aws_iam_policy.longhorn_backup[0].arn
 }
+
+# ------------------------------------------------------------------------------
+# Velero S3 Backup Bucket & IAM Policy (Disaster Recovery)
+# ------------------------------------------------------------------------------
+resource "aws_s3_bucket" "velero_backup" {
+  count  = var.velero_backup_bucket != "" ? 1 : 0
+  bucket = var.velero_backup_bucket
+  tags   = local.common_tags
+}
+
+resource "aws_iam_policy" "velero_backup" {
+  count       = var.velero_backup_bucket != "" ? 1 : 0
+  name        = "${var.env}-${var.project}-velero-backup-policy"
+  description = "Permissions for Velero to backup K8s resources to S3"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:ListBucket",
+          "s3:DeleteObject",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.velero_backup_bucket}",
+          "arn:aws:s3:::${var.velero_backup_bucket}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeVolumes",
+          "ec2:DescribeSnapshots",
+          "ec2:CreateTags",
+          "ec2:CreateSnapshot",
+          "ec2:DeleteSnapshot"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "velero_backup" {
+  count      = var.velero_backup_bucket != "" ? 1 : 0
+  role       = try(data.terraform_remote_state.rke2.outputs.iam_role_name, "")
+  policy_arn = aws_iam_policy.velero_backup[0].arn
+}

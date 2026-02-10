@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: landing-page
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: landing-page
+    app.kubernetes.io/part-of: customer-services
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: landing-page
+  template:
+    metadata:
+      labels:
+        app: landing-page
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5
+      volumes:
+        - name: html
+          configMap:
+            name: landing-page-html
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: landing-page
+  namespace: apps
+spec:
+  selector:
+    app: landing-page
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: landing-page
+  namespace: apps
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - www.unifiedmeta.net
+      secretName: landing-page-tls
+  rules:
+    - host: www.unifiedmeta.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: landing-page
+                port:
+                  number: 80

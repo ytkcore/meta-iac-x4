@@ -1,0 +1,35 @@
+################################################################################
+# Product Landing Page — ArgoCD Application
+#
+# 기능: UnifiedMeta 제품 소개 웹사이트 (Static HTML)
+# 도메인: www.unifiedmeta.net (Public)
+# 배포: Nginx Container + ConfigMap (HTML/CSS/JS)
+################################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: landing-page
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: landing-page
+    app.kubernetes.io/part-of: customer-services
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "50"
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:ytkcore/meta-iac-x4.git
+    targetRevision: HEAD
+    path: gitops-apps/apps/landing-page/k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apps
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

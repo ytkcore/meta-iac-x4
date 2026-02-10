@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UnifiedMeta — Cloud-Native Platform</title>
+    <meta name="description" content="UnifiedMeta: Enterprise-grade Cloud-Native Platform with Zero-Trust Security, GitOps Automation, and Full-Stack Observability">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav" id="nav">
+        <div class="nav-inner container">
+            <a href="#" class="nav-logo">
+                <span class="nav-logo-icon">◆</span>
+                <span class="nav-logo-text">UnifiedMeta</span>
+            </a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#architecture">Architecture</a>
+                <a href="#stack">Stack</a>
+                <a href="https://dashboard.unifiedmeta.net" class="nav-cta" target="_blank">Dashboard →</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-bg">
+            <div class="hero-orb hero-orb-1"></div>
+            <div class="hero-orb hero-orb-2"></div>
+            <div class="hero-orb hero-orb-3"></div>
+            <div class="hero-grid"></div>
+        </div>
+        <div class="container hero-content">
+            <div class="hero-badge">Enterprise Cloud-Native Platform</div>
+            <h1 class="hero-title">
+                Build <span class="gradient-text">Secure</span> Infrastructure.<br>
+                Ship with <span class="gradient-text-alt">Confidence</span>.
+            </h1>
+            <p class="hero-desc">
+                Zero-Trust 보안, GitOps 자동화, Full-Stack Observability를 하나의 플랫폼으로.<br>
+                CSP 독립적 아키텍처로 어디서든 동일한 인프라를 재현합니다.
+            </p>
+            <div class="hero-actions">
+                <a href="#features" class="btn btn-primary">Explore Features</a>
+                <a href="https://dashboard.unifiedmeta.net" class="btn btn-secondary" target="_blank">View Architecture</a>
+            </div>
+            <div class="hero-stats">
+                <div class="hero-stat">
+                    <span class="hero-stat-num">14</span>
+                    <span class="hero-stat-label">Terraform Stacks</span>
+                </div>
+                <div class="hero-stat-divider"></div>
+                <div class="hero-stat">
+                    <span class="hero-stat-num">13+</span>
+                    <span class="hero-stat-label">GitOps Apps</span>
+                </div>
+                <div class="hero-stat-divider"></div>
+                <div class="hero-stat">
+                    <span class="hero-stat-num">100%</span>
+                    <span class="hero-stat-label">IaC Coverage</span>
+                </div>
+                <div class="hero-stat-divider"></div>
+                <div class="hero-stat">
+                    <span class="hero-stat-num">0</span>
+                    <span class="hero-stat-label">VPN Required</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features" id="features">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Features</span>
+                <h2 class="section-title">프로덕션에 필요한 모든 것</h2>
+                <p class="section-subtitle">엔터프라이즈 수준의 보안, 자동화, 관측성을 Day 1부터 제공합니다.</p>
+            </div>
+            <div class="feature-grid">
+                <div class="feature-card feature-card-large">
+                    <div class="feature-icon-wrap icon-gold">
+                        <span class="feature-icon">🔐</span>
+                    </div>
+                    <h3>Zero-Trust Security</h3>
+                    <p>VPN 없이 인프라에 안전하게 접근합니다. Teleport v18이 SSH, K8s API, DB, Web App 접근을 MFA와 세션 녹화와 함께 제공합니다.</p>
+                    <div class="feature-tags">
+                        <span>Teleport v18</span>
+                        <span>MFA</span>
+                        <span>Session Recording</span>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap icon-blue">
+                        <span class="feature-icon">🔑</span>
+                    </div>
+                    <h3>Unified Identity (SSO)</h3>
+                    <p>Keycloak v25 OIDC로 모든 서비스를 단일 인증으로 통합. RBAC 기반 역할 자동 매핑.</p>
+                    <div class="feature-tags">
+                        <span>Keycloak v25</span>
+                        <span>OIDC</span>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap icon-purple">
+                        <span class="feature-icon">🔒</span>
+                    </div>
+                    <h3>Secrets Management</h3>
+                    <p>HashiCorp Vault로 시크릿 중앙 관리. AWS KMS Auto-Unseal, Agent Sidecar 자동 주입.</p>
+                    <div class="feature-tags">
+                        <span>Vault</span>
+                        <span>KMS</span>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap icon-green">
+                        <span class="feature-icon">🔄</span>
+                    </div>
+                    <h3>GitOps Automation</h3>
+                    <p>ArgoCD App-of-Apps로 선언적 배포. Git이 단일 진실 원천(SSOT). selfHeal + prune.</p>
+                    <div class="feature-tags">
+                        <span>ArgoCD</span>
+                        <span>App-of-Apps</span>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap icon-cyan">
+                        <span class="feature-icon">📊</span>
+                    </div>
+                    <h3>Full-Stack Observability</h3>
+                    <p>Prometheus (Metrics) + Loki (Logs) + Tempo (Traces). Grafana에서 3 Pillars 통합 시각화.</p>
+                    <div class="feature-tags">
+                        <span>Metrics</span>
+                        <span>Logs</span>
+                        <span>Traces</span>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap icon-orange">
+                        <span class="feature-icon">🏗️</span>
+                    </div>
+                    <h3>Infrastructure as Code</h3>
+                    <p>14개 Terraform 스택 + Packer Golden Image. 전체 인프라 코드화, 재현 가능한 배포.</p>
+                    <div class="feature-tags">
+                        <span>Terraform</span>
+                        <span>Packer</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture -->
+    <section class="architecture" id="architecture">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Architecture</span>
+                <h2 class="section-title">3-Layer Platform Architecture</h2>
+                <p class="section-subtitle">IaC Foundation → Platform Services → Application 계층으로 분리된 모듈식 아키텍처</p>
+            </div>
+            <div class="arch-diagram">
+                <div class="arch-row">
+                    <div class="arch-block arch-app">
+                        <div class="arch-block-label">Application Layer</div>
+                        <div class="arch-block-items">
+                            <span>Your Services</span>
+                            <span>Landing Page</span>
+                            <span>Dashboard</span>
+                            <span>APIs</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="arch-arrow">↓ GitOps Deploy ↓</div>
+                <div class="arch-row">
+                    <div class="arch-block arch-platform">
+                        <div class="arch-block-label">Platform Layer</div>
+                        <div class="arch-block-items">
+                            <span>ArgoCD</span>
+                            <span>Keycloak</span>
+                            <span>Vault</span>
+                            <span>Teleport</span>
+                            <span>Harbor</span>
+                            <span>Grafana</span>
+                            <span>cert-manager</span>
+                            <span>Longhorn</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="arch-arrow">↓ Terraform Apply ↓</div>
+                <div class="arch-row">
+                    <div class="arch-block arch-infra">
+                        <div class="arch-block-label">Infrastructure Layer</div>
+                        <div class="arch-block-items">
+                            <span>VPC Multi-AZ</span>
+                            <span>RKE2 Cluster</span>
+                            <span>NLB (Dual)</span>
+                            <span>Route53</span>
+                            <span>KMS</span>
+                            <span>WAF</span>
+                            <span>S3</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="arch-cta">
+                <a href="https://dashboard.unifiedmeta.net" class="btn btn-primary" target="_blank">
+                    인터랙티브 아키텍처 보기 →
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tech Stack -->
+    <section class="stack" id="stack">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Technology</span>
+                <h2 class="section-title">검증된 오픈소스 스택</h2>
+                <p class="section-subtitle">CSP 종속 없는 포터블 아키텍처. CNCF 프로젝트 기반.</p>
+            </div>
+            <div class="stack-grid">
+                <div class="stack-item">
+                    <div class="stack-icon">☸️</div>
+                    <div class="stack-name">RKE2</div>
+                    <div class="stack-desc">v1.31 · FIPS · CIS</div>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">🔄</div>
+                    <div class="stack-name">ArgoCD</div>
+                    <div class="stack-desc">GitOps · App-of-Apps</div>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">🔐</div>
+                    <div class="stack-name">Vault</div>
+                    <div class="stack-desc">KMS Unseal · Injector</div>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">🔑</div>
+                    <div class="stack-name">Keycloak</div>
+                    <div class="stack-desc">v25 · OIDC · SSO</div>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">🚪</div>
+                    <div class="stack-name">Teleport</div>
+                    <div class="stack-desc">v18 · Zero-Trust</div>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">📊</div>
+                    <div class="stack-name">Prometheus</div>
+                    <div class="stack-desc">Metrics · HA</div>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">📈</div>
+                    <div class="stack-name">Grafana</div>
+                    <div class="stack-desc">SSO · 3 Datasources</div>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">📝</div>
+                    <div class="stack-name">Loki</div>
+                    <div class="stack-desc">Logs · Promtail</div>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">🔍</div>
+                    <div class="stack-name">Tempo</div>
+                    <div class="stack-desc">Traces · OTLP</div>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">🐳</div>
+                    <div class="stack-name">Harbor</div>
+                    <div class="stack-desc">OCI Registry · S3</div>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">💾</div>
+                    <div class="stack-name">Longhorn</div>
+                    <div class="stack-desc">Distributed Storage</div>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">🏗️</div>
+                    <div class="stack-name">Terraform</div>
+                    <div class="stack-desc">14 Stacks · IaC</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-content">
+                <h2>Ready to see it live?</h2>
+                <p>인터랙티브 대시보드에서 전체 아키텍처를 탐색해보세요.</p>
+                <a href="https://dashboard.unifiedmeta.net" class="btn btn-primary btn-lg" target="_blank">
+                    Platform Dashboard →
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container footer-inner">
+            <div class="footer-left">
+                <span class="nav-logo-icon">◆</span>
+                <span>UnifiedMeta</span>
+                <span class="footer-sep">·</span>
+                <span>Cloud-Native Platform v0.5</span>
+            </div>
+            <div class="footer-right">
+                <span>© 2026 UnifiedMeta. All rights reserved.</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

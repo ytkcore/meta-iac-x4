@@ -1,0 +1,115 @@
+################################################################################
+# Velero — Kubernetes Disaster Recovery (ArgoCD Application)
+#
+# 기능:
+# - K8s 리소스 백업 (Deployments, Secrets, ConfigMaps, CRDs 등)
+# - Longhorn PV 백업 (CSI 연동)
+# - 스케줄 백업: 매일 02:00 UTC, 7일 보존
+# - S3 백업 저장소: dev-meta-velero-backup
+################################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: velero
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/part-of: disaster-recovery
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "15"
+spec:
+  project: default
+  source:
+    repoURL: https://vmware-tanzu.github.io/helm-charts
+    chart: velero
+    targetRevision: "7.2.1"
+    helm:
+      releaseName: velero
+      values: |
+        # ====================================================================
+        # Velero Configuration
+        # ====================================================================
+        initContainers:
+          - name: velero-plugin-for-aws
+            image: velero/velero-plugin-for-aws:v1.10.1
+            imagePullPolicy: IfNotPresent
+            volumeMounts:
+              - mountPath: /target
+                name: plugins
+
+        # Resources
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+        # ====================================================================
+        # AWS Configuration (Node IAM Role 사용)
+        # ====================================================================
+        configuration:
+          # BackupStorageLocation
+          backupStorageLocation:
+            - name: default
+              provider: aws
+              bucket: dev-meta-velero-backup
+              config:
+                region: ap-northeast-2
+
+          # VolumeSnapshotLocation (EBS 스냅샷)
+          volumeSnapshotLocation:
+            - name: default
+              provider: aws
+              config:
+                region: ap-northeast-2
+
+        # Credentials — Node IAM Role 사용 (별도 secret 불필요)
+        credentials:
+          useSecret: false
+
+        # ====================================================================
+        # 스케줄 백업
+        # ====================================================================
+        schedules:
+          daily-backup:
+            disabled: false
+            schedule: "0 2 * * *"    # 매일 02:00 UTC (11:00 KST)
+            useOwnerReferencesInBackup: false
+            template:
+              ttl: "168h"            # 7일 보존
+              includedNamespaces:
+                - "*"
+              excludedNamespaces:
+                - kube-system
+                - kube-public
+              snapshotVolumes: false  # Longhorn S3 backup 사용, EBS 스냅샷은 제외
+              storageLocation: default
+
+        # ====================================================================
+        # Deploy Node Selector
+        # ====================================================================
+        nodeSelector: {}
+
+        tolerations: []
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: velero
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
