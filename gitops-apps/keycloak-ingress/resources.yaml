@@ -216,4 +216,13 @@ spec:
                 path: "/js/.*"
               - method: "GET"
                 path: "/robots.txt"
+              # Admin Console SPA + REST API (Teleport 경유 시 브라우저 Direct 호출)
+              - method: "GET"
+                path: "/admin/.*"
+              - method: "POST"
+                path: "/admin/.*"
+              - method: "PUT"
+                path: "/admin/.*"
+              - method: "DELETE"
+                path: "/admin/.*"
 
