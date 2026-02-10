@@ -146,6 +146,8 @@ spec:
               value: "xforwarded"
             - name: KC_HOSTNAME
               value: "https://keycloak.dev.unifiedmeta.net"
+            - name: KC_HOSTNAME_ADMIN
+              value: "https://keycloak-admin.teleport.unifiedmeta.net"
             - name: KC_HOSTNAME_STRICT
               value: "false"
             - name: KC_HTTP_ENABLED
