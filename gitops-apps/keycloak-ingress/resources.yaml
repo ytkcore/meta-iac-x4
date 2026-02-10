@@ -66,7 +66,8 @@ metadata:
       proxy_set_header X-Forwarded-Proto https;
       proxy_set_header X-Forwarded-Port 443;
       more_set_headers "X-Content-Type-Options: nosniff";
-      more_set_headers "X-Frame-Options: SAMEORIGIN";
+      more_set_headers "X-Frame-Options: ALLOW-FROM https://keycloak-admin.teleport.unifiedmeta.net";
+      more_set_headers "Content-Security-Policy: frame-src 'self' https://keycloak-admin.teleport.unifiedmeta.net; frame-ancestors 'self' https://keycloak-admin.teleport.unifiedmeta.net; object-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://keycloak-admin.teleport.unifiedmeta.net; style-src 'self' 'unsafe-inline';";
       more_set_headers "X-XSS-Protection: 1; mode=block";
       more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
       more_set_headers "Permissions-Policy: camera=(), microphone=(), geolocation=()";
