@@ -1,6 +1,6 @@
 # Jira 티켓 인덱스
 
-> **최종 업데이트**: 2026-02-09  
+> **최종 업데이트**: 2026-02-10  
 > **근거**: [16-architecture-evolution-decision.md](../architecture/16-architecture-evolution-decision.md)
 
 ---
@@ -97,6 +97,14 @@
 | [teleport-app-service-completion](2026-02-09-teleport-app-service-completion.md) | Teleport App Service 구축 마무리 | ✅ 완료 |
 | [keycloak-admin-oidc-https-fix](2026-02-09-keycloak-admin-oidc-https-fix.md) | Keycloak Admin Console OIDC HTTPS + ArgoCD Secret 보호 | ✅ 완료 |
 
+### 2026-02-10 — v0.5 Source Freeze + Customer Services + DR
+
+| 파일 | 제목 | 상태 |
+|:-----|:-----|:-----|
+| [v05-source-freeze](2026-02-10-v05-source-freeze.md) | **v0.5 Source Code Freeze** (milestone) | ✅ 완료 |
+| [customer-services-deployment](2026-02-10-customer-services-deployment.md) | Customer Services — Dashboard + Landing Page 배포 | ✅ 완료 |
+| [velero-disaster-recovery](2026-02-10-velero-disaster-recovery.md) | Velero Disaster Recovery 구성 | ✅ 완료 |
+
 ---
 
 ## 📅 일자별 커버리지 요약
@@ -112,6 +120,7 @@
 | **2/7** | 금 | **플랫폼 고도화 설계 + Phase 1-2-4 배포** | DNS-01 전환, Dual NLB, Keycloak SSO, ALBC, Vault | 9 |
 | **2/8** | 토 | **Vault Workload Identity + Cilium 계획 + SSO** | Vault AWS SE, Cilium ENI, ArgoCD Drift Fix, Keycloak SSO | 6 |
 | **2/9** | 일 | **Keycloak K8s 전환 + 보안 강화 + Loki 수정** | K8s Deployment, SG/CNP/Teleport Fix, Secret 보안, Loki DNS, **OIDC HTTPS** | 8 |
+| **2/10** | 월 | **🏷️ v0.5 Source Freeze** | Customer Services, Velero DR, Architecture Doc | 3 |
 
 ### 🔑 주간 핵심 흐름
 
@@ -131,6 +140,8 @@
 2/8  ★ Vault Workload Identity — ALBC 동적 STS 자격증명 + Cilium 전환 계획
  ↓
 2/9  ★ Keycloak K8s 전환 — EC2 탈피 + SG/CNP/Teleport 디버깅
+ ↓
+2/10 🏷️ v0.5 Source Freeze — Customer Services + DR + 아키텍처 문서
 ```
 
 ### 📈 성과 지표
@@ -141,6 +152,6 @@
 | 신규 Terraform 모듈 | 5개 (`albc-iam`, `keycloak-ec2`, `teleport-ec2`, `waf-acl`, `ec2-instance` 개선) |
 | 신규 Terraform 스택 | 5개 (`05-security`, `10-golden-image`, `15-teleport`, `20-waf`, `25-keycloak`) |
 | 삭제 스택 | 1개 (`15-vpn`) |
-| ArgoCD 앱 | 12+ 앱 자동 배포 |
+| ArgoCD 앱 | 15 앱 자동 배포 |
 | 문서 | 20+ 문서 (architecture, security, troubleshooting, guides) |
-| Jira 티켓 | **34건** (이 디렉토리) |
+| Jira 티켓 | **37건** (이 디렉토리) |
