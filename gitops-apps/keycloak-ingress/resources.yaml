@@ -104,6 +104,14 @@ spec:
                 name: keycloak
                 port:
                   number: 8080
+          # Admin Console (SPA + API) — Teleport 경유 시 브라우저에서 KC_HOSTNAME으로 호출
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
           # robots.txt (SEO)
           - path: /robots.txt
             pathType: Exact
