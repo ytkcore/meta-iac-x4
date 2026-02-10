@@ -1,0 +1,27 @@
+{
+  "realm": "master",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "security-admin-console",
+      "name": "${client_security-admin-console}",
+      "enabled": true,
+      "publicClient": true,
+      "clientAuthenticatorType": "client-secret",
+      "protocol": "openid-connect",
+      "rootUrl": "${authAdminUrl}",
+      "baseUrl": "/admin/master/console/",
+      "redirectUris": [
+        "/admin/master/console/*",
+        "https://keycloak-admin.teleport.unifiedmeta.net/admin/master/console/*"
+      ],
+      "webOrigins": [
+        "+",
+        "https://keycloak-admin.teleport.unifiedmeta.net"
+      ],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": false
+    }
+  ]
+}

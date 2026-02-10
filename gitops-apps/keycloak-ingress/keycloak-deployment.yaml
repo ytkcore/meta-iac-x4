@@ -43,6 +43,45 @@ metadata:
     app: keycloak
 type: Opaque
 ---
+# Realm Import ConfigMap — 초기 배포 시 master realm 설정 자동 적용
+# security-admin-console 클라이언트: Teleport redirect URI 사전 등록
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-import
+  namespace: keycloak
+  labels:
+    app: keycloak
+data:
+  master-realm.json: |
+    {
+      "realm": "master",
+      "enabled": true,
+      "clients": [
+        {
+          "clientId": "security-admin-console",
+          "name": "${client_security-admin-console}",
+          "enabled": true,
+          "publicClient": true,
+          "clientAuthenticatorType": "client-secret",
+          "protocol": "openid-connect",
+          "rootUrl": "${authAdminUrl}",
+          "baseUrl": "/admin/master/console/",
+          "redirectUris": [
+            "/admin/master/console/*",
+            "https://keycloak-admin.teleport.unifiedmeta.net/admin/master/console/*"
+          ],
+          "webOrigins": [
+            "+",
+            "https://keycloak-admin.teleport.unifiedmeta.net"
+          ],
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": false,
+          "fullScopeAllowed": false
+        }
+      ]
+    }
+---
 
 apiVersion: apps/v1
 kind: Deployment
@@ -66,6 +105,7 @@ spec:
           image: quay.io/keycloak/keycloak:25.0.6
           args:
             - start
+            - "--import-realm"
           ports:
             - name: http
               containerPort: 8080
@@ -114,6 +154,10 @@ spec:
               value: "true"
             - name: KC_METRICS_ENABLED
               value: "true"
+          volumeMounts:
+            - name: realm-import
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
           resources:
             requests:
               cpu: 250m
@@ -142,3 +186,7 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 5
             failureThreshold: 30
+      volumes:
+        - name: realm-import
+          configMap:
+            name: keycloak-realm-import
