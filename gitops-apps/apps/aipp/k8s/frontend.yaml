@@ -30,7 +30,7 @@ spec:
             - name: PORT
               value: "3000"
             - name: API_URL
-              value: "http://enai-backend:8080"
+              value: ""
             - name: NODE_ENV
               value: "production"
             - name: TZ
