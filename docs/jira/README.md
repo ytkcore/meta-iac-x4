@@ -1,6 +1,6 @@
 # Jira 티켓 인덱스
 
-> **최종 업데이트**: 2026-02-10  
+> **최종 업데이트**: 2026-02-12  
 > **근거**: [16-architecture-evolution-decision.md](../architecture/16-architecture-evolution-decision.md)
 
 ---
@@ -97,13 +97,32 @@
 | [teleport-app-service-completion](2026-02-09-teleport-app-service-completion.md) | Teleport App Service 구축 마무리 | ✅ 완료 |
 | [keycloak-admin-oidc-https-fix](2026-02-09-keycloak-admin-oidc-https-fix.md) | Keycloak Admin Console OIDC HTTPS + ArgoCD Secret 보호 | ✅ 완료 |
 
-### 2026-02-10 — v0.5 Source Freeze + Customer Services + DR
+### 2026-02-10 — v0.5 Source Freeze + Keycloak 디버깅 + 문서 갱신
 
 | 파일 | 제목 | 상태 |
 |:-----|:-----|:-----|
 | [v05-source-freeze](2026-02-10-v05-source-freeze.md) | **v0.5 Source Code Freeze** (milestone) | ✅ 완료 |
 | [customer-services-deployment](2026-02-10-customer-services-deployment.md) | Customer Services — Dashboard + Landing Page 배포 | ✅ 완료 |
 | [velero-disaster-recovery](2026-02-10-velero-disaster-recovery.md) | Velero Disaster Recovery 구성 | ✅ 완료 |
+| [keycloak-ingress-csp-debug](2026-02-10-keycloak-ingress-csp-debug.md) | Keycloak Admin Ingress/CSP 디버깅 (9 commits) | ✅ 완료 |
+| [docs-update-postdeploy-architecture](2026-02-10-docs-update-postdeploy-architecture.md) | 운영 문서 갱신 — Post-Deploy + Architecture + Harbor OIDC | ✅ 완료 |
+| [automation-scripts-addition](2026-02-10-automation-scripts-addition.md) | 운영 자동화 스크립트 3종 추가 | ✅ 완료 |
+
+### 2026-02-11 — AIPP + OpStart 배포 + Harbor/Keycloak 수정
+
+| 파일 | 제목 | 상태 |
+|:-----|:-----|:-----|
+| [aipp-k8s-deployment](2026-02-11-aipp-k8s-deployment.md) | AIPP K8s 매니페스트 + ArgoCD Application (9 컴포넌트) | ✅ 완료 |
+| [opstart-k8s-deployment](2026-02-11-opstart-k8s-deployment.md) | OpStart K8s Pod 배포 + CLI 6단계 자동화 | ✅ 완료 |
+| [harbor-dns-s3-fix](2026-02-11-harbor-dns-s3-fix.md) | Harbor DNS 정상화 + S3 IAM 정책 확장 | ✅ 완료 |
+| [harbor-image-push-debug](2026-02-11-harbor-image-push-debug.md) | Harbor 대용량 이미지 Push 디버깅 (/tmp tmpfs) | ✅ 완료 |
+| [keycloak-admin-teleport-proxy-fix](2026-02-11-keycloak-admin-teleport-proxy-fix.md) | Keycloak Admin Console Teleport 프록시 접근 수정 | ✅ 완료 |
+
+### 2026-02-12 — AIPP 서비스 안정화
+
+| 파일 | 제목 | 상태 |
+|:-----|:-----|:-----|
+| [aipp-k8s-stabilization](2026-02-12-aipp-k8s-stabilization.md) | AIPP K8s 서비스 안정화 — 프로브/리소스/API 경로 튜닝 (6건) | ✅ 완료 |
 
 ---
 
@@ -120,7 +139,8 @@
 | **2/7** | 금 | **플랫폼 고도화 설계 + Phase 1-2-4 배포** | DNS-01 전환, Dual NLB, Keycloak SSO, ALBC, Vault | 9 |
 | **2/8** | 토 | **Vault Workload Identity + Cilium 계획 + SSO** | Vault AWS SE, Cilium ENI, ArgoCD Drift Fix, Keycloak SSO | 6 |
 | **2/9** | 일 | **Keycloak K8s 전환 + 보안 강화 + Loki 수정** | K8s Deployment, SG/CNP/Teleport Fix, Secret 보안, Loki DNS, **OIDC HTTPS** | 8 |
-| **2/10** | 월 | **🏷️ v0.5 Source Freeze** | Customer Services, Velero DR, Architecture Doc | 3 |
+| **2/10** | 월 | **🏷️ v0.5 Source Freeze + Keycloak 디버깅** | Customer Services, Velero DR, Keycloak CSP 9-commit 디버깅, 문서 대규모 갱신 | 6 |
+| **2/11** | 화 | **AIPP + OpStart 배포 + Harbor/Keycloak 수정** | AIPP 9-component K8s, OpStart Pod, Harbor DNS/S3/Push 디버그, Keycloak Dynamic Hostname | 5 |
 
 ### 🔑 주간 핵심 흐름
 
@@ -142,16 +162,20 @@
 2/9  ★ Keycloak K8s 전환 — EC2 탈피 + SG/CNP/Teleport 디버깅
  ↓
 2/10 🏷️ v0.5 Source Freeze — Customer Services + DR + 아키텍처 문서
+ ↓
+2/11 ★ OpStart 배포 + Harbor 수정 + Keycloak Teleport Dynamic Hostname
+ ↓
+2/12 ★ AIPP 서비스 안정화 — 6개 근본 원인 수정 (프로브/Redis/Frontend)
 ```
 
 ### 📈 성과 지표
 
 | 지표 | 값 |
 |:-----|:---|
-| 총 커밋 수 | 62+ |
+| 총 커밋 수 | 79+ |
 | 신규 Terraform 모듈 | 5개 (`albc-iam`, `keycloak-ec2`, `teleport-ec2`, `waf-acl`, `ec2-instance` 개선) |
 | 신규 Terraform 스택 | 5개 (`05-security`, `10-golden-image`, `15-teleport`, `20-waf`, `25-keycloak`) |
 | 삭제 스택 | 1개 (`15-vpn`) |
-| ArgoCD 앱 | 15 앱 자동 배포 |
-| 문서 | 20+ 문서 (architecture, security, troubleshooting, guides) |
-| Jira 티켓 | **37건** (이 디렉토리) |
+| ArgoCD 앱 | 17 앱 자동 배포 (AIPP, OpStart 추가) |
+| 문서 | 25+ 문서 (architecture, security, troubleshooting, guides, operations) |
+| Jira 티켓 | **46건** (이 디렉토리) |
