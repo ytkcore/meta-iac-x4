@@ -507,39 +507,116 @@ resource "aws_iam_role_policy_attachment" "vault_kms_unseal" {
 #
 # - Harbor에 opstart 이미지를 빌드/푸시
 # - Dockerfile 또는 app.py 변경 시 자동 재빌드
-# - Harbor 호스트가 설정되어 있으면 실행 (OCI 미러링과 독립)
+# - Harbor EC2에서 SSM으로 Docker 이미지 빌드/푸시
+# - 로컬 Docker 불필요 (Harbor EC2에 Docker 있음)
+# - S3를 통해 빌드 컨텍스트 전달 (Harbor EC2에 Git SSH 키 없음)
+# - Dockerfile 또는 app.py 변경 시 자동 재빌드
 # ------------------------------------------------------------------------------
 resource "null_resource" "opstart_image_build" {
-  count = local.harbor_oci_url != "" ? 1 : 0
+  count = local.harbor_tfstate_exists ? 1 : 0
 
   triggers = {
     dockerfile_hash = filemd5("${path.module}/../../../ops/dashboard/Dockerfile")
     app_hash        = filemd5("${path.module}/../../../ops/dashboard/app.py")
-    harbor_host     = local.harbor_host
+    html_hash       = filemd5("${path.module}/../../../ops/dashboard/templates/index.html")
   }
 
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
     command     = <<-EOT
       set -e
-      IMAGE="${local.harbor_host}/platform/opstart"
-      TAG=$(cd ${path.module}/../../.. && git rev-parse --short HEAD 2>/dev/null || echo "latest")
 
-      echo "▸ Building opstart image: $IMAGE:$TAG"
-      docker build -t "$IMAGE:$TAG" -t "$IMAGE:latest" \
-        -f ops/dashboard/Dockerfile .
+      HARBOR_INSTANCE_ID="${try(data.terraform_remote_state.harbor[0].outputs.instance_id, "")}"
+      HARBOR_HOST="${local.harbor_host}"
+      S3_BUCKET="${var.state_bucket}"
+      S3_KEY="tmp/opstart-build-context.tar.gz"
+      PROJECT_ROOT="${path.module}/../../.."
+      TAG=$(cd "$PROJECT_ROOT" && git rev-parse --short HEAD 2>/dev/null || echo "latest")
 
-      echo "▸ Pushing to Harbor..."
-      docker push "$IMAGE:$TAG"
-      docker push "$IMAGE:latest"
+      if [ -z "$HARBOR_INSTANCE_ID" ] || [ -z "$HARBOR_HOST" ]; then
+        echo "ERROR: Harbor instance ID or host not found. Skipping image build."
+        exit 0
+      fi
 
-      echo "✓ Opstart image pushed: $IMAGE:$TAG"
+      echo "▸ Step 1: Uploading build context to S3..."
+      cd "$PROJECT_ROOT"
+      tar czf /tmp/opstart-build-context.tar.gz \
+        ops/dashboard/Dockerfile \
+        ops/dashboard/app.py \
+        ops/dashboard/requirements.txt \
+        ops/dashboard/templates/ \
+        ops/dashboard/static/ 2>/dev/null || \
+      tar czf /tmp/opstart-build-context.tar.gz \
+        ops/dashboard/Dockerfile \
+        ops/dashboard/app.py \
+        ops/dashboard/requirements.txt \
+        ops/dashboard/templates/
+
+      aws s3 cp /tmp/opstart-build-context.tar.gz "s3://$S3_BUCKET/$S3_KEY" --quiet
+      rm -f /tmp/opstart-build-context.tar.gz
+
+      echo "▸ Step 2: Building image on Harbor EC2 ($HARBOR_INSTANCE_ID) via SSM..."
+
+      CMD_ID=$(aws ssm send-command \
+        --instance-ids "$HARBOR_INSTANCE_ID" \
+        --document-name "AWS-RunShellScript" \
+        --timeout-seconds 300 \
+        --parameters "commands=[
+          \"set -e\",
+          \"echo '=== Opstart Image Build on Harbor EC2 ===' \",
+          \"BUILD_DIR=/tmp/opstart-build\",
+          \"rm -rf \\$BUILD_DIR && mkdir -p \\$BUILD_DIR\",
+          \"aws s3 cp s3://$S3_BUCKET/$S3_KEY /tmp/opstart-build-context.tar.gz --quiet\",
+          \"tar xzf /tmp/opstart-build-context.tar.gz -C \\$BUILD_DIR\",
+          \"cd \\$BUILD_DIR\",
+          \"IMAGE=$HARBOR_HOST/platform/opstart\",
+          \"echo \\\"Building \\$IMAGE:$TAG\\\"\",
+          \"docker build -t \\\"\\$IMAGE:$TAG\\\" -t \\\"\\$IMAGE:latest\\\" -f ops/dashboard/Dockerfile .\",
+          \"echo \\\"Pushing to Harbor...\\\"\",
+          \"docker push \\\"\\$IMAGE:$TAG\\\"\",
+          \"docker push \\\"\\$IMAGE:latest\\\"\",
+          \"rm -rf \\$BUILD_DIR /tmp/opstart-build-context.tar.gz\",
+          \"echo \\\"✓ Opstart image pushed: \\$IMAGE:$TAG\\\"\"
+        ]" \
+        --query "Command.CommandId" \
+        --output text)
+
+      echo "  SSM Command ID: $CMD_ID"
+
+      # 결과 대기 (최대 120초)
+      for i in $(seq 1 24); do
+        STATUS=$(aws ssm get-command-invocation \
+          --command-id "$CMD_ID" \
+          --instance-id "$HARBOR_INSTANCE_ID" \
+          --query "Status" --output text 2>/dev/null || echo "Pending")
+
+        if [ "$STATUS" == "Success" ]; then
+          echo "✓ Image build completed successfully!"
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" \
+            --instance-id "$HARBOR_INSTANCE_ID" \
+            --query "StandardOutputContent" --output text
+          # S3 정리
+          aws s3 rm "s3://$S3_BUCKET/$S3_KEY" --quiet 2>/dev/null || true
+          exit 0
+        elif [ "$STATUS" == "Failed" ] || [ "$STATUS" == "Cancelled" ] || [ "$STATUS" == "TimedOut" ]; then
+          echo "ERROR: SSM command $STATUS"
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" \
+            --instance-id "$HARBOR_INSTANCE_ID" \
+            --query "StandardErrorContent" --output text
+          aws s3 rm "s3://$S3_BUCKET/$S3_KEY" --quiet 2>/dev/null || true
+          exit 1
+        fi
+
+        echo -n "."
+        sleep 5
+      done
+
+      echo "ERROR: SSM command timed out after 120s"
+      aws s3 rm "s3://$S3_BUCKET/$S3_KEY" --quiet 2>/dev/null || true
+      exit 1
     EOT
-    working_dir = "${path.module}/../../.."
-
-    environment = {
-      DOCKER_BUILDKIT = "1"
-    }
   }
 
   depends_on = [null_resource.seed_missing_helm_charts]
