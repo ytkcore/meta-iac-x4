@@ -146,8 +146,8 @@ spec:
               value: "xforwarded"
             - name: KC_HOSTNAME
               value: "https://keycloak.dev.unifiedmeta.net"
-            # KC_HOSTNAME_ADMIN 미설정 → Admin Console은 요청 Host 헤더 자동 사용
-            # Teleport(keycloak-admin.teleport.~) 경유 Admin 접근 시 cross-origin 방지
+            - name: KC_HOSTNAME_ADMIN
+              value: "https://keycloak-admin.teleport.unifiedmeta.net"
             - name: KC_HOSTNAME_STRICT
               value: "false"
             - name: KC_HOSTNAME_STRICT_BACKCHANNEL
