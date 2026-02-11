@@ -71,14 +71,6 @@ spec:
                 secretKeyRef:
                   name: aipp-secrets
                   key: REDIS_PASSWORD
-            - name: SPRING_REDIS_CLUSTER_ENABLED
-              value: "false"
-            - name: SPRING_REDIS_CLUSTER_NODES
-              value: ""
-            - name: SPRING_REDIS_CLUSTER_MAX_REDIRECTS
-              value: "3"
-            - name: SPRING_REDIS_SSL_ENABLED
-              value: "false"
 
             # RabbitMQ (K8s)
             - name: SPRING_RABBITMQ_HOST
