@@ -50,18 +50,21 @@ spec:
               command: ["rabbitmq-diagnostics", "ping"]
             initialDelaySeconds: 15
             periodSeconds: 10
+            timeoutSeconds: 10
             failureThreshold: 30
           readinessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "ping"]
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 10
             failureThreshold: 3
           livenessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "ping"]
             initialDelaySeconds: 10
             periodSeconds: 30
+            timeoutSeconds: 10
             failureThreshold: 5
           volumeMounts:
             - name: data
