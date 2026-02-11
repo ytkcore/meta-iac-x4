@@ -508,6 +508,39 @@ resource "aws_iam_role_policy_attachment" "vault_kms_unseal" {
 # 흐름: 로컬 tar → S3 업로드 → SSM → Harbor EC2 빌드/푸시 → S3 정리
 # 스크립트: scripts/opstart/build-image.sh (로컬) + build-remote.sh (원격)
 # ------------------------------------------------------------------------------
+
+# Harbor EC2가 S3 tmp/ 경로 접근 (빌드 컨텍스트, 이미지 미러링 등)
+resource "aws_iam_role_policy" "harbor_s3_build_context" {
+  count = local.harbor_tfstate_exists ? 1 : 0
+
+  name = "harbor-s3-tmp-access"
+  role = "${replace(var.state_bucket, "-tfstate", "")}-harbor-role"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = "arn:aws:s3:::${var.state_bucket}"
+        Condition = {
+          StringLike = {
+            "s3:prefix" = ["tmp/*"]
+          }
+        }
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = "arn:aws:s3:::${var.state_bucket}/tmp/*"
+      }
+    ]
+  })
+}
 resource "null_resource" "opstart_image_build" {
   count = local.harbor_tfstate_exists ? 1 : 0
 
@@ -518,10 +551,10 @@ resource "null_resource" "opstart_image_build" {
   }
 
   provisioner "local-exec" {
-    command     = "bash ${path.module}/../../../scripts/opstart/build-image.sh ${try(data.terraform_remote_state.harbor[0].outputs.instance_id, "")} ${local.harbor_host} ${var.state_bucket} ${path.module}/../../.."
+    command     = "bash scripts/opstart/build-image.sh ${try(data.terraform_remote_state.harbor[0].outputs.instance_id, "")} ${local.harbor_host} ${var.state_bucket} ."
     working_dir = "${path.module}/../../.."
   }
 
-  depends_on = [null_resource.seed_missing_helm_charts]
+  depends_on = [null_resource.seed_missing_helm_charts, aws_iam_role_policy.harbor_s3_build_context]
 }
 
