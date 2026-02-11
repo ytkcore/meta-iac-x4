@@ -40,27 +40,29 @@ spec:
               value: "Asia/Seoul"
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
+              cpu: 200m
               memory: 512Mi
-          readinessProbe:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          startupProbe:
             exec:
               command: ["rabbitmq-diagnostics", "ping"]
-            initialDelaySeconds: 30
+            initialDelaySeconds: 15
             periodSeconds: 10
-          startupProbe:
+            failureThreshold: 30
+          readinessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "ping"]
             initialDelaySeconds: 10
             periodSeconds: 10
-            failureThreshold: 12
+            failureThreshold: 3
           livenessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "ping"]
-            initialDelaySeconds: 60
+            initialDelaySeconds: 10
             periodSeconds: 30
+            failureThreshold: 5
           volumeMounts:
             - name: data
               mountPath: /var/lib/rabbitmq

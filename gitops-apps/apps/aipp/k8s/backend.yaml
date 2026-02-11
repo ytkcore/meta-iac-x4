@@ -127,22 +127,31 @@ spec:
           resources:
             requests:
               cpu: 200m
-              memory: 512Mi
-            limits:
-              cpu: "1"
               memory: 1Gi
-          readinessProbe:
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          startupProbe:
             httpGet:
-              path: /api/v1/health-checks
+              path: /actuator/health
               port: 8080
             initialDelaySeconds: 30
             periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /api/v1/health-checks
+              path: /actuator/health
               port: 8080
-            initialDelaySeconds: 60
+            initialDelaySeconds: 10
             periodSeconds: 30
+            failureThreshold: 5
           volumeMounts:
             - name: data
               mountPath: /enai_backend_workspace/data
