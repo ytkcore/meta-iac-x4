@@ -1,0 +1,1755 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>플랫폼 아키텍처 진화 — v0.2 초기 vs v0.5 현재</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #0a0e17;
+  --bg-card: #111827;
+  --bg-card-hover: #1a2332;
+  --bg-card-alt: #0f172a;
+  --border: #1e293b;
+  --border-accent: #334155;
+  --text-primary: #e2e8f0;
+  --text-secondary: #b0bdd0;
+  --text-muted: #8896a8;
+  --red-dim: #7f1d1d;
+  --red: #ef4444;
+  --red-light: #fca5a5;
+  --green-dim: #14532d;
+  --green: #22c55e;
+  --green-light: #86efac;
+  --blue: #3b82f6;
+  --blue-light: #93c5fd;
+  --cyan: #06b6d4;
+  --cyan-light: #67e8f9;
+  --amber: #f59e0b;
+  --amber-light: #fcd34d;
+  --purple: #a855f7;
+  --purple-light: #d8b4fe;
+  --pink: #ec4899;
+  --orange: #f97316;
+  --teal: #14b8a6;
+  --indigo: #6366f1;
+  --indigo-light: #a5b4fc;
+  --emerald: #10b981;
+  --emerald-light: #6ee7b7;
+  --rose: #f43f5e;
+  --rose-light: #fda4af;
+  --lime: #84cc16;
+  --lime-light: #bef264;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: 'Noto Sans KR', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.noise-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.page-header {
+  text-align: center;
+  padding: 48px 24px 20px;
+  position: relative;
+}
+
+.page-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), var(--purple), transparent);
+}
+
+.page-header h1 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--cyan-light), var(--blue-light), var(--purple-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 8px;
+}
+
+.page-header .subtitle {
+  font-size: 16px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 300;
+}
+
+.page-header .meta-info {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 8px;
+  opacity: 0.6;
+}
+
+.version-labels {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  margin: 32px 0 8px;
+}
+
+.version-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.version-label .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.version-label.before .dot {
+  background: var(--red);
+  box-shadow: 0 0 12px rgba(239,68,68,0.4);
+}
+
+.version-label.after .dot {
+  background: var(--green);
+  box-shadow: 0 0 12px rgba(34,197,94,0.4);
+}
+
+.version-label.before { color: var(--red-light); }
+.version-label.after { color: var(--green-light); }
+
+/* ── Main Container ── */
+.container {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 20px 24px 60px;
+}
+
+/* ── Architecture Diagrams ── */
+.arch-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.arch-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px 24px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+
+.arch-panel:hover { border-color: var(--border-accent); }
+
+.arch-panel.before::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--red), transparent);
+}
+
+.arch-panel.after::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--green), var(--cyan), var(--purple));
+}
+
+.panel-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.panel-title.before-title { color: var(--red-light); }
+.panel-title.after-title { color: var(--green-light); }
+
+.panel-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── Layer Blocks ── */
+.layer {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+  position: relative;
+  background: rgba(255,255,255,0.01);
+}
+
+.layer-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.layer-label .icon { font-size: 14px; }
+
+.components {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.comp {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid;
+  white-space: nowrap;
+  position: relative;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.comp:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Component Colors */
+.comp.k8s {
+  background: rgba(59,130,246,0.1);
+  border-color: rgba(59,130,246,0.3);
+  color: var(--blue-light);
+}
+
+.comp.network {
+  background: rgba(6,182,212,0.1);
+  border-color: rgba(6,182,212,0.3);
+  color: var(--cyan-light);
+}
+
+.comp.security {
+  background: rgba(168,85,247,0.1);
+  border-color: rgba(168,85,247,0.3);
+  color: var(--purple-light);
+}
+
+.comp.storage {
+  background: rgba(245,158,11,0.1);
+  border-color: rgba(245,158,11,0.3);
+  color: var(--amber-light);
+}
+
+.comp.gitops {
+  background: rgba(249,115,22,0.1);
+  border-color: rgba(249,115,22,0.3);
+  color: #fdba74;
+}
+
+.comp.observability {
+  background: rgba(236,72,153,0.1);
+  border-color: rgba(236,72,153,0.3);
+  color: #f9a8d4;
+}
+
+.comp.identity {
+  background: rgba(20,184,166,0.1);
+  border-color: rgba(20,184,166,0.3);
+  color: #5eead4;
+}
+
+.comp.database {
+  background: rgba(99,102,241,0.1);
+  border-color: rgba(99,102,241,0.3);
+  color: var(--indigo-light);
+}
+
+.comp.infra {
+  background: rgba(16,185,129,0.1);
+  border-color: rgba(16,185,129,0.3);
+  color: var(--emerald-light);
+}
+
+.comp.backup {
+  background: rgba(132,204,22,0.1);
+  border-color: rgba(132,204,22,0.3);
+  color: var(--lime-light);
+}
+
+/* ── Governance Domain Colors ── */
+.comp.csp {
+  background: rgba(249,115,22,0.1);
+  border-color: rgba(249,115,22,0.3);
+  color: #fdba74;
+}
+
+.comp.rke2 {
+  background: rgba(59,130,246,0.1);
+  border-color: rgba(59,130,246,0.3);
+  color: var(--blue-light);
+}
+
+.comp.ecosystem {
+  background: rgba(6,182,212,0.1);
+  border-color: rgba(6,182,212,0.3);
+  color: var(--cyan-light);
+}
+
+.comp.data {
+  background: rgba(99,102,241,0.1);
+  border-color: rgba(99,102,241,0.3);
+  color: var(--indigo-light);
+}
+
+.comp.platform {
+  background: rgba(132,204,22,0.1);
+  border-color: rgba(132,204,22,0.3);
+  color: var(--lime-light);
+}
+
+/* Layer Number Badge */
+.layer-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 22px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text-secondary);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Layer Sublabel (e.g. Observability within K8s Ecosystem) */
+.layer-sublabel {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 8px 0 6px;
+  padding-left: 2px;
+  opacity: 0.7;
+}
+
+.layer-label small {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.comp.deprecated {
+  background: rgba(239,68,68,0.06);
+  border-color: rgba(239,68,68,0.2);
+  color: var(--red-light);
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.comp.absent {
+  opacity: 0.35;
+  border-style: dashed;
+}
+
+.comp.new {
+  position: relative;
+}
+
+.comp.new::after {
+  content: 'NEW';
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: var(--green);
+  color: #000;
+  padding: 1px 4px;
+  border-radius: 3px;
+  position: absolute;
+  top: -6px;
+  right: -4px;
+}
+
+.comp.evolved {
+  position: relative;
+}
+
+.comp.evolved::after {
+  content: '↑';
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--cyan);
+  color: #000;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  position: absolute;
+  top: -5px;
+  right: -5px;
+}
+
+/* ── Issues / Benefits callouts ── */
+.callout {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.callout.issue {
+  background: rgba(239,68,68,0.06);
+  border: 1px solid rgba(239,68,68,0.15);
+  color: var(--red-light);
+}
+
+.callout.benefit {
+  background: rgba(34,197,94,0.06);
+  border: 1px solid rgba(34,197,94,0.15);
+  color: var(--green-light);
+}
+
+.callout-title {
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.callout li { margin-left: 14px; margin-bottom: 2px; }
+
+/* ── Comparison Table ── */
+.comparison-section {
+  margin-top: 16px;
+}
+
+.comparison-section h2 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 20px;
+  color: var(--text-primary);
+}
+
+.comparison-section h2 span {
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.comp-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  font-size: 15px;
+}
+
+.comp-table thead th {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 14px 16px;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.02);
+}
+
+.comp-table thead th:nth-child(2) { color: var(--red-light); }
+.comp-table thead th:nth-child(3) { color: var(--green-light); }
+.comp-table thead th:nth-child(4) { color: var(--cyan-light); }
+
+.comp-table tbody td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.comp-table tbody tr:last-child td { border-bottom: none; }
+
+.comp-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+.comp-table td:first-child {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  width: 140px;
+}
+
+.comp-table .val-bad { color: var(--red-light); }
+.comp-table .val-good { color: var(--green-light); }
+.comp-table .val-change { color: var(--cyan-light); font-weight: 500; }
+
+.arrow-cell {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 18px;
+  width: 40px;
+}
+
+/* ── Evolution Table (v0.1~v0.5 full width) ── */
+.evo-table-wrapper {
+  overflow-x: auto;
+  margin-top: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.evo-table {
+  width: 100%;
+  min-width: 960px;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--bg-card);
+  font-size: 14px;
+}
+
+.evo-table thead th {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 12px 10px;
+  text-align: center;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.02);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.evo-table thead th:first-child {
+  text-align: left;
+  padding-left: 16px;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--bg-card);
+}
+
+.evo-table thead th.v-current {
+  color: var(--green-light);
+  background: rgba(34,197,94,0.06);
+}
+
+.evo-table tbody td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  text-align: center;
+  line-height: 1.4;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+}
+
+.evo-table tbody td:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  padding-left: 16px;
+  position: sticky;
+  left: 0;
+  background: var(--bg-card);
+  z-index: 1;
+}
+
+.evo-table tbody tr:last-child td { border-bottom: none; }
+.evo-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
+.evo-table tbody tr:hover td:first-child { background: var(--bg-card-hover); }
+
+.evo-table .e-none { color: var(--text-muted); opacity: 0.5; }
+.evo-table .e-bad { color: var(--red-light); }
+.evo-table .e-ok { color: var(--text-secondary); }
+.evo-table .e-good { color: var(--green-light); }
+.evo-table .e-new { color: var(--cyan-light); font-weight: 600; }
+.evo-table .e-best { color: var(--green-light); font-weight: 600; }
+.evo-table .e-same { color: var(--text-muted); }
+
+.evo-table .v-current-col {
+  background: rgba(34,197,94,0.03);
+}
+
+.evo-version-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.evo-version-badge.current {
+  background: var(--green);
+  color: #000;
+}
+
+
+.evo-table .evo-group-header td {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.03);
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  text-align: left !important;
+}
+/* ── Stats Bar ── */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  margin: 32px 0;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.stat-card:nth-child(1)::before { background: var(--cyan); }
+.stat-card:nth-child(2)::before { background: var(--green); }
+.stat-card:nth-child(3)::before { background: var(--purple); }
+.stat-card:nth-child(4)::before { background: var(--amber); }
+.stat-card:nth-child(5)::before { background: var(--teal); }
+
+.stat-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 30px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.stat-card:nth-child(1) .stat-number { color: var(--cyan-light); }
+.stat-card:nth-child(2) .stat-number { color: var(--green-light); }
+.stat-card:nth-child(3) .stat-number { color: var(--purple-light); }
+.stat-card:nth-child(4) .stat-number { color: var(--amber-light); }
+.stat-card:nth-child(5) .stat-number { color: #5eead4; }
+
+.stat-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+}
+
+/* ── Stack Section ── */
+.stack-section {
+  margin-top: 40px;
+}
+
+.stack-section h2 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.stack-section h2 span {
+  background: linear-gradient(135deg, var(--indigo), var(--cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.stack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.stack-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 12px;
+  text-align: center;
+  transition: border-color 0.3s, transform 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+
+.stack-item:hover {
+  border-color: var(--border-accent);
+  transform: translateY(-2px);
+}
+
+.stack-item::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.stack-item .stack-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  letter-spacing: 1px;
+}
+
+.stack-item .stack-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stack-item .stack-desc {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.stack-item.s-network::before { background: var(--cyan); }
+.stack-item.s-security::before { background: var(--purple); }
+.stack-item.s-infra::before { background: var(--emerald); }
+.stack-item.s-k8s::before { background: var(--blue); }
+.stack-item.s-data::before { background: var(--indigo); }
+.stack-item.s-obs::before { background: var(--pink); }
+.stack-item.s-access::before { background: var(--teal); }
+
+/* ── Flow Diagram ── */
+.flow-section {
+  margin-top: 40px;
+}
+
+.flow-section h2 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.flow-section h2 span {
+  background: linear-gradient(135deg, var(--amber), var(--orange));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.traffic-flow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.flow-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.flow-panel h3 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.flow-panel.before h3 { color: var(--red-light); }
+.flow-panel.after h3 { color: var(--green-light); }
+
+.flow-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.flow-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.flow-node {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid;
+  min-width: 100px;
+  text-align: center;
+}
+
+.flow-arrow {
+  color: var(--text-muted);
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.flow-arrow.down {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0;
+  margin-left: 44px;
+}
+
+.flow-annotation {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+.flow-annotation.bad { color: rgba(239,68,68,0.7); }
+.flow-annotation.good { color: rgba(34,197,94,0.7); }
+
+/* ── Version Timeline ── */
+.timeline-section {
+  margin-top: 40px;
+}
+
+.timeline-section h2 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.timeline-section h2 span {
+  background: linear-gradient(135deg, var(--emerald), var(--cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.timeline {
+  display: flex;
+  gap: 0;
+  position: relative;
+  padding: 0 16px;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 24px;
+  left: 16px;
+  right: 16px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--red), var(--amber), var(--green), var(--cyan), var(--green));
+  z-index: 0;
+}
+
+.timeline-item {
+  flex: 1;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.timeline-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin: 17px auto 12px;
+  border: 2px solid var(--bg-deep);
+}
+
+.timeline-item.t-past .timeline-dot {
+  background: var(--text-muted);
+}
+.timeline-item.t-current .timeline-dot {
+  background: var(--green);
+  box-shadow: 0 0 16px rgba(34,197,94,0.5);
+  width: 18px;
+  height: 18px;
+  margin-top: 17px;
+}
+.timeline-item.t-future .timeline-dot {
+  background: transparent;
+  border: 2px dashed var(--text-muted);
+}
+
+.timeline-version {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.timeline-item.t-past .timeline-version { color: var(--text-muted); }
+.timeline-item.t-current .timeline-version { color: var(--green-light); }
+.timeline-item.t-future .timeline-version { color: var(--text-muted); }
+
+.timeline-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.timeline-desc {
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding: 0 8px;
+}
+
+.timeline-item.t-current .timeline-name { color: var(--green-light); }
+.timeline-item.t-current .timeline-desc { color: var(--text-secondary); }
+
+.current-badge {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: var(--green);
+  color: #000;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  margin-top: 2px;
+}
+
+
+/* Flow Insight Comments */
+.flow-insight {
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+.flow-insight.bad {
+  background: rgba(239,68,68,0.08);
+  border-left: 3px solid var(--red);
+  color: var(--red-light);
+}
+.flow-insight.good {
+  background: rgba(34,197,94,0.08);
+  border-left: 3px solid var(--green);
+  color: var(--green-light);
+}
+
+/* Stat Comment */
+.stat-comment {
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  line-height: 1.4;
+  opacity: 0.75;
+}
+
+/* Evo Notes Column */
+.evo-table .v-notes {
+  color: var(--amber-light) !important;
+  min-width: 160px;
+}
+.evo-table .e-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: left !important;
+  font-style: italic;
+  padding-left: 12px;
+}
+/* ── Footer ── */
+.footer {
+  text-align: center;
+  padding: 32px 24px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  margin-top: 40px;
+}
+
+/* ── Animations ── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.arch-panel { animation: fadeInUp 0.6s ease both; }
+.arch-panel:nth-child(2) { animation-delay: 0.15s; }
+.stat-card { animation: fadeInUp 0.5s ease both; }
+.stat-card:nth-child(1) { animation-delay: 0.3s; }
+.stat-card:nth-child(2) { animation-delay: 0.4s; }
+.stat-card:nth-child(3) { animation-delay: 0.5s; }
+.stat-card:nth-child(4) { animation-delay: 0.6s; }
+.stat-card:nth-child(5) { animation-delay: 0.7s; }
+.timeline-item { animation: fadeInUp 0.5s ease both; }
+.timeline-item:nth-child(1) { animation-delay: 0.2s; }
+.timeline-item:nth-child(2) { animation-delay: 0.3s; }
+.timeline-item:nth-child(3) { animation-delay: 0.4s; }
+.timeline-item:nth-child(4) { animation-delay: 0.5s; }
+.timeline-item:nth-child(5) { animation-delay: 0.6s; }
+.timeline-item:nth-child(6) { animation-delay: 0.7s; }
+</style>
+</head>
+<body>
+
+<div class="noise-overlay"></div>
+
+<!-- Header -->
+<div class="page-header">
+  <h1>Platform Architecture Evolution</h1>
+  <div class="subtitle">v0.1 (초기) → v0.5 (현재 아키텍처) 전체 진화 비교</div>
+  <div class="meta-info">RKE2 on AWS · Terraform IaC · ArgoCD GitOps · 3-Layer Identity Stack</div>
+</div>
+
+<div class="version-labels">
+  <div class="version-label before">
+    <div class="dot"></div>
+    v0.1 초기 구조 — "K8s 최소 동작"
+  </div>
+  <div class="version-label after">
+    <div class="dot"></div>
+    v0.5 현재 아키텍처 — "3-Layer Identity + 자동화"
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ══════ Architecture Diagrams ══════ -->
+  <div class="arch-wrapper">
+
+    <!-- ── BEFORE (v0.1) ── -->
+    <div class="arch-panel before">
+      <div class="panel-title before-title">v0.1 — 초기 아키텍처</div>
+      <div class="panel-desc">"K8s 최소 구동, AWS를 모른다"</div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L1</span> <span class="icon">☁️</span> CSP Foundation (AWS)</div>
+        <div class="components">
+          <div class="comp csp">VPC + Subnet + NAT</div>
+          <div class="comp csp">Security Groups</div>
+          <div class="comp csp">IAM (기본)</div>
+          <div class="comp csp absent">NLB 수동 1개</div>
+        </div>
+        <div class="callout issue" style="margin-top:8px;">
+          <div class="callout-title">⚠ 한계</div>
+          <ul>
+            <li>Terraform 수동 NLB + TG 수동 등록</li>
+            <li>WAF 없음 (외부 보호 미적용)</li>
+            <li>KMS 없음, DNS 수동 관리</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L2</span> <span class="icon">⚙️</span> RKE2 Built-in (K8s 엔진)</div>
+        <div class="components">
+          <div class="comp rke2">RKE2 v1.31</div>
+          <div class="comp rke2">CP ×3 / Worker ×4</div>
+          <div class="comp rke2">Canal CNI (VXLAN)</div>
+          <div class="comp rke2">CoreDNS</div>
+          <div class="comp rke2">kube-proxy (iptables)</div>
+          <div class="comp rke2">etcd (embedded)</div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L3</span> <span class="icon">🔧</span> K8s Ecosystem</div>
+        <div class="components">
+          <div class="comp ecosystem">ArgoCD (기본)</div>
+          <div class="comp ecosystem">nginx-ingress (단일)</div>
+        </div>
+        <div class="callout issue" style="margin-top:8px;">
+          <div class="callout-title">⚠ 미성숙</div>
+          <ul>
+            <li>Longhorn / cert-manager / external-dns 없음</li>
+            <li>Observability 스택 없음</li>
+            <li>백업(DR) 없음</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L4</span> <span class="icon">🔒</span> Identity & Security</div>
+        <div class="components">
+          <div class="comp identity absent">SSO 없음</div>
+          <div class="comp identity absent">시크릿 하드코딩</div>
+          <div class="comp identity absent">접근 관리 없음</div>
+        </div>
+        <div class="callout issue" style="margin-top:8px;">
+          <div class="callout-title">⚠ 보안 리스크</div>
+          <ul>
+            <li>서비스별 개별 계정 관리</li>
+            <li>K8s Secret 평문 (etcd)</li>
+            <li>감사 추적 불가</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L5</span> <span class="icon">🗄️</span> Data Services</div>
+        <div class="components">
+          <div class="comp data absent">DB 없음</div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L6</span> <span class="icon">📦</span> Platform Services</div>
+        <div class="components">
+          <div class="comp platform">Harbor (EC2+S3)</div>
+          <div class="comp platform absent">Rancher 없음</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── AFTER (v0.5) ── -->
+    <div class="arch-panel after">
+      <div class="panel-title after-title">v0.5 — 현재 아키텍처</div>
+      <div class="panel-desc">"6-Layer Governance + 3-Layer Identity + Zero-Trust"</div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L1</span> <span class="icon">☁️</span> CSP Foundation (AWS)</div>
+        <div class="components">
+          <div class="comp csp">VPC + Subnet + NAT</div>
+          <div class="comp csp">Security Groups</div>
+          <div class="comp csp">IAM + KMS</div>
+          <div class="comp csp evolved">Dual NLB (Pub+Int)</div>
+          <div class="comp csp new">WAF ACL + Rules</div>
+          <div class="comp csp">Route53 Zones</div>
+          <div class="comp csp">S3 Buckets</div>
+          <div class="comp csp new">Packer Golden AMI</div>
+        </div>
+        <div class="callout benefit" style="margin-top:8px;">
+          <div class="callout-title">✓ Terraform IaC 14 스택</div>
+          <ul>
+            <li>NLB → ALBC가 자동 프로비저닝</li>
+            <li>Route53 → external-dns가 자동 관리</li>
+            <li>WAF L7 외부 보호 완성</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L2</span> <span class="icon">⚙️</span> RKE2 Built-in (K8s 엔진)</div>
+        <div class="components">
+          <div class="comp rke2">RKE2 v1.31</div>
+          <div class="comp rke2">CP ×3 / Worker ×4</div>
+          <div class="comp rke2">Canal CNI (VXLAN)</div>
+          <div class="comp rke2">CoreDNS</div>
+          <div class="comp rke2">kube-proxy (iptables)</div>
+          <div class="comp rke2">etcd (embedded)</div>
+        </div>
+        <div class="callout issue" style="margin-top:8px; opacity:0.7;">
+          <div class="callout-title">⏳ v1.0 예정</div>
+          <ul>
+            <li>Canal → Cilium ENI Mode</li>
+            <li>kube-proxy → eBPF 대체</li>
+            <li>Pod IP → VPC-native</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L3</span> <span class="icon">🔧</span> K8s Ecosystem <small>(ArgoCD GitOps)</small></div>
+        <div class="components">
+          <div class="comp ecosystem evolved">ArgoCD (App-of-Apps)</div>
+          <div class="comp ecosystem evolved">Dual nginx-ingress (Pub+Int)</div>
+          <div class="comp ecosystem new">ALBC (IP-mode)</div>
+          <div class="comp ecosystem new">cert-manager (DNS-01)</div>
+          <div class="comp ecosystem new">external-dns (Split-Horizon)</div>
+          <div class="comp ecosystem">Longhorn (CSI)</div>
+          <div class="comp ecosystem new">Velero (DR)</div>
+        </div>
+        <div class="layer-sublabel">Observability</div>
+        <div class="components">
+          <div class="comp ecosystem new">Prometheus</div>
+          <div class="comp ecosystem new">Grafana (SSO)</div>
+          <div class="comp ecosystem new">Loki</div>
+          <div class="comp ecosystem new">Tempo</div>
+          <div class="comp ecosystem new">Promtail</div>
+        </div>
+        <div class="callout benefit" style="margin-top:8px;">
+          <div class="callout-title">✓ K8s-native CRD/Controller 패턴</div>
+          <ul>
+            <li>모든 컴포넌트 Helm + ArgoCD 선언적 관리</li>
+            <li>Metrics + Logs + Traces 3 Pillars 완성</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L4</span> <span class="icon">🔒</span> Identity & Security <small>(3-Layer Stack)</small></div>
+        <div class="components">
+          <div class="comp identity new">Keycloak (SSO/OIDC)</div>
+          <div class="comp identity new">Vault (동적 시크릿)</div>
+          <div class="comp identity">Teleport (접근 관리)</div>
+        </div>
+        <div class="callout benefit" style="margin-top:8px;">
+          <div class="callout-title">✓ Zero-Trust 완성</div>
+          <ul>
+            <li>Human AuthN → Keycloak SSO</li>
+            <li>Workload AuthN → Vault AWS SE (15분 TTL)</li>
+            <li>Infra Access → Teleport 세션 녹화</li>
+            <li>KMS Auto-Unseal (무인 Vault)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L5</span> <span class="icon">🗄️</span> Data Services <small>(EC2 독립 스택)</small></div>
+        <div class="components">
+          <div class="comp data new">PostgreSQL</div>
+          <div class="comp data new">Neo4j</div>
+          <div class="comp data new">OpenSearch</div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L6</span> <span class="icon">📦</span> Platform Services</div>
+        <div class="components">
+          <div class="comp platform">Harbor (Registry)</div>
+          <div class="comp platform new">Rancher (Cluster Mgmt)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ Stats ══════ -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-number">6 → 28</div>
+      <div class="stat-label">총 컴포넌트 수</div>
+      <div class="stat-comment">K8s Ecosystem 12개 + Identity 3개 + Data 3개 + CSP 8개</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">+22</div>
+      <div class="stat-label">신규 도입 컴포넌트</div>
+      <div class="stat-comment">v0.1 기본 6개에서 v0.5까지 5단계에 걸쳐 점진적 확장</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">6</div>
+      <div class="stat-label">거버넌스 도메인</div>
+      <div class="stat-comment">CSP · RKE2 · K8s Ecosystem · Identity · Data · Platform</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">14</div>
+      <div class="stat-label">Terraform 스택</div>
+      <div class="stat-comment">00-network → 80-access-gateway 까지 의존순 배포</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">5 → 0</div>
+      <div class="stat-label">수동 운영 포인트</div>
+      <div class="stat-comment">NLB · DNS · TLS · TG등록 · 시크릿 전부 자동화 완료</div>
+    </div>
+  </div>
+
+  <!-- ══════ Version Timeline ══════ -->
+  <div class="timeline-section">
+    <h2><span>아키텍처 진화 타임라인</span></h2>
+    <div class="timeline">
+      <div class="timeline-item t-past">
+        <div class="timeline-dot"></div>
+        <div class="timeline-version">v0.1</div>
+        <div class="timeline-name">Initial Setup</div>
+        <div class="timeline-desc">VPC + RKE2 + Bastion<br>ArgoCD + Harbor + nginx</div>
+      </div>
+      <div class="timeline-item t-past">
+        <div class="timeline-dot"></div>
+        <div class="timeline-version">v0.2</div>
+        <div class="timeline-name">K8s Stabilize</div>
+        <div class="timeline-desc">CCM 도입 시도<br>Longhorn + External-DNS</div>
+      </div>
+      <div class="timeline-item t-past">
+        <div class="timeline-dot"></div>
+        <div class="timeline-version">v0.3</div>
+        <div class="timeline-name">Services + AMI</div>
+        <div class="timeline-desc">Golden Image + Teleport<br>DB 3종 + Grafana</div>
+      </div>
+      <div class="timeline-item t-past">
+        <div class="timeline-dot"></div>
+        <div class="timeline-version">v0.4</div>
+        <div class="timeline-name">Zero-Trust</div>
+        <div class="timeline-desc">Dual NLB + Dual Ingress<br>DNS-01 + WAF</div>
+      </div>
+      <div class="timeline-item t-current">
+        <div class="timeline-dot"></div>
+        <div class="current-badge">CURRENT</div>
+        <div class="timeline-version">v0.5</div>
+        <div class="timeline-name">Identity & Secrets</div>
+        <div class="timeline-desc">Keycloak SSO + Vault<br>ALBC + 3-Layer Stack</div>
+      </div>
+      <div class="timeline-item t-future">
+        <div class="timeline-dot"></div>
+        <div class="timeline-version">v1.0</div>
+        <div class="timeline-name">Network Evolution</div>
+        <div class="timeline-desc">Cilium ENI + eBPF<br>Hubble + L7 Policy</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ Terraform Stacks ══════ -->
+  <div class="stack-section">
+    <h2><span>Terraform 스택 구조</span></h2>
+    <div class="stack-grid">
+      <div class="stack-item s-network">
+        <div class="stack-num">00</div>
+        <div class="stack-name">network</div>
+        <div class="stack-desc">VPC · Subnet · NAT · IGW</div>
+      </div>
+      <div class="stack-item s-security">
+        <div class="stack-num">05</div>
+        <div class="stack-name">security</div>
+        <div class="stack-desc">IAM · SG · KMS</div>
+      </div>
+      <div class="stack-item s-infra">
+        <div class="stack-num">10</div>
+        <div class="stack-name">golden-image</div>
+        <div class="stack-desc">Packer AMI</div>
+      </div>
+      <div class="stack-item s-security">
+        <div class="stack-num">15</div>
+        <div class="stack-name">access-control</div>
+        <div class="stack-desc">Bastion IAM</div>
+      </div>
+      <div class="stack-item s-security">
+        <div class="stack-num">20</div>
+        <div class="stack-name">waf</div>
+        <div class="stack-desc">WAF ACL · Rules</div>
+      </div>
+      <div class="stack-item s-infra">
+        <div class="stack-num">30</div>
+        <div class="stack-name">bastion</div>
+        <div class="stack-desc">SSH Bastion EC2</div>
+      </div>
+      <div class="stack-item s-infra">
+        <div class="stack-num">40</div>
+        <div class="stack-name">harbor</div>
+        <div class="stack-desc">OCI Registry + S3</div>
+      </div>
+      <div class="stack-item s-k8s">
+        <div class="stack-num">50</div>
+        <div class="stack-name">rke2</div>
+        <div class="stack-desc">K8s Cluster</div>
+      </div>
+      <div class="stack-item s-k8s">
+        <div class="stack-num">55</div>
+        <div class="stack-name">bootstrap</div>
+        <div class="stack-desc">ArgoCD App-of-Apps</div>
+      </div>
+      <div class="stack-item s-data">
+        <div class="stack-num">60</div>
+        <div class="stack-name">postgres</div>
+        <div class="stack-desc">PostgreSQL EC2</div>
+      </div>
+      <div class="stack-item s-data">
+        <div class="stack-num">61</div>
+        <div class="stack-name">neo4j</div>
+        <div class="stack-desc">Graph DB EC2</div>
+      </div>
+      <div class="stack-item s-data">
+        <div class="stack-num">62</div>
+        <div class="stack-name">opensearch</div>
+        <div class="stack-desc">Search Engine EC2</div>
+      </div>
+      <div class="stack-item s-obs">
+        <div class="stack-num">70</div>
+        <div class="stack-name">observability</div>
+        <div class="stack-desc">Grafana Stack</div>
+      </div>
+      <div class="stack-item s-access">
+        <div class="stack-num">80</div>
+        <div class="stack-name">access-gateway</div>
+        <div class="stack-desc">Teleport HA</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ Full Evolution Table v0.1 ~ v0.5 ══════ -->
+  <div class="comparison-section">
+    <h2><span>v0.1 → v0.5 영역별 진화 매트릭스</span></h2>
+    <div class="evo-table-wrapper">
+    <table class="evo-table">
+      <thead>
+        <tr>
+          <th>영역</th>
+          <th>v0.1 Initial</th>
+          <th>v0.2 Stabilize</th>
+          <th>v0.3 Services</th>
+          <th>v0.4 Zero-Trust</th>
+          <th class="v-current">v0.5 현재 <span class="evo-version-badge current">NOW</span></th>
+          <th class="v-notes">핵심 변경</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="evo-group-header"><td colspan="7">L1 — CSP Foundation (AWS)</td></tr>
+        <tr>
+          <td>NLB / LB</td>
+          <td class="e-bad">수동 NLB 1개</td>
+          <td class="e-ok">CCM 도입 시도</td>
+          <td class="e-same">←</td>
+          <td class="e-new">Dual NLB (Pub+Int)</td>
+          <td class="e-best v-current-col">+ ALBC (IP-mode 자동)</td>
+          <td class="e-note">ALBC IP-mode로 NLB 완전 자동화</td>
+        </tr>
+        <tr>
+          <td>외부 보호 (WAF)</td>
+          <td class="e-none">없음</td>
+          <td class="e-none">없음</td>
+          <td class="e-none">없음</td>
+          <td class="e-new">WAF ACL + Rules</td>
+          <td class="e-best v-current-col">← (완성)</td>
+          <td class="e-note">SQLi/XSS 자동 차단 + Rate Limit</td>
+        </tr>
+        <tr>
+          <td>DNS</td>
+          <td class="e-bad">수동 Route53</td>
+          <td class="e-new">external-dns</td>
+          <td class="e-new">Split-Horizon (Pub+Priv)</td>
+          <td class="e-same">←</td>
+          <td class="e-best v-current-col">← (완성)</td>
+          <td class="e-note">Pub+Priv Zone 자동 Split</td>
+        </tr>
+        <tr>
+          <td>머신 이미지</td>
+          <td class="e-bad">수동 AMI</td>
+          <td class="e-same">←</td>
+          <td class="e-new">Packer Golden Image</td>
+          <td class="e-same">←</td>
+          <td class="e-best v-current-col">← (완성)</td>
+          <td class="e-note">Packer CI/CD 파이프라인</td>
+        </tr>
+        <tr class="evo-group-header"><td colspan="7">L2 — RKE2 Built-in (K8s 엔진)</td></tr>
+        <tr>
+          <td>K8s 엔진</td>
+          <td class="e-ok">RKE2 v1.31 (CP3+W4)</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-ok v-current-col">← (유지)</td>
+          <td class="e-note">v1.0에서 Cilium 전환 예정</td>
+        </tr>
+        <tr>
+          <td>CNI</td>
+          <td class="e-bad">Canal (VXLAN)</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-ok v-current-col">← (v1.0 Cilium 예정)</td>
+          <td class="e-note">v1.0 eBPF + ENI 대체 예정</td>
+        </tr>
+        <tr>
+          <td>Pod IP</td>
+          <td class="e-bad">10.42.x.x (overlay)</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-ok v-current-col">← (v1.0 VPC-native 예정)</td>
+          <td class="e-note">v1.0 VPC-native 전환 예정</td>
+        </tr>
+        <tr class="evo-group-header"><td colspan="7">L3 — K8s Ecosystem (ArgoCD GitOps)</td></tr>
+        <tr>
+          <td>GitOps</td>
+          <td class="e-ok">ArgoCD 기본</td>
+          <td class="e-new">App-of-Apps</td>
+          <td class="e-new">Pure GitOps (Infra Context)</td>
+          <td class="e-same">←</td>
+          <td class="e-best v-current-col">← (완성)</td>
+          <td class="e-note">App-of-Apps 패턴으로 단일 진실 소스</td>
+        </tr>
+        <tr>
+          <td>Ingress</td>
+          <td class="e-ok">nginx-ingress (단일)</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-new">Dual Ingress (Pub+Int)</td>
+          <td class="e-best v-current-col">← (완성)</td>
+          <td class="e-note">Pub ↔ Int 트래픽 격리</td>
+        </tr>
+
+        <tr>
+          <td>Cloud Provider</td>
+          <td class="e-none">없음</td>
+          <td class="e-new">AWS CCM (External)</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-best v-current-col">+ ALBC 보완</td>
+          <td class="e-note">CCM + ALBC 이중 통합</td>
+        </tr>
+        <tr>
+          <td>TLS 인증서</td>
+          <td class="e-bad">수동</td>
+          <td class="e-same">←</td>
+          <td class="e-new">cert-manager (HTTP-01)</td>
+          <td class="e-new">DNS-01 전환</td>
+          <td class="e-best v-current-col">← (완성)</td>
+          <td class="e-note">Let's Encrypt DNS-01 무중단 갱신</td>
+        </tr>
+
+
+
+        <tr>
+          <td>스토리지</td>
+          <td class="e-none">없음</td>
+          <td class="e-new">Longhorn</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-ok v-current-col">← (유지)</td>
+          <td class="e-note">CSI 인터페이스 기반 동적 PV</td>
+        </tr>
+        <tr>
+          <td>모니터링</td>
+          <td class="e-none">없음</td>
+          <td class="e-none">없음</td>
+          <td class="e-ok">Prometheus + Grafana</td>
+          <td class="e-same">←</td>
+          <td class="e-best v-current-col">+ Loki + Tempo + Promtail</td>
+          <td class="e-note">Metrics + Logs + Traces 3 Pillars</td>
+        </tr>
+        <tr>
+          <td>백업 (DR)</td>
+          <td class="e-none">없음</td>
+          <td class="e-none">없음</td>
+          <td class="e-none">없음</td>
+          <td class="e-none">없음</td>
+          <td class="e-best v-current-col">Velero</td>
+          <td class="e-note">S3 기반 클러스터 전체 백업</td>
+        </tr>
+        <tr class="evo-group-header"><td colspan="7">L4 — Identity & Security (3-Layer Stack)</td></tr>
+        <tr>
+          <td>인증 (Human)</td>
+          <td class="e-none">없음</td>
+          <td class="e-none">없음</td>
+          <td class="e-bad">서비스별 개별 로그인</td>
+          <td class="e-same">←</td>
+          <td class="e-best v-current-col">Keycloak SSO (OIDC)</td>
+          <td class="e-note">전 서비스 OIDC SSO 통합</td>
+        </tr>
+        <tr>
+          <td>인증 (Workload)</td>
+          <td class="e-bad">EC2 Instance Profile</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-best v-current-col">Vault AWS SE (15분 TTL)</td>
+          <td class="e-note">15분 TTL 임시 자격증명</td>
+        </tr>
+        <tr>
+          <td>시크릿 관리</td>
+          <td class="e-bad">하드코딩</td>
+          <td class="e-same">←</td>
+          <td class="e-bad">K8s Secret (평문)</td>
+          <td class="e-same">←</td>
+          <td class="e-best v-current-col">Vault (KMS Auto-Unseal)</td>
+          <td class="e-note">KMS Auto-Unseal + 동적 주입</td>
+        </tr>
+        <tr>
+          <td>인프라 접근</td>
+          <td class="e-bad">Bastion + SSH Key</td>
+          <td class="e-same">←</td>
+          <td class="e-new">Teleport EC2 HA</td>
+          <td class="e-new">+ App/K8s/DB Access</td>
+          <td class="e-best v-current-col">+ 세션 녹화 완성</td>
+          <td class="e-note">SSH/K8s/DB/Web 전 채널 녹화</td>
+        </tr>
+        <tr class="evo-group-header"><td colspan="7">L5 — Data Services (EC2 독립)</td></tr>
+        <tr>
+          <td>데이터베이스</td>
+          <td class="e-none">없음</td>
+          <td class="e-none">없음</td>
+          <td class="e-new">PG + Neo4j + OS (EC2)</td>
+          <td class="e-same">←</td>
+          <td class="e-best v-current-col">← (독립 스택)</td>
+          <td class="e-note">Terraform 독립 스택 관리</td>
+        </tr>
+
+
+        <tr class="evo-group-header"><td colspan="7">L6 — Platform Services</td></tr>
+        <tr>
+          <td>컨테이너 레지스트리</td>
+          <td class="e-ok">Harbor (EC2+S3)</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-ok v-current-col">← (유지)</td>
+          <td class="e-note">S3 백엔드 고가용성</td>
+        </tr>
+        <tr>
+          <td>클러스터 관리</td>
+          <td class="e-bad">kubectl 직접</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-same">←</td>
+          <td class="e-best v-current-col">Rancher (Web UI)</td>
+          <td class="e-note">Web UI 기반 멀티클러스터 준비</td>
+        </tr>
+
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- ══════ Traffic Flow Comparison ══════ -->
+  <div class="flow-section">
+    <h2><span>트래픽 경로 비교</span></h2>
+    <div class="traffic-flow">
+
+      <div class="flow-panel before">
+        <h3>v0.1 — 수동 + 단일 경로 (4-hop)</h3>
+        <div class="flow-insight bad">모든 경로가 수동 구성 — NLB, TG, DNS 각각 Terraform/콘솔에서 별도 관리</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-node network">클라이언트</div>
+          </div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step">
+            <div class="flow-node k8s">NLB (수동 생성, 단일)</div>
+            <div class="flow-annotation bad">Terraform 수동 생성, TG 수동 등록</div>
+          </div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step">
+            <div class="flow-node k8s">Worker Node:NodePort</div>
+            <div class="flow-annotation bad">30000-32767 포트 노출</div>
+          </div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step">
+            <div class="flow-node network">kube-proxy (iptables)</div>
+            <div class="flow-annotation bad">O(n) 규칙 매칭, 홉 추가</div>
+          </div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step">
+            <div class="flow-node network">Pod (10.42.x.x)</div>
+            <div class="flow-annotation bad">overlay IP — 외부에서 직접 접근 불가</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-panel after">
+        <h3>v0.5 — Dual NLB + WAF (3-hop)</h3>
+        <div class="flow-insight good">Ingress Annotation 하나로 NLB + DNS + TLS + WAF 전체 자동 프로비저닝</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-node network">클라이언트</div>
+          </div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step">
+            <div class="flow-node security" style="border-color:rgba(168,85,247,0.5); color:var(--purple-light);">WAF (L7 필터링)</div>
+            <div class="flow-annotation good">SQL Injection, XSS 등 자동 차단</div>
+          </div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step">
+            <div class="flow-node k8s" style="border-color:rgba(34,197,94,0.5); color:var(--green-light);">Dual NLB (ALBC 자동)</div>
+            <div class="flow-annotation good">Public/Internal 자동 분리</div>
+          </div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step">
+            <div class="flow-node network" style="border-color:rgba(34,197,94,0.5); color:var(--green-light);">Dual nginx-ingress</div>
+            <div class="flow-annotation good">Public ↔ Internal 라우팅 분리</div>
+          </div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step">
+            <div class="flow-node network" style="border-color:rgba(34,197,94,0.5); color:var(--green-light);">Pod (10.42.x.x)</div>
+            <div class="flow-annotation" style="color: rgba(245,158,11,0.7);">overlay 유지 (v1.0에서 VPC-native 전환)</div>
+          </div>
+        </div>
+        <div class="callout benefit" style="margin-top:16px;">
+          <div class="callout-title">✓ 개선 효과</div>
+          <ul>
+            <li>WAF 기반 L7 외부 보호 추가</li>
+            <li>Public/Internal 트래픽 완전 분리</li>
+            <li>ALBC 자동 NLB 프로비저닝</li>
+            <li>Keycloak Admin은 Internal Only</li>
+          </ul>
+        </div>
+        <div class="callout issue" style="margin-top:8px; opacity:0.7;">
+          <div class="callout-title">⏳ 남은 숙제 (v1.0 해결 예정)</div>
+          <ul>
+            <li>Pod IP overlay → VPC-native (Cilium)</li>
+            <li>eBPF kube-proxy 대체</li>
+            <li>Hubble 네트워크 관측성</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Platform Architecture Evolution · v0.1 → v0.5 현재 아키텍처 · 2026-02-11
+  </div>
+</div>
+
+</body>
+</html>

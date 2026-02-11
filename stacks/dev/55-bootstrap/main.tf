@@ -87,6 +87,8 @@ locals {
   # - repo secret url: <registry-host>
   # - application repoURL: <registry-host>/<project>
   harbor_oci_host        = local.harbor_oci_available ? element(split("/", replace(local.harbor_oci_url, "oci://", "")), 0) : ""
+  # Harbor 호스트 (OCI 미러링과 독립 — opstart 이미지 빌드용)
+  harbor_host            = local.harbor_oci_url != "" ? element(split("/", replace(local.harbor_oci_url, "oci://", "")), 0) : ""
   harbor_oci_repo_argocd = local.harbor_oci_host != "" ? "${local.harbor_oci_host}/helm-charts" : ""
 
   # 실제 사용할 Helm 저장소 (Harbor OCI 또는 외부)
@@ -505,22 +507,22 @@ resource "aws_iam_role_policy_attachment" "vault_kms_unseal" {
 #
 # - Harbor에 opstart 이미지를 빌드/푸시
 # - Dockerfile 또는 app.py 변경 시 자동 재빌드
-# - Harbor OCI가 사용 가능할 때만 실행
+# - Harbor 호스트가 설정되어 있으면 실행 (OCI 미러링과 독립)
 # ------------------------------------------------------------------------------
 resource "null_resource" "opstart_image_build" {
-  count = local.harbor_oci_available ? 1 : 0
+  count = local.harbor_oci_url != "" ? 1 : 0
 
   triggers = {
     dockerfile_hash = filemd5("${path.module}/../../../ops/dashboard/Dockerfile")
     app_hash        = filemd5("${path.module}/../../../ops/dashboard/app.py")
-    harbor_host     = local.harbor_oci_host
+    harbor_host     = local.harbor_host
   }
 
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
     command     = <<-EOT
       set -e
-      IMAGE="${local.harbor_oci_host}/platform/opstart"
+      IMAGE="${local.harbor_host}/platform/opstart"
       TAG=$(cd ${path.module}/../../.. && git rev-parse --short HEAD 2>/dev/null || echo "latest")
 
       echo "▸ Building opstart image: $IMAGE:$TAG"

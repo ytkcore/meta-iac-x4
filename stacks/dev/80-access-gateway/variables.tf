@@ -120,7 +120,7 @@ variable "kubernetes_services" {
     },
     {
       name     = "opstart"
-      uri      = "http://opstart.opstart.svc.cluster.local:8080"
+      uri      = "https://opstart.unifiedmeta.net"
       type     = "web"
       internal = true
     }

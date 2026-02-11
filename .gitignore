@@ -67,3 +67,6 @@ scripts/keycloak/client-secrets.env
 scripts/keycloak/vault-keys.env
 .tunnel.pid
 .agent/
+
+# AIPP (미사용)
+gitops-apps/apps/aipp/
