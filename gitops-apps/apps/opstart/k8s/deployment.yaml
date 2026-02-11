@@ -74,7 +74,7 @@ spec:
       containers:
         - name: dashboard
           # Harbor 레지스트리 — 55-bootstrap에서 자동 빌드/푸시
-          image: harbor.dev.unifiedmeta.net/platform/opstart:latest
+          image: harbor.unifiedmeta.net/platform/opstart:latest
           ports:
             - containerPort: 8080
           env:
