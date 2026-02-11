@@ -19,6 +19,8 @@ spec:
         app: enai-front
         app.kubernetes.io/name: enai-front
     spec:
+      imagePullSecrets:
+        - name: harbor-registry
       containers:
         - name: frontend
           image: harbor.unifiedmeta.net/aipp/front-next:v1.0.0

@@ -22,6 +22,8 @@ spec:
         app: enai-backend
         app.kubernetes.io/name: enai-backend
     spec:
+      imagePullSecrets:
+        - name: harbor-registry
       initContainers:
         # DB 준비 대기
         - name: wait-for-db

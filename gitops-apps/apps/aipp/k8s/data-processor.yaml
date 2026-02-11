@@ -19,6 +19,8 @@ spec:
         app: enai-data-processor
         app.kubernetes.io/name: enai-data-processor
     spec:
+      imagePullSecrets:
+        - name: harbor-registry
       containers:
         - name: data-processor
           image: harbor.unifiedmeta.net/aipp/catalog-collector:v1.0.0

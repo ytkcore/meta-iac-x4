@@ -19,6 +19,8 @@ spec:
         app: enai-scheduler
         app.kubernetes.io/name: enai-scheduler
     spec:
+      imagePullSecrets:
+        - name: harbor-registry
       containers:
         - name: scheduler
           image: harbor.unifiedmeta.net/aipp/scheduler:v1.0.0

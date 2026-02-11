@@ -23,6 +23,8 @@ spec:
         app: enai-linker
         app.kubernetes.io/name: enai-linker
     spec:
+      imagePullSecrets:
+        - name: harbor-registry
       # GPU node scheduling
       nodeSelector:
         node.kubernetes.io/gpu: "true"
