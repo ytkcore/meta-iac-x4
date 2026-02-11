@@ -20,6 +20,9 @@
 7. [Keycloak · Vault · Cilium — 근본 해결](#7-keycloak--vault--cilium--근본-해결)
 8. [최종 아키텍처 — 3-Layer Identity Stack](#8-최종-아키텍처--3-layer-identity-stack)
 9. [핵심 교훈](#9-핵심-교훈)
+10. [글로벌 스탠다드 GAP 분석](#10-글로벌-스탠다드-gap-분석)
+11. [고도화 로드맵 — 마일스톤별 Next Steps](#11-고도화-로드맵--마일스톤별-next-steps)
+12. [제품 번들링 전략 — Standalone vs Enterprise](#12-제품-번들링-전략--standalone-vs-enterprise)
 
 ---
 
@@ -635,6 +638,377 @@ EKS가 자동으로 해주는 것들(OIDC, IRSA, NLB 관리)을 **직접 구축�
 | DataHub (오픈소스) | **OIDC (Keycloak)** | K8s Secrets | |
 
 > 📎 상세: [market-player-infrastructure-research.md](market-player-infrastructure-research.md)
+
+---
+
+## 10. 글로벌 스탠다드 GAP 분석
+
+현재 우리 아키텍처(v1.0)를 **CNCF 플랫폼 엔지니어링 성숙도 모델(2025)**과 글로벌 시장 선두 업체(Atlan, Collibra 등)의 인프라 스택과 비교합니다.
+
+### 현재 위치 — 글로벌 기준으로 어디에 있는가
+
+```
+CNCF Platform Maturity Model (5단계)
+
+  Level 1: Provisional   ← 우리의 v0.1~v0.2 (수동 운영, 개별 도구)
+  Level 2: Operational   ← 우리의 v0.3~v0.4 (서비스 배포, 수동 인증/시크릿)
+  Level 3: Scalable      ← ★ 우리의 현재 위치 (v1.0)
+  Level 4: Optimizing    ← 다음 목표 (자동화 고도화, 셀프서비스, 관측성)
+  Level 5: Innovating    ← 장기 목표 (AI Ops, 자율 운영)
+```
+
+**💡 Level 3 (Scalable)에 도달한 근거:**
+우리는 GitOps(ArgoCD), IaC(Terraform), Identity Stack(Keycloak + Vault + Teleport), VPC-native CNI(Cilium)를 갖추고 있습니다. 이는 CNCF 기준으로 **표준화된 플랫폼 운영**에 해당합니다.
+
+### 영역별 GAP 상세
+
+| 영역 | 글로벌 스탠다드 (Level 4~5) | 우리 현재 (v1.0) | GAP |
+|------|---------------------------|-----------------|-----|
+| **Observability** | OpenTelemetry + LGTM Stack (Loki/Grafana/Tempo/Mimir), 3 Pillars(Metrics/Logs/Traces) 통합 | Grafana + 부분적 메트릭 수집 | 🔴 **Traces/Logs 파이프라인 부재** |
+| **Developer Portal** | Backstage(CNCF) 기반 IDP, 셀프서비스 인프라 프로비저닝 | 없음 (CLI/kubectl 직접 사용) | 🔴 **개발자 셀프서비스 부재** |
+| **FinOps** | Kubecost/OpenCost 기반 비용 가시성, 팀별 차지백 | 없음 (AWS 빌링만 사용) | 🟡 비용 최적화 도구 부재 |
+| **Policy as Code** | OPA/Kyverno 기반 자동 정책 검증, Admission Control | 수동 리뷰 | 🟡 자동 정책 집행 부재 |
+| **Chaos Engineering** | LitmusChaos/Chaos Mesh 기반 회복력 검증 | 없음 | 🟡 장애 시뮬레이션 부재 |
+| **CI/CD** | Tekton/GitHub Actions + 이미지 서명(Sigstore/cosign) | Harbor + 기본 CI | 🟡 Supply Chain Security 미흡 |
+| **Multi-Tenancy** | Namespace 격리 + NetworkPolicy + ResourceQuota + RBAC | Keycloak Realm 수준 | 🟡 K8s 리소스 수준 격리 미흡 |
+| **AI Ops** | AI Agent 기반 이상 탐지, 자동 스케일링 추천, 로그 분석 | 없음 | ⚪ 장기 과제 |
+| **Identity** | OIDC SSO + Vault + Zero-Trust Access | Keycloak + Vault + Teleport | ✅ **글로벌 수준 달성** |
+| **Networking** | VPC-native CNI + eBPF + L7 Policy + Service Mesh (선택) | Cilium ENI + Hubble | ✅ **글로벌 수준 달성** |
+| **GitOps** | ArgoCD/Flux + App-of-Apps + Multi-cluster | ArgoCD App-of-Apps | ✅ **글로벌 수준 달성** |
+| **Secret Management** | 동적 시크릿 + 자동 rotation + CSP 무관 | Vault AWS SE + K8s Auth | ✅ **글로벌 수준 달성** |
+
+### 시장 선두 업체 인프라 비교
+
+글로벌 데이터 거버넌스 플랫폼 중 우리와 유사한 제품의 인프라 스택을 비교합니다:
+
+| 영역 | Atlan (시장 선두) | Collibra (엔터프라이즈) | **우리 (v1.0)** |
+|------|------------------|----------------------|----------------|
+| Orchestration | Kubernetes (cloud-native) | Kubernetes | ✅ RKE2 (K8s) |
+| IdP / SSO | Keycloak | Enterprise SSO | ✅ Keycloak |
+| Secrets | Vault | Vault | ✅ Vault |
+| Observability | Full-stack (OTel) | Enterprise APM | 🔴 **부분적** |
+| Developer Portal | 내부 IDP | 내부 도구 | 🔴 **없음** |
+| Multi-Tenancy | Namespace + RBAC | 고객별 격리 | 🟡 Realm 수준 |
+| CSP 독립성 | SaaS (AWS 기반) | Multi-cloud SaaS | ✅ **CSP 무관** |
+
+> **핵심 인사이트**: Identity/Secrets/Networking은 이미 글로벌 수준입니다. 다음 고도화의 핵심은 **Observability**, **Developer Portal(IDP)**, **FinOps** 세 영역입니다.
+
+---
+
+## 11. 고도화 로드맵 — 마일스톤별 Next Steps
+
+### 전체 마일스톤 개요
+
+```
+현재 (v1.0)                                                    장기 목표 (v3.0)
+    │                                                                │
+    ▼                                                                ▼
+┌─────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+│  v1.0   │───▶│  v1.5    │───▶│  v2.0    │───▶│  v2.5    │───▶│  v3.0    │
+│ Network │    │Observa-  │    │Developer │    │ Multi-   │    │AI Ops &  │
+│Evolution│    │bility    │    │Platform  │    │ Tenant   │    │Self-Heal │
+│ ✅ Done │    │Stack     │    │(IDP)     │    │ & FinOps │    │          │
+└─────────┘    └──────────┘    └──────────┘    └──────────┘    └──────────┘
+                  Q2 2026         Q3 2026        Q4 2026       2027 H1
+               CNCF Level 3+   CNCF Level 4   CNCF Level 4   CNCF Level 5
+```
+
+### v1.5 — Observability Stack (Q2 2026)
+
+**💡 왜 지금 Observability인가?**
+
+현재 장애 발생 시 "어디서 문제가 생겼는지" 파악하기 위해 kubectl logs, Grafana 대시보드, AWS Console을 오가며 수동 추적해야 합니다. 서비스가 늘어날수록 이 방식은 한계에 도달합니다. CNCF 2025 보고서에 따르면, 플랫폼 팀의 84%가 Observability 비용과 복잡성에 어려움을 겪고 있으며, OpenTelemetry가 그 해법으로 부상하고 있습니다.
+
+```
+목표: 장애 발생 시 "무엇이, 어디서, 왜" 발생했는지를 1분 안에 파악
+
+도입 스택:
+  ┌──────────────────────────────────────────────────────────┐
+  │              Observability Stack (LGTM)                    │
+  │                                                            │
+  │  ┌──────────────┐  ┌──────────┐  ┌──────────────────────┐ │
+  │  │ OpenTelemetry │  │ Grafana  │  │ Alerting & On-Call   │ │
+  │  │ Collector     │  │ (통합 UI)│  │ (Grafana Alerting)   │ │
+  │  └──────┬───────┘  └────┬─────┘  └──────────────────────┘ │
+  │         │               │                                   │
+  │  ┌──────▼───┐  ┌───────▼──┐  ┌────────────┐               │
+  │  │  Mimir   │  │   Loki   │  │   Tempo    │               │
+  │  │ (Metrics)│  │  (Logs)  │  │  (Traces)  │               │
+  │  └──────────┘  └──────────┘  └────────────┘               │
+  │                                                            │
+  │  + Hubble (Cilium 네트워크 flow, 이미 보유)                │
+  └──────────────────────────────────────────────────────────┘
+```
+
+| 작업 항목 | 설명 | 우선순위 |
+|-----------|------|---------|
+| OTel Collector 배포 | DaemonSet으로 전 노드 텔레메트리 수집 | P0 |
+| Loki 도입 | 로그 중앙 집중화, 구조화된 로그 파이프라인 | P0 |
+| Tempo 도입 | 분산 트레이싱, 서비스 간 요청 추적 | P0 |
+| Mimir 도입 | 장기 메트릭 스토리지 (Prometheus 호환) | P1 |
+| Grafana 통합 대시보드 | Metrics ↔ Logs ↔ Traces 상호 연결 (Exemplar) | P1 |
+| Alert Rule 표준화 | SLO 기반 알림 체계 수립 | P1 |
+
+**완료 기준**: 임의의 API 요청에 대해 "어떤 Pod에서 처리했고, 어떤 DB 쿼리가 느렸는지"를 Grafana 한 화면에서 추적 가능
+
+### v2.0 — Developer Platform / IDP (Q3 2026)
+
+**💡 왜 IDP가 필요한가?**
+
+Gartner는 2026년까지 소프트웨어 엔지니어링 조직의 80%가 플랫폼 팀을 갖출 것으로 전망하며, CNCF는 2025년 Backstage의 기여자 수가 전년 대비 2배 이상 증가했다고 보고합니다. 개발자가 인프라를 직접 요청하고 기다리는 구조에서, **셀프서비스로 즉시 프로비저닝**하는 구조로 전환해야 합니다.
+
+```
+목표: 개발자가 kubectl 없이도 서비스 배포, 환경 생성, 문서 조회 가능
+
+도입 스택:
+  ┌──────────────────────────────────────────────────────┐
+  │             Backstage (CNCF IDP Framework)             │
+  │                                                        │
+  │  Software Catalog    → 모든 서비스/API/인프라 목록      │
+  │  Software Templates  → 새 서비스 원클릭 생성            │
+  │  TechDocs            → 마크다운 기반 문서 자동 발행     │
+  │  Plugins             → ArgoCD, Vault, Grafana 통합     │
+  │                                                        │
+  │  ┌──────────────────────────────────────────────────┐  │
+  │  │  Keycloak SSO → Backstage 로그인 통합             │  │
+  │  │  ArgoCD Plugin → 배포 상태 실시간 확인            │  │
+  │  │  Grafana Plugin → 서비스별 대시보드 인라인 조회   │  │
+  │  │  Vault Plugin → 시크릿 관리 셀프서비스            │  │
+  │  └──────────────────────────────────────────────────┘  │
+  └──────────────────────────────────────────────────────┘
+```
+
+| 작업 항목 | 설명 | 우선순위 |
+|-----------|------|---------|
+| Backstage 코어 배포 | K8s 위에 Backstage 인스턴스 배포, Keycloak SSO 연동 | P0 |
+| Software Catalog 구축 | 기존 서비스/DB/인프라를 카탈로그에 등록 | P0 |
+| Software Templates | 새 마이크로서비스 생성 템플릿 (CI/CD 파이프라인 포함) | P1 |
+| TechDocs 연동 | 기존 마크다운 문서를 Backstage에서 자동 발행 | P1 |
+| ArgoCD / Grafana Plugin | 배포 상태, 메트릭을 Backstage 내에서 확인 | P2 |
+
+**완료 기준**: 신규 개발자가 "새 서비스 만들기" 버튼 하나로 Git repo + CI/CD + K8s namespace + 모니터링까지 자동 생성
+
+### v2.5 — Multi-Tenancy & FinOps (Q4 2026)
+
+**💡 왜 Multi-Tenancy와 FinOps를 같이 진행하는가?**
+
+고객 납품 시 "이 고객의 워크로드가 다른 고객에게 영향을 주면 안 됨(격리)"과 "이 고객에게 들어가는 인프라 비용을 정확히 산출해야 함(비용 가시성)"은 동전의 양면입니다.
+
+```
+목표: 고객별 워크로드 격리 + 팀/고객별 인프라 비용 가시성
+
+Multi-Tenancy 강화:
+  ┌─────────────────────────────────────────────────────────┐
+  │  Keycloak Realm (이미 보유)                               │
+  │    + K8s Namespace 격리 (Namespace-per-tenant)            │
+  │      + Cilium L7 NetworkPolicy (테넌트 간 트래픽 차단)    │
+  │        + ResourceQuota / LimitRange (리소스 상한)          │
+  │          + Kyverno Policy (정책 자동 집행)                 │
+  └─────────────────────────────────────────────────────────┘
+
+FinOps:
+  ┌─────────────────────────────────────────────────────────┐
+  │  OpenCost (CNCF) or Kubecost                              │
+  │    → Namespace/Label 기반 비용 분배                        │
+  │    → Grafana 대시보드 연동 (팀별/고객별 비용 시각화)       │
+  │    → 유휴 리소스 탐지 + 최적화 권고                       │
+  └─────────────────────────────────────────────────────────┘
+```
+
+| 작업 항목 | 설명 | 우선순위 |
+|-----------|------|---------|
+| Namespace-per-tenant 설계 | 고객별 네임스페이스 자동 생성 + RBAC | P0 |
+| Kyverno 도입 | Policy as Code: 이미지 출처 검증, 리소스 제한 자동 적용 | P0 |
+| Cilium L7 정책 강화 | 테넌트 간 HTTP path 수준 접근 제어 | P1 |
+| OpenCost / Kubecost 배포 | K8s 리소스 비용 메트릭 수집 | P1 |
+| 비용 대시보드 | Grafana에 팀/고객별 비용 시각화 | P2 |
+
+**완료 기준**: 고객 A의 Pod가 고객 B의 네임스페이스에 접근 불가 + 고객별 월간 인프라 비용을 자동 리포트
+
+### v3.0 — AI Ops & Self-Healing (2027 H1)
+
+**💡 이 단계는 왜 마지막인가?**
+
+AI Ops는 "쌓여 있는 데이터"가 있어야 의미가 있습니다. v1.5에서 Observability 데이터가 쌓이고, v2.0에서 서비스 카탈로그가 구축되고, v2.5에서 비용/정책 데이터가 갖춰진 후에야 AI가 활용할 맥락이 완성됩니다. CNCF 2026년 전망에서도 AI Agent가 플랫폼 엔지니어링의 핵심으로 부상하되, "성숙한 플랫폼 위에서만 AI가 효과를 발휘한다"고 강조합니다.
+
+```
+목표: AI 기반 이상 탐지, 자동 스케일링 추천, 장애 자동 복구
+
+도입 영역:
+  ┌──────────────────────────────────────────────────────────┐
+  │  AIOps Layer                                               │
+  │                                                            │
+  │  이상 탐지     → OTel 메트릭 기반 ML 모델                  │
+  │  자동 스케일링 → KEDA + 예측 기반 스케일링 추천             │
+  │  자동 복구     → Argo Rollouts + Chaos Mesh 기반 회복력    │
+  │  LLM 로그 분석 → 로그 요약 및 RCA(근본 원인 분석) 자동화  │
+  │  FinOps AI     → 비용 이상 탐지 + 최적화 자동 추천         │
+  └──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 12. 제품 번들링 전략 — Standalone vs Enterprise
+
+### 💡 왜 번들링을 고려하는가?
+
+현재 우리 플랫폼은 **모든 컴포넌트를 풀셋으로 배포**합니다. 그러나 모든 고객이 Vault, Teleport, Cilium을 다 필요로 하지는 않습니다. 고객의 규모, 보안 요구사항, 기존 인프라에 따라 **필요한 만큼만 제공**할 수 있으면 납품 비용이 줄고, 도입 장벽이 낮아집니다.
+
+### 컴포넌트별 분류
+
+먼저, 우리 스택의 모든 컴포넌트를 **핵심(Core)**, **확장(Extended)**, **프리미엄(Premium)**으로 분류합니다:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    컴포넌트 분류 매트릭스                          │
+│                                                                   │
+│  ● Core (제품 동작에 필수)                                       │
+│    RKE2, ArgoCD, nginx-ingress, Longhorn, cert-manager,          │
+│    external-dns, Harbor                                           │
+│                                                                   │
+│  ◆ Extended (운영 품질 향상)                                     │
+│    Keycloak(SSO), Vault(시크릿), ALBC(IP mode),                  │
+│    Cilium ENI, Hubble, Grafana, Loki, Tempo, Mimir               │
+│                                                                   │
+│  ★ Premium (엔터프라이즈 전용)                                   │
+│    Teleport(Zero-Trust Access), Backstage(IDP),                   │
+│    Kyverno(Policy), OpenCost(FinOps),                             │
+│    Multi-Tenancy 격리, AIOps Layer                                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 제품 에디션 정의
+
+| 에디션 | 대상 고객 | 포함 컴포넌트 | 인프라 규모 |
+|--------|----------|-------------|-----------|
+| **Community** | PoC / 스타트업 / 단일 팀 | ● Core만 | 3~5 노드 |
+| **Standard** | 중소기업 / 단일 제품 운영 | ● Core + ◆ Extended | 5~10 노드 |
+| **Enterprise** | 대기업 / 멀티테넌트 / 규제 산업 | ● Core + ◆ Extended + ★ Premium | 10+ 노드 |
+
+### 에디션별 상세 기능 매핑
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    Community        Standard         Enterprise          │
+│                                                                         │
+│  K8s (RKE2)          ✅              ✅               ✅                │
+│  GitOps (ArgoCD)     ✅              ✅               ✅                │
+│  Ingress (nginx)     ✅              ✅               ✅                │
+│  Storage (Longhorn)  ✅              ✅               ✅                │
+│  Registry (Harbor)   ✅              ✅               ✅                │
+│  ─────────────────────────────────────────────────────────────────      │
+│  SSO (Keycloak)      ❌              ✅               ✅                │
+│  Secrets (Vault)     ❌              ✅               ✅                │
+│  CNI (Cilium ENI)    ❌ (Canal)      ✅               ✅                │
+│  LB (ALBC IP mode)   ❌ (CCM)       ✅               ✅                │
+│  Observability(LGTM) ❌ (Grafana만) ✅               ✅                │
+│  ─────────────────────────────────────────────────────────────────      │
+│  Zero-Trust(Teleport)❌              ❌               ✅                │
+│  IDP (Backstage)     ❌              ❌               ✅                │
+│  Policy (Kyverno)    ❌              ❌               ✅                │
+│  FinOps (OpenCost)   ❌              ❌               ✅                │
+│  Multi-Tenancy 격리  ❌              ❌               ✅                │
+│  AIOps               ❌              ❌               ✅ (v3.0+)        │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 에디션별 아키텍처 다이어그램
+
+**Community Edition** — "바로 돌아가는 최소 구성"
+
+```
+┌────────────────────────────────────────────┐
+│  RKE2 + Canal + CCM                         │
+│  ArgoCD + nginx-ingress + Longhorn          │
+│  cert-manager + external-dns + Harbor       │
+│                                              │
+│  인증: 기본 kubeconfig                       │
+│  시크릿: K8s Secrets                         │
+│  모니터링: Grafana (기본 대시보드)            │
+└────────────────────────────────────────────┘
+  → PoC, 데모, 소규모 팀 즉시 배포 가능
+  → 운영 부담 최소, 학습 비용 낮음
+```
+
+**Standard Edition** — "프로덕션 운영을 위한 완성형"
+
+```
+┌────────────────────────────────────────────┐
+│  RKE2 + Cilium ENI + ALBC (IP mode)        │
+│  ArgoCD + nginx-ingress + Longhorn          │
+│  cert-manager + external-dns + Harbor       │
+│                                              │
+│  인증: Keycloak SSO (전 서비스 통합)         │
+│  시크릿: Vault (동적 시크릿, 자동 rotation)  │
+│  모니터링: LGTM Stack (Metrics+Logs+Traces)  │
+│  네트워크: Hubble (실시간 flow 관측)         │
+└────────────────────────────────────────────┘
+  → 단일 고객 프로덕션 환경에 적합
+  → 3-Layer Identity Stack 중 L1(Keycloak) + L2(Vault) 제공
+```
+
+**Enterprise Edition** — "멀티테넌트 + 규제 대응 + 완전 자동화"
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Standard Edition 전체 포함                                │
+│  ──────────────────────────────────────────────────────── │
+│  + Teleport (Zero-Trust SSH/K8s/DB 접근, 세션 녹화)       │
+│  + Backstage (Developer Portal, 셀프서비스)               │
+│  + Kyverno (Policy as Code, Admission Control)            │
+│  + OpenCost (FinOps, 고객별 비용 분배)                    │
+│  + Multi-Tenancy (Namespace 격리 + L7 NetworkPolicy)      │
+│  + AIOps (v3.0 이후, 이상 탐지 + 자동 복구)              │
+│                                                            │
+│  3-Layer Identity Stack 완전체:                            │
+│    L1: Keycloak (Human SSO)                                │
+│    L2: Vault (Secrets + Workload Identity)                 │
+│    L3: Teleport (Zero-Trust Access + 감사)                 │
+└──────────────────────────────────────────────────────────┘
+  → 대기업 멀티테넌트 납품에 적합
+  → 금융/의료 등 규제 산업 컴플라이언스 대응
+  → 완전한 감사 추적 + 정책 자동 집행
+```
+
+### 구축 가능성 분석 — 독립 배포가 가능한가?
+
+각 에디션이 **독립적으로 배포 가능한지** 기술적 의존성을 분석합니다:
+
+| 전환 경로 | 기술적 가능 여부 | 필요 작업 | 난이도 |
+|-----------|----------------|----------|--------|
+| Community 단독 배포 | ✅ 가능 | RKE2 기본 설치 + ArgoCD App-of-Apps | ⭐ 낮음 |
+| Community → Standard 업그레이드 | ✅ 가능 | Canal→Cilium CNI 전환, Keycloak/Vault 추가 | ⭐⭐⭐ 높음 (CNI 전환은 재배포) |
+| Standard 단독 배포 | ✅ 가능 | Terraform + ArgoCD로 처음부터 Standard 구성 | ⭐⭐ 중간 |
+| Standard → Enterprise 업그레이드 | ✅ 가능 | Teleport/Backstage/Kyverno 추가 (무중단) | ⭐⭐ 중간 |
+| Enterprise 단독 배포 | ✅ 가능 | Full Stack 한 번에 프로비저닝 | ⭐⭐ 중간 |
+
+> **💡 핵심 주의사항**: Community → Standard 전환 시 **CNI 교체(Canal → Cilium)**는 클러스터 재배포가 필요합니다. 따라서 프로덕션 환경을 고려하는 고객에게는 처음부터 **Standard 이상**을 권장합니다. Standard → Enterprise는 컴포넌트 추가만으로 무중단 전환이 가능합니다.
+
+### 번들링 전략 요약
+
+```
+고객 유형별 권장 에디션:
+
+  "우리 제품을 빠르게 테스트하고 싶어요"
+    → Community Edition (3노드, 30분 내 배포)
+
+  "프로덕션에서 안정적으로 운영하고 싶어요"
+    → Standard Edition (SSO + Vault + Cilium + Observability)
+
+  "여러 고객사에 납품하고, 감사/컴플라이언스 대응이 필요해요"
+    → Enterprise Edition (Full Stack + Multi-Tenancy + 감사 추적)
+
+  "온프렘 폐쇄망에 설치해야 해요"
+    → Standard 또는 Enterprise (RKE2 기반이므로 모든 에디션 폐쇄망 가능)
+```
+
+| 에디션 | 배포 시간 | 최소 노드 | 에어갭(폐쇄망) | 멀티테넌트 | 컴플라이언스 |
+|--------|----------|----------|--------------|-----------|------------|
+| Community | ~30분 | 3 | ✅ | ❌ | ❌ |
+| Standard | ~2시간 | 5 | ✅ | ❌ | 부분 (SSO+Vault) |
+| Enterprise | ~4시간 | 10+ | ✅ | ✅ | ✅ (감사+정책+격리) |
+
+> **비즈니스 관점의 핵심**: 모든 에디션이 **동일한 RKE2 + ArgoCD 기반**이므로, IaC 코드의 80%를 공유하고 **에디션별 Helm values와 ArgoCD ApplicationSet**으로 차이를 관리할 수 있습니다. 이는 유지보수 비용을 최소화하면서 다양한 고객 세그먼트를 커버하는 전략입니다.
 
 ---
 

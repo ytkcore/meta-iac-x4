@@ -117,6 +117,12 @@ variable "kubernetes_services" {
       uri      = "https://prometheus.unifiedmeta.net"
       type     = "web"
       internal = true
+    },
+    {
+      name     = "opstart"
+      uri      = "http://opstart.opstart.svc.cluster.local:8080"
+      type     = "web"
+      internal = true
     }
   ]
 }

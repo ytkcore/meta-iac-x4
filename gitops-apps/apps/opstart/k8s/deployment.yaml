@@ -1,0 +1,116 @@
+################################################################################
+# Opstart Dashboard (β) — K8s Deployment
+#
+# 기능: 배포 후 운영 초기화 웹 대시보드
+# 접근: kubectl port-forward / Teleport App Access
+# 배포: Flask Container + in-cluster kubectl
+################################################################################
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opstart
+  labels:
+    app.kubernetes.io/name: opstart
+    app.kubernetes.io/part-of: platform-tools
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opstart
+  namespace: opstart
+  labels:
+    app.kubernetes.io/name: opstart
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opstart
+  labels:
+    app.kubernetes.io/name: opstart
+rules:
+  # Vault 상태 확인, Secret 주입
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec", "secrets", "namespaces", "configmaps", "services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # ArgoCD Application 조회/동기화
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opstart
+  labels:
+    app.kubernetes.io/name: opstart
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opstart
+subjects:
+  - kind: ServiceAccount
+    name: opstart
+    namespace: opstart
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opstart
+  namespace: opstart
+  labels:
+    app.kubernetes.io/name: opstart
+    app.kubernetes.io/part-of: platform-tools
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opstart
+  template:
+    metadata:
+      labels:
+        app: opstart
+    spec:
+      serviceAccountName: opstart
+      containers:
+        - name: dashboard
+          # Harbor 레지스트리 — 55-bootstrap에서 자동 빌드/푸시
+          image: harbor.dev.unifiedmeta.net/platform/opstart:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PROJECT_ROOT
+              value: "/app"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opstart
+  namespace: opstart
+  labels:
+    app.kubernetes.io/name: opstart
+spec:
+  selector:
+    app: opstart
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

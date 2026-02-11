@@ -1,0 +1,35 @@
+################################################################################
+# Opstart Dashboard (β) — ArgoCD Application
+#
+# 기능: 배포 후 운영 초기화 웹 대시보드 (Flask + kubectl)
+# 접근: kubectl port-forward / Teleport App Access
+# 배포: 자체 Docker 이미지 + ServiceAccount (in-cluster)
+################################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opstart
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: opstart
+    app.kubernetes.io/part-of: platform-tools
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:ytkcore/meta-iac-x4.git
+    targetRevision: HEAD
+    path: gitops-apps/apps/opstart/k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opstart
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

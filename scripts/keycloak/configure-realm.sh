@@ -38,7 +38,8 @@ RANCHER_URL="https://rancher.${BASE_DOMAIN}"
 HARBOR_URL="https://harbor.${BASE_DOMAIN}"
 TELEPORT_URL="https://teleport.${BASE_DOMAIN}"
 
-header "Keycloak Realm & Client Configuration"
+
+header "Keycloak Realm & Client 설정"
 
 # ==============================================================================
 # 0. Pre-checks
@@ -50,14 +51,14 @@ if [[ -z "$KEYCLOAK_ADMIN_PASS" ]]; then
   exit 1
 fi
 
-info "Keycloak: ${KEYCLOAK_URL}"
-info "Realm: ${REALM_NAME}"
+info "Keycloak 주소: ${KEYCLOAK_URL}"
+info "Realm 이름: ${REALM_NAME}"
 
 # ==============================================================================
 # 1. Get Admin Token
 # ==============================================================================
 
-header "Authenticating with Keycloak Admin API..."
+header "Keycloak Admin API 인증 중..."
 
 TOKEN=$(curl -sk -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
@@ -71,7 +72,7 @@ if [[ -z "$TOKEN" ]]; then
   info "SSM 포트포워딩: aws ssm start-session --target <instance-id> --document-name AWS-StartPortForwardingSession --parameters portNumber=8443,localPortNumber=8443"
   exit 1
 fi
-ok "Admin token acquired"
+ok "Admin 토큰 획득 성공"
 
 AUTH_HEADER="Authorization: Bearer ${TOKEN}"
 
@@ -79,14 +80,14 @@ AUTH_HEADER="Authorization: Bearer ${TOKEN}"
 # 2. Create Realm (if not exists)
 # ==============================================================================
 
-header "Creating realm: ${REALM_NAME}"
+header "Realm 생성: ${REALM_NAME}"
 
 EXISTING_REALM=$(curl -sk -o /dev/null -w "%{http_code}" \
   -H "${AUTH_HEADER}" \
   "${KEYCLOAK_URL}/admin/realms/${REALM_NAME}")
 
 if [[ "$EXISTING_REALM" == "200" ]]; then
-  ok "Realm '${REALM_NAME}' already exists"
+  ok "Realm '${REALM_NAME}' 이미 존재함"
 else
   curl -sk -X POST "${KEYCLOAK_URL}/admin/realms" \
     -H "${AUTH_HEADER}" \
@@ -102,20 +103,20 @@ else
       \"resetPasswordAllowed\": true,
       \"editUsernameAllowed\": false,
       \"bruteForceProtected\": true
-    }" && ok "Realm '${REALM_NAME}' created" || err "Realm creation failed"
+    }" && ok "Realm '${REALM_NAME}' 생성 완료" || err "Realm 생성 실패"
 fi
 
 # ==============================================================================
 # 3. Create Groups
 # ==============================================================================
 
-header "Creating groups..."
+header "그룹 생성 중..."
 
 for GROUP in admin editor developer viewer; do
   curl -sk -X POST "${KEYCLOAK_URL}/admin/realms/${REALM_NAME}/groups" \
     -H "${AUTH_HEADER}" \
     -H "Content-Type: application/json" \
-    -d "{\"name\": \"${GROUP}\"}" 2>/dev/null && ok "Group '${GROUP}' created" || info "Group '${GROUP}' may already exist"
+    -d "{\"name\": \"${GROUP}\"}" 2>/dev/null && ok "그룹 '${GROUP}' 생성됨" || info "그룹 '${GROUP}' 이미 존재할 수 있음"
 done
 
 # ==============================================================================
@@ -127,7 +128,7 @@ create_client() {
   local REDIRECT_URI="$2"
   local CLIENT_NAME="$3"
 
-  info "Creating client: ${CLIENT_ID}..."
+  info "Client 생성: ${CLIENT_ID}..."
 
   # Generate a client secret
   local CLIENT_SECRET
@@ -164,13 +165,13 @@ create_client() {
           \"userinfo.token.claim\": \"true\"
         }
       }]
-    }" && ok "Client '${CLIENT_ID}' created (secret: ${CLIENT_SECRET})" \
-       || warn "Client '${CLIENT_ID}' may already exist"
+    }" && ok "Client '${CLIENT_ID}' 생성 완료 (secret: ${CLIENT_SECRET})" \
+       || warn "Client '${CLIENT_ID}' 이미 존재할 수 있음"
 
   echo "  ${CLIENT_ID}_SECRET=${CLIENT_SECRET}" >> "${SCRIPT_DIR}/client-secrets.env"
 }
 
-header "Creating OIDC clients..."
+header "OIDC 클라이언트 생성 중..."
 rm -f "${SCRIPT_DIR}/client-secrets.env"
 touch "${SCRIPT_DIR}/client-secrets.env"
 
@@ -184,7 +185,7 @@ create_client "teleport" "${TELEPORT_URL}" "Teleport Access"
 # 5. Create Admin User
 # ==============================================================================
 
-header "Creating platform admin user..."
+header "플랫폼 관리자 사용자 생성 중..."
 
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@${BASE_DOMAIN}}"
 ADMIN_TEMP_PASS="${ADMIN_TEMP_PASS:-PlatformAdmin1234!}"
@@ -203,20 +204,20 @@ curl -sk -X POST "${KEYCLOAK_URL}/admin/realms/${REALM_NAME}/users" \
       \"value\": \"${ADMIN_TEMP_PASS}\",
       \"temporary\": true
     }]
-  }" && ok "Admin user created (password: ${ADMIN_TEMP_PASS}, 초기 로그인 시 변경 필요)" \
-     || warn "Admin user may already exist"
+  }" && ok "관리자 사용자 생성 완료 (비밀번호: ${ADMIN_TEMP_PASS}, 초기 로그인 시 변경 필요)" \
+     || warn "관리자 사용자가 이미 존재할 수 있음"
 
 # ==============================================================================
 # Summary
 # ==============================================================================
 
-checkpoint "Keycloak Configuration Complete"
+checkpoint "Keycloak 설정 완료"
 echo ""
 echo "  Realm:     ${REALM_NAME}"
 echo "  Clients:   grafana, argocd, rancher, harbor, teleport"
 echo "  Admin:     platform-admin / ${ADMIN_TEMP_PASS} (임시)"
 echo ""
-echo "  Client secrets saved to: ${SCRIPT_DIR}/client-secrets.env"
+echo "  Client secrets 저장 위치: ${SCRIPT_DIR}/client-secrets.env"
 echo ""
 warn "client-secrets.env 파일을 안전한 곳에 보관 후 삭제하세요."
 info "다음 단계: ./scripts/keycloak/patch-albc-vpcid.sh"

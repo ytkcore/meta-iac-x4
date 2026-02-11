@@ -499,3 +499,47 @@ resource "aws_iam_role_policy_attachment" "vault_kms_unseal" {
   role       = data.terraform_remote_state.rke2.outputs.iam_role_name
   policy_arn = aws_iam_policy.vault_kms_unseal[0].arn
 }
+
+# ------------------------------------------------------------------------------
+# 10. Opstart Dashboard — Docker Image Build & Push
+#
+# - Harbor에 opstart 이미지를 빌드/푸시
+# - Dockerfile 또는 app.py 변경 시 자동 재빌드
+# - Harbor OCI가 사용 가능할 때만 실행
+# ------------------------------------------------------------------------------
+resource "null_resource" "opstart_image_build" {
+  count = local.harbor_oci_available ? 1 : 0
+
+  triggers = {
+    dockerfile_hash = filemd5("${path.module}/../../../ops/dashboard/Dockerfile")
+    app_hash        = filemd5("${path.module}/../../../ops/dashboard/app.py")
+    harbor_host     = local.harbor_oci_host
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -e
+      IMAGE="${local.harbor_oci_host}/platform/opstart"
+      TAG=$(cd ${path.module}/../../.. && git rev-parse --short HEAD 2>/dev/null || echo "latest")
+
+      echo "▸ Building opstart image: $IMAGE:$TAG"
+      docker build -t "$IMAGE:$TAG" -t "$IMAGE:latest" \
+        -f ops/dashboard/Dockerfile .
+
+      echo "▸ Pushing to Harbor..."
+      docker push "$IMAGE:$TAG"
+      docker push "$IMAGE:latest"
+
+      echo "✓ Opstart image pushed: $IMAGE:$TAG"
+    EOT
+    working_dir = "${path.module}/../../.."
+
+    environment = {
+      DOCKER_BUILDKIT = "1"
+    }
+  }
+
+  depends_on = [null_resource.seed_missing_helm_charts]
+}
+

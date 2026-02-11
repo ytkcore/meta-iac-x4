@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Meta Bootstrap — 운영 초기화</title>
+    <meta name="description" content="Meta Platform 배포 후 운영 초기화 대시보드">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* =================================================================
+           Deep Space Professional — Design System
+           ================================================================== */
+        :root {
+            --bg-void: #06080d;
+            --bg-surface: rgba(10, 14, 23, 0.82);
+            --bg-surface-hover: rgba(16, 22, 36, 0.9);
+            --bg-elevated: rgba(20, 28, 44, 0.85);
+            --border-dim: rgba(56, 189, 248, 0.08);
+            --border-active: rgba(56, 189, 248, 0.25);
+            --border-glow: rgba(56, 189, 248, 0.45);
+            --text-primary: #e8ecf2;
+            --text-secondary: #7c8ca3;
+            --text-tertiary: #4a556b;
+            --accent: #38bdf8;
+            --accent-dim: rgba(56, 189, 248, 0.15);
+            --accent-glow: rgba(56, 189, 248, 0.3);
+            --success: #34d399;
+            --success-dim: rgba(52, 211, 153, 0.15);
+            --success-glow: rgba(52, 211, 153, 0.3);
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --font-ui: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius: 10px;
+            --radius-sm: 6px;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Base Reset                                                         */
+        /* ------------------------------------------------------------------ */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg-void);
+            color: var(--text-primary);
+            font-family: var(--font-ui);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Deep Space Background — Multi-layer                                */
+        /* ------------------------------------------------------------------ */
+        .space-bg {
+            position: fixed; inset: 0; z-index: 0;
+            background:
+                /* 상단 성운 */
+                radial-gradient(ellipse 80% 50% at 50% -10%, rgba(56,189,248,0.06), transparent),
+                /* 좌측 성운 힌트 */
+                radial-gradient(ellipse 40% 60% at 10% 60%, rgba(99,102,241,0.04), transparent),
+                /* 하단 딥 그라디언트 */
+                linear-gradient(to top, rgba(0,0,0,0.6), transparent 50%),
+                var(--bg-void);
+        }
+
+        /* 별 레이어 1 — 작은 별 */
+        .stars-sm {
+            position: fixed; inset: 0; z-index: 0;
+            background-image:
+                radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(1px 1px at 30% 65%, rgba(255,255,255,0.4), transparent),
+                radial-gradient(1px 1px at 55% 15%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.3), transparent),
+                radial-gradient(1px 1px at 85% 35%, rgba(255,255,255,0.4), transparent),
+                radial-gradient(1px 1px at 95% 55%, rgba(255,255,255,0.5), transparent);
+            background-size: 200px 200px;
+            animation: drift 80s linear infinite;
+        }
+
+        /* 별 레이어 2 — 큰 별 */
+        .stars-lg {
+            position: fixed; inset: 0; z-index: 0;
+            background-image:
+                radial-gradient(2px 2px at 20% 40%, rgba(255,255,255,0.6), transparent),
+                radial-gradient(2px 2px at 45% 70%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(2px 2px at 75% 25%, rgba(255,255,255,0.6), transparent),
+                radial-gradient(1.5px 1.5px at 60% 90%, rgba(255,255,255,0.4), transparent);
+            background-size: 300px 300px;
+            animation: drift 120s linear infinite reverse;
+        }
+
+        @keyframes drift {
+            from { transform: translateY(0); }
+            to { transform: translateY(-200px); }
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Main Container                                                     */
+        /* ------------------------------------------------------------------ */
+        .app {
+            position: relative; z-index: 1;
+            width: 680px;
+            max-height: 92vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Header Bar — 브랜드 아이덴티티                                      */
+        /* ------------------------------------------------------------------ */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 0;
+            margin-bottom: 8px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--accent), #818cf8);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; font-weight: 700; color: #fff;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .brand-text {
+            display: flex; flex-direction: column;
+        }
+
+        .brand-name {
+            font-size: 14px; font-weight: 700;
+            letter-spacing: 0.5px;
+            color: var(--text-primary);
+        }
+
+        .brand-sub {
+            font-size: 11px; font-weight: 400;
+            color: var(--text-secondary);
+            margin-top: 1px;
+        }
+
+        .version-badge {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--accent);
+            background: var(--accent-dim);
+            padding: 3px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(56,189,248,0.15);
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Progress Bar                                                       */
+        /* ------------------------------------------------------------------ */
+        .progress-section {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            backdrop-filter: blur(16px);
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .progress-label {
+            font-size: 12px; font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .progress-count {
+            font-size: 13px; font-weight: 600;
+            font-family: var(--font-mono);
+            color: var(--text-primary);
+        }
+
+        .progress-track {
+            height: 6px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), #818cf8);
+            border-radius: 3px;
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 12px var(--accent-glow);
+            width: 0%;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Step Cards — Accordion                                             */
+        /* ------------------------------------------------------------------ */
+        .steps-container {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding-right: 4px;
+            margin-bottom: 12px;
+        }
+
+        /* 스크롤바 스타일 */
+        .steps-container::-webkit-scrollbar { width: 4px; }
+        .steps-container::-webkit-scrollbar-track { background: transparent; }
+        .steps-container::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+        }
+
+        .step-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(12px);
+            border-left: 3px solid transparent;
+            flex-shrink: 0;
+        }
+
+        .step-card:hover {
+            border-color: rgba(255,255,255,0.08);
+            border-left-color: rgba(255,255,255,0.08);
+        }
+
+        .step-card.active {
+            border-color: var(--accent);
+            border-left-color: var(--accent);
+            box-shadow: 0 0 20px var(--accent-glow), inset 0 0 20px rgba(56,189,248,0.02);
+        }
+
+        .step-card.completed {
+            border-left-color: var(--success);
+            background: rgba(52,211,153,0.03);
+        }
+
+        .step-card.completed .step-number {
+            background: var(--success-dim);
+            color: var(--success);
+        }
+
+        .step-card.completed.active {
+            border-color: var(--success);
+            border-left-color: var(--success);
+            box-shadow: 0 0 16px rgba(52,211,153,0.1);
+        }
+
+        .step-card.error {
+            border-left-color: var(--danger);
+        }
+
+        /* Step Header (항상 보임) */
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 18px;
+        }
+
+        .step-number {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            border: 1.5px solid var(--text-tertiary);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--text-tertiary);
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+        }
+
+        .step-card.active .step-number {
+            border-color: var(--accent);
+            color: var(--accent);
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+
+        .step-info { flex: 1; min-width: 0; }
+
+        .step-title {
+            font-size: 14px; font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .step-desc {
+            font-size: 12px; color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .step-badge {
+            font-size: 11px; font-weight: 500;
+            font-family: var(--font-mono);
+            padding: 3px 10px;
+            border-radius: 20px;
+            flex-shrink: 0;
+        }
+
+        .badge-pending {
+            color: var(--text-tertiary);
+            background: rgba(255,255,255,0.04);
+        }
+
+        .badge-active {
+            color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        .badge-done {
+            color: var(--success);
+            background: var(--success-dim);
+        }
+
+        /* Step Body (Accordion — 활성 스텝만 표시) */
+        .step-body {
+            display: none;
+        }
+
+        .step-card.active .step-body {
+            display: block;
+            padding: 0 18px 16px 60px;
+        }
+
+        .step-detail {
+            font-size: 13px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .step-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* 인라인 입력 필드 */
+        .step-inputs {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .step-input-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-input-row label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            min-width: 80px;
+            flex-shrink: 0;
+        }
+
+        .step-input-row input {
+            flex: 1;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-sm);
+            padding: 6px 10px;
+            font-size: 12px;
+            font-family: var(--font-mono);
+            color: var(--text-primary);
+            outline: none;
+        }
+
+        .step-input-row input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent-dim);
+        }
+
+        .step-input-row input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Buttons                                                            */
+        /* ------------------------------------------------------------------ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: var(--font-ui);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            line-height: 1;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #60a5fa);
+            color: #000;
+            box-shadow: 0 0 16px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 0 24px var(--accent-glow), 0 2px 8px rgba(0,0,0,0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-ghost {
+            background: rgba(255,255,255,0.06);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-dim);
+        }
+
+        .btn-ghost:hover {
+            background: rgba(255,255,255,0.1);
+            color: var(--text-primary);
+            border-color: rgba(255,255,255,0.15);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .btn-success {
+            background: var(--success-dim);
+            color: var(--success);
+            border: 1px solid rgba(52,211,153,0.2);
+            cursor: default;
+        }
+
+        .badge-error {
+            background: rgba(248,113,113,0.15) !important;
+            color: #f87171 !important;
+        }
+
+        .badge-running {
+            background: rgba(251,191,36,0.15) !important;
+            color: #fbbf24 !important;
+            animation: pulse-badge 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse-badge {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* 완료 카드 표시 */
+        .completion-card {
+            display: none;
+        }
+
+        .completion-card.visible {
+            display: block;
+            animation: fadeSlideIn 0.5s ease;
+        }
+
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Console — 우측 플로팅 패널                                            */
+        /* ------------------------------------------------------------------ */
+        .console-section {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            width: 520px;
+            max-height: 50vh;
+            background: rgba(6, 8, 13, 0.92);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius);
+            overflow: hidden;
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            z-index: 50;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 1px rgba(56,189,248,0.1);
+            transform: translateX(0);
+        }
+
+        .console-section.collapsed {
+            width: 160px;
+            max-height: 40px;
+            right: 20px;
+            bottom: 20px;
+        }
+
+        .console-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            cursor: pointer;
+            user-select: none;
+            border-bottom: 1px solid var(--border-dim);
+        }
+
+        .console-section.collapsed .console-header {
+            border-bottom: none;
+        }
+
+        .console-header:hover { background: rgba(255,255,255,0.03); }
+
+        .console-title-area {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .console-chevron {
+            font-size: 10px;
+            color: var(--text-tertiary);
+            transition: transform 0.3s ease;
+        }
+
+        .console-section.open .console-chevron {
+            transform: rotate(180deg);
+        }
+
+        .console-label {
+            font-size: 11px; font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .console-count {
+            font-size: 10px;
+            font-family: var(--font-mono);
+            color: var(--accent);
+            background: var(--accent-dim);
+            padding: 1px 7px;
+            border-radius: 10px;
+        }
+
+        .console-actions {
+            display: flex; gap: 8px;
+        }
+
+        .console-btn {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: var(--font-ui);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .console-btn:hover { color: var(--text-secondary); background: rgba(255,255,255,0.05); }
+
+        .console-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease;
+        }
+
+        .console-section.open .console-body {
+            max-height: calc(50vh - 50px);
+        }
+
+        .console-scroll {
+            padding: 8px 16px 12px;
+            max-height: calc(50vh - 60px);
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            line-height: 1.7;
+        }
+
+        .console-scroll::-webkit-scrollbar { width: 3px; }
+        .console-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+        .log-line { display: flex; gap: 10px; }
+        .log-time { color: var(--text-tertiary); flex-shrink: 0; }
+        .log-msg { color: var(--text-secondary); word-break: break-all; }
+        .log-msg.success { color: var(--success); }
+        .log-msg.error { color: var(--danger); }
+        .log-msg.info { color: var(--text-secondary); }
+
+        /* ------------------------------------------------------------------ */
+        /* Completion Card                                                    */
+        /* ------------------------------------------------------------------ */
+        .completion-card {
+            display: none;
+            background: linear-gradient(135deg, rgba(52,211,153,0.1), rgba(56,189,248,0.05));
+            border: 1px solid rgba(52,211,153,0.2);
+            border-radius: var(--radius);
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 12px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .completion-card.visible { display: block; }
+
+        .completion-icon { font-size: 32px; margin-bottom: 8px; }
+        .completion-title {
+            font-size: 16px; font-weight: 700;
+            color: var(--success);
+            margin-bottom: 4px;
+        }
+        .completion-desc {
+            font-size: 13px; color: var(--text-secondary);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Guide Drawer (오버레이)                                              */
+        /* ------------------------------------------------------------------ */
+        .guide-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 100;
+            display: none;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .guide-overlay.visible { display: block; }
+
+        .guide-drawer {
+            position: fixed;
+            top: 0; right: 0;
+            width: 520px;
+            height: 100vh;
+            background: var(--bg-void);
+            border-left: 1px solid var(--border-dim);
+            z-index: 101;
+            display: none;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.35s ease;
+        }
+
+        .guide-drawer.visible {
+            display: flex;
+            transform: translateX(0);
+        }
+
+        .guide-drawer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-dim);
+        }
+
+        .guide-drawer-title {
+            font-size: 14px; font-weight: 600;
+        }
+
+        .guide-close-btn {
+            background: none; border: none;
+            color: var(--text-secondary);
+            font-size: 18px; cursor: pointer;
+            padding: 4px 8px; border-radius: 4px;
+        }
+        .guide-close-btn:hover { background: rgba(255,255,255,0.05); }
+
+        .guide-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+        }
+
+        .guide-content h1, .guide-content h2, .guide-content h3 {
+            color: var(--text-primary);
+            margin: 20px 0 8px;
+        }
+        .guide-content h1 { font-size: 20px; }
+        .guide-content h2 { font-size: 16px; }
+        .guide-content h3 { font-size: 14px; }
+        .guide-content code {
+            font-family: var(--font-mono);
+            background: rgba(255,255,255,0.06);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .guide-content pre {
+            background: rgba(0,0,0,0.4);
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        .guide-content pre code { background: none; padding: 0; }
+
+        /* ------------------------------------------------------------------ */
+        /* Status Indicators (좌측 하단 플로팅)                                  */
+        /* ------------------------------------------------------------------ */
+        .status-bar {
+            display: flex;
+            gap: 16px;
+            padding: 14px 0 0;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--text-tertiary);
+        }
+
+        .status-dot.active {
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success-glow);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.error {
+            background: var(--danger);
+            box-shadow: 0 0 8px rgba(248,113,113,0.3);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <!-- Deep Space 배경 레이어 -->
+    <div class="space-bg"></div>
+    <div class="stars-sm"></div>
+    <div class="stars-lg"></div>
+
+    <!-- 메인 앱 -->
+    <div class="app">
+        <!-- 헤더 -->
+        <div class="header">
+            <div class="brand">
+                <div class="brand-icon">M</div>
+                <div class="brand-text">
+                    <span class="brand-name">META PLATFORM</span>
+                    <span class="brand-sub">배포 후 운영 초기화</span>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <button class="btn btn-ghost" onclick="openGuide()" style="font-size:12px; padding:6px 12px;">📖 운영 가이드</button>
+                <span class="version-badge">v0.7</span>
+            </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-section">
+            <div class="progress-header">
+                <span class="progress-label">초기화 진행률</span>
+                <span class="progress-count" id="progress-text">0 / 9 단계</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" id="progress-bar"></div>
+            </div>
+        </div>
+
+        <!-- 완료 카드 -->
+        <div class="completion-card" id="completion-card">
+            <div class="completion-icon">🚀</div>
+            <div class="completion-title">시스템 초기화 완료</div>
+            <div class="completion-desc">모든 초기화 단계가 완료되었습니다. 플랫폼이 운영 준비 상태입니다.</div>
+        </div>
+
+        <!-- Accordion Steps -->
+        <div class="steps-container" id="steps-container"></div>
+
+    </div>
+
+    <!-- Console — 우측 플로팅 -->
+    <div class="console-section open" id="console-section">
+        <div class="console-header" onclick="toggleConsole()">
+            <div class="console-title-area">
+                <span class="console-chevron" id="console-chevron">▼</span>
+                <span class="console-label">콘솔</span>
+                <span class="console-count" id="console-count">0</span>
+            </div>
+            <div class="console-actions">
+                <button class="console-btn" onclick="event.stopPropagation(); clearConsole()">지우기</button>
+            </div>
+        </div>
+        <div class="console-body">
+            <div class="console-scroll" id="console-logs"></div>
+        </div>
+    </div>
+
+        <!-- 하단 상태바 -->
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot" id="dot-vault"></div>
+                <span id="label-vault">Vault: 확인 중...</span>
+            </div>
+            <div class="status-item">
+                <div class="status-dot" id="dot-secrets"></div>
+                <span id="label-secrets">Secrets: 확인 중...</span>
+            </div>
+        </div>
+
+    <!-- 가이드 드로어 -->
+    <div class="guide-overlay" id="guide-overlay" onclick="closeGuide()"></div>
+    <div class="guide-drawer" id="guide-drawer">
+        <div class="guide-drawer-header">
+            <span class="guide-drawer-title">📖 구축 후 운영 가이드</span>
+            <button class="guide-close-btn" onclick="closeGuide()">✕</button>
+        </div>
+        <div class="guide-content" id="guide-content">로딩 중...</div>
+    </div>
+
+    <script>
+        // ==================================================================
+        // Application State
+        // ==================================================================
+        const STEPS = [
+            {
+                id: 1,
+                title: "Vault 상태 확인",
+                desc: "Vault Unseal 상태 및 클러스터 연결을 확인합니다.",
+                detail: "HashiCorp Vault가 정상적으로 Unseal되어 Active 상태인지 확인합니다. Vault는 모든 시크릿 관리의 근간이므로, 이 단계가 완료되어야 다음으로 진행할 수 있습니다.",
+                buttons: [
+                    { text: "상태 확인", type: "primary", id: "btn-vault", action: "checkStatus(true)" }
+                ]
+            },
+            {
+                id: 2,
+                title: "Secret 주입",
+                desc: "Keycloak DB/Admin 시크릿을 K8s에 생성합니다.",
+                detail: "Keycloak이 사용할 데이터베이스 비밀번호와 관리자 비밀번호를 자동 생성하고, Kubernetes Secret으로 주입합니다. 이미 존재하는 경우 건너릵니다 (멱등).",
+                buttons: [
+                    { text: "Secret 생성", type: "primary", id: "btn-generate", action: "generateSecrets()" }
+                ]
+            },
+            {
+                id: 3,
+                title: "Identity Provider 설정",
+                desc: "Keycloak Platform Realm 및 SSO Client를 구성합니다.",
+                detail: "Keycloak에 'platform' Realm을 생성하고, ArgoCD·Grafana·Harbor 등의 OIDC Client를 자동으로 등록합니다. configure-realm.sh 스크립트를 실행합니다.",
+                buttons: [
+                    { text: "Realm 설정 실행", type: "primary", id: "btn-keycloak", action: "configureKeycloak()" },
+                    { text: "Keycloak 열기", type: "ghost", action: "window.open('https://keycloak.unifiedmeta.net')" }
+                ]
+            },
+            {
+                id: 4,
+                title: "GitOps 동기화",
+                desc: "ArgoCD 애플리케이션 배포 상태를 확인합니다.",
+                detail: "ArgoCD에서 모든 애플리케이션이 Synced/Healthy 상태인지 확인합니다. 문제가 있는 앱이 있으면 수동으로 Sync를 실행합니다.",
+                buttons: [
+                    { text: "전체 동기화", type: "primary", id: "btn-argocd", action: "syncArgoCD()" },
+                    { text: "ArgoCD 열기", type: "ghost", action: "window.open('https://argocd.unifiedmeta.net')" }
+                ]
+            },
+            {
+                id: 5,
+                title: "Cluster 등록",
+                desc: "Rancher에 클러스터를 등록합니다.",
+                detail: "Rancher UI에서 RKE2 클러스터를 Import하여 중앙 관리할 수 있게 합니다. Import 후 클러스터 상태가 Active로 표시되면 완료입니다.",
+                buttons: [
+                    { text: "Rancher 열기", type: "ghost", action: "window.open('https://rancher.unifiedmeta.net')" },
+                    { text: "수동 완료", type: "primary", id: "btn-rancher", action: "manualComplete(5)" }
+                ]
+            },
+            {
+                id: 6,
+                title: "Monitoring",
+                desc: "Grafana 대시보드를 확인합니다.",
+                detail: "Grafana에 접속하여 클러스터 상태, 로그, 리소스 사용량 등을 모니터링합니다. 초기 데이터 수집 여부를 확인하세요.",
+                buttons: [
+                    { text: "Grafana 열기", type: "ghost", action: "window.open('https://grafana.unifiedmeta.net')" },
+                    { text: "수동 완료", type: "primary", id: "btn-monitoring", action: "manualComplete(6)" }
+                ]
+            }
+        ];
+
+        let currentStepId = 1;
+        let completedSteps = new Set();
+        let stepStates = {};   // { stepId: 'pending' | 'running' | 'done' | 'error' }
+        let stepResults = {};  // { stepId: { status, output, timestamp } }
+        let logCount = 0;
+
+        // 모든 스텝 초기 상태 설정
+        STEPS.forEach(s => { stepStates[s.id] = 'pending'; });
+
+        // ==================================================================
+        // 초기화 (Initialize)
+        // ==================================================================
+        function init() {
+            renderSteps();
+            selectStep(1);
+            loadGuide();
+            checkStatus();
+            setInterval(checkStatus, 5000);
+            log("Operations Dashboard v0.7 초기화 완료", "info");
+            log("클러스터 상태 확인 중...", "info");
+        }
+
+        // ==================================================================
+        // 스텝 렌더링
+        // ==================================================================
+        function renderSteps() {
+            const container = document.getElementById('steps-container');
+            container.innerHTML = '';
+            STEPS.forEach(step => {
+                const card = document.createElement('div');
+                card.className = 'step-card';
+                card.id = `step-${step.id}`;
+                card.onclick = () => selectStep(step.id);
+
+                const inputsHtml = (step.inputs || []).map(inp => `
+                    <div class="step-input-row">
+                        <label for="${inp.id}">${inp.label}</label>
+                        <input type="text" id="${inp.id}" value="${inp.value || ''}" placeholder="${inp.placeholder || ''}" onclick="event.stopPropagation()" />
+                    </div>
+                `).join('');
+
+                const buttonsHtml = step.buttons.map(btn => {
+                    const cls = btn.type === 'primary' ? 'btn btn-primary' : 'btn btn-ghost';
+                    const idAttr = btn.id ? `id="${btn.id}"` : '';
+                    return `<button class="${cls}" ${idAttr} onclick="event.stopPropagation(); ${btn.action}">${btn.text}</button>`;
+                }).join('');
+
+                card.innerHTML = `
+                    <div class="step-header">
+                        <div class="step-number">${step.id}</div>
+                        <div class="step-info">
+                            <div class="step-title">${step.title}</div>
+                            <div class="step-desc">${step.desc}</div>
+                        </div>
+                        <span class="step-badge badge-pending" id="badge-${step.id}">대기</span>
+                    </div>
+                    <div class="step-body">
+                        <div class="step-detail">${step.detail || step.desc}</div>
+                        ${inputsHtml ? `<div class="step-inputs">${inputsHtml}</div>` : ''}
+                        <div class="step-actions">${buttonsHtml}</div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function selectStep(id) {
+            currentStepId = id;
+            document.querySelectorAll('.step-card').forEach(c => c.classList.remove('active'));
+            const card = document.getElementById(`step-${id}`);
+            if (card) card.classList.add('active');
+
+            // 배지 업데이트
+            STEPS.forEach(s => {
+                const badge = document.getElementById(`badge-${s.id}`);
+                if (!badge) return;
+                const state = stepStates[s.id] || 'pending';
+
+                if (state === 'done') {
+                    badge.className = 'step-badge badge-done';
+                    badge.textContent = '완료';
+                } else if (state === 'error') {
+                    badge.className = 'step-badge badge-error';
+                    badge.textContent = '오류';
+                } else if (state === 'running') {
+                    badge.className = 'step-badge badge-running';
+                    badge.textContent = '실행중';
+                } else if (s.id === id) {
+                    badge.className = 'step-badge badge-active';
+                    badge.textContent = '진행';
+                } else {
+                    badge.className = 'step-badge badge-pending';
+                    badge.textContent = '대기';
+                }
+            });
+
+
+
+            // 스텝별 상태 확인
+            if (id === 2) checkSecretStatusForButton();
+            if (id === 3) checkKeycloakStatusForButton();
+        }
+
+        // ==================================================================
+        // 결과 저장 (콘솔에만 출력)
+        // ==================================================================
+        function saveStepResult(id, status, output) {
+            stepResults[id] = {
+                status: status,
+                output: output || '',
+                timestamp: new Date().toLocaleString('ko-KR')
+            };
+        }
+
+        // ==================================================================
+        // 완료 처리
+        // ==================================================================
+        function markComplete(id) {
+            if (completedSteps.has(id)) return;
+            completedSteps.add(id);
+            stepStates[id] = 'done';
+
+            const card = document.getElementById(`step-${id}`);
+            if (card) {
+                card.classList.add('completed');
+                card.classList.remove('error');
+            }
+
+            const badge = document.getElementById(`badge-${id}`);
+            if (badge) {
+                badge.className = 'step-badge badge-done';
+                badge.textContent = '완료';
+            }
+
+            updateProgress();
+
+            // 현재 보고 있는 단계가 완료되면 다음 미완료 단계로 자동 이동
+            if (currentStepId === id) {
+                const next = STEPS.find(s => !completedSteps.has(s.id));
+                if (next) {
+                    setTimeout(() => selectStep(next.id), 600);
+                }
+            }
+        }
+
+        function setBadgeRunning(id) {
+            stepStates[id] = 'running';
+            const badge = document.getElementById(`badge-${id}`);
+            if (badge) {
+                badge.className = 'step-badge badge-running';
+                badge.textContent = '실행중';
+            }
+        }
+
+        function setBadgeError(id) {
+            stepStates[id] = 'error';
+            const badge = document.getElementById(`badge-${id}`);
+            if (badge) {
+                badge.className = 'step-badge badge-error';
+                badge.textContent = '오류';
+            }
+            const card = document.getElementById(`step-${id}`);
+            if (card) card.classList.add('error');
+        }
+
+        function updateProgress() { // Keep original function
+            const total = STEPS.length;
+            const done = completedSteps.size;
+            const pct = (done / total) * 100;
+
+            document.getElementById('progress-bar').style.width = pct + '%';
+            document.getElementById('progress-text').textContent = `${done} / ${total} 단계`;
+
+            // 완료 카드
+            const card = document.getElementById('completion-card');
+            if (done === total) {
+                card.classList.add('visible');
+            } else {
+                card.classList.remove('visible');
+            }
+        }
+
+        // ==================================================================
+        // API: 상태 확인
+        // ==================================================================
+        async function checkStatus(manual = false) {
+            if (manual) log("── 클러스터 상태 점검 시작 ──", "info");
+            try {
+                const vRes = await fetch('/api/status/vault');
+                const vData = await vRes.json();
+                const dotV = document.getElementById('dot-vault');
+                const lblV = document.getElementById('label-vault');
+
+                if (vData.status === 'active') {
+                    dotV.className = 'status-dot active';
+                    lblV.textContent = 'Vault: Active';
+                    markComplete(1);
+                    if (manual) {
+                        log("[Vault] ✓ Active (Unsealed)", "success");
+                        if (vData.seal_type) log(`  Seal Type: ${vData.seal_type}`, "info");
+                    }
+                } else if (vData.status === 'sealed') {
+                    dotV.className = 'status-dot error';
+                    lblV.textContent = 'Vault: Sealed';
+                    if (manual) setBadgeError(1);
+                    if (manual) {
+                        log("[Vault] ✕ Sealed — Unseal이 필요합니다", "error");
+                        if (vData.seal_type) log(`  Seal Type: ${vData.seal_type}`, "info");
+                    }
+                } else if (vData.status === 'not_running') {
+                    dotV.className = 'status-dot error';
+                    lblV.textContent = 'Vault: Not Running';
+                    if (manual) setBadgeError(1);
+                    if (manual) log(`[Vault] ✕ Pod가 실행 중이 아닙니다 — ${vData.message}`, "error");
+                } else {
+                    dotV.className = 'status-dot';
+                    lblV.textContent = `Vault: ${vData.status}`;
+                    if (manual) setBadgeError(1);
+                    if (manual) log(`[Vault] ⚠ ${vData.message || vData.status}`, "warning");
+                }
+
+                await checkSecretStatusForButton(manual);
+                await checkKeycloakStatusForButton(manual);
+
+                if (manual) log("── 상태 점검 완료 ──", "info");
+            } catch (e) {
+                if (manual) log("상태 확인 실패: 서버 연결을 확인하세요 — " + e, "error");
+            }
+        }
+
+        async function checkSecretStatusForButton(manual = false) {
+            try {
+                const res = await fetch('/api/status/secrets');
+                const data = await res.json();
+                const dotS = document.getElementById('dot-secrets');
+                const lblS = document.getElementById('label-secrets');
+                const btn = document.getElementById('btn-generate');
+
+                if (data.db && data.admin) {
+                    dotS.className = 'status-dot active';
+                    lblS.textContent = 'Secrets: 배포됨';
+                    markComplete(2);
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.className = 'btn btn-success';
+                        btn.textContent = '✓ 완료';
+                    }
+                    if (manual) {
+                        log("[Secrets] ✓ 모든 시크릿 배포 완료", "success");
+                        log(`  keycloak-db-secret: ${data.db ? '✓' : '✕'}  |  keycloak-admin-secret: ${data.admin ? '✓' : '✕'}`, "info");
+                        if (!data.namespace) log("  ⚠ Namespace: keycloak 없음", "warning");
+                    }
+                } else {
+                    dotS.className = 'status-dot';
+                    lblS.textContent = 'Secrets: 미생성';
+                    if (btn && !btn.disabled) {
+                        btn.textContent = 'Secret 생성';
+                        btn.className = 'btn btn-primary';
+                    }
+                    if (manual) {
+                        log("[Secrets] ⚠ 미생성 — Step 2에서 생성 필요", "warning");
+                        log(`  Namespace: ${data.namespace ? '✓' : '✕'}  |  DB: ${data.db ? '✓' : '✕'}  |  Admin: ${data.admin ? '✓' : '✕'}`, "info");
+                    }
+                }
+            } catch (e) {
+                if (manual) log("[Secrets] ✕ 상태 확인 실패: " + e, "error");
+            }
+        }
+
+        async function checkKeycloakStatusForButton(manual = false) {
+            try {
+                const res = await fetch('/api/status/keycloak');
+                const data = await res.json();
+                const btn = document.getElementById('btn-keycloak');
+
+                if (data.configured) {
+                    markComplete(3);
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.className = 'btn btn-success';
+                        btn.textContent = '✓ 완료';
+                    }
+                    if (manual) {
+                        log("[Keycloak] ✓ Platform Realm 설정 완료", "success");
+                        log("  Realm URL: keycloak.dev.unifiedmeta.net/realms/platform", "info");
+                    }
+                } else {
+                    if (btn && !btn.disabled) {
+                        btn.textContent = 'Realm 설정 실행';
+                        btn.className = 'btn btn-primary';
+                    }
+                    if (manual) {
+                        log(`[Keycloak] ⚠ ${data.message || 'Realm 미설정'} — Step 3에서 설정 필요`, "warning");
+                    }
+                }
+            } catch (e) {
+                if (manual) log("[Keycloak] ✕ 상태 확인 실패: " + e, "error");
+            }
+        }
+
+        // ==================================================================
+        // API: 액션
+        // ==================================================================
+        async function generateSecrets() {
+            const btn = document.getElementById('btn-generate');
+            if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
+            setBadgeRunning(2);
+            log("Secret 생성 시작...", "info");
+
+            try {
+                const res = await fetch('/api/actions/generate-secrets', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    log("Secret 주입 완료", "success");
+                    saveStepResult(2, 'success', data.output || 'Secret 생성 완료');
+                    markComplete(2);
+                    if (btn) { btn.className = 'btn btn-success'; btn.textContent = '✓ 완료'; }
+                    checkStatus();  // UI 상태 인디케이터 새로고침
+                } else {
+                    log("Secret 생성 실패: " + JSON.stringify(data), "error");
+                    saveStepResult(2, 'error', data.message || JSON.stringify(data));
+                    setBadgeError(2);
+                    if (btn) { btn.disabled = false; btn.textContent = '재시도'; }
+                }
+            } catch (e) {
+                log("연결 실패", "error");
+                saveStepResult(2, 'error', e.toString());
+                setBadgeError(2);
+                if (btn) { btn.disabled = false; btn.textContent = '재시도'; }
+            }
+        }
+
+        async function configureKeycloak() {
+            const btn = document.getElementById('btn-keycloak');
+            if (btn) { btn.disabled = true; btn.textContent = '스크립트 실행 중...'; }
+            setBadgeRunning(3);
+            log("Keycloak Realm 설정 스크립트 실행 중...", "info");
+
+            try {
+                const res = await fetch('/api/actions/configure-keycloak', { method: 'POST' });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    log("Realm 설정 완료", "success");
+                    if (data.output) {
+                        data.output.split('\n').forEach(line => {
+                            if (line.trim()) log(line, "info");
+                        });
+                    }
+                    saveStepResult(3, 'success', data.output || 'Keycloak Realm 설정 완료');
+                    markComplete(3);
+                    if (btn) { btn.className = 'btn btn-success'; btn.textContent = '✓ 완료'; }
+                    checkStatus();  // UI 상태 인디케이터 새로고침
+                } else {
+                    log("스크립트 실행 실패: " + (data.message || ''), "error");
+                    if (data.output) log(data.output, "error");
+                    saveStepResult(3, 'error', (data.message || '') + '\n' + (data.output || ''));
+                    setBadgeError(3);
+                    if (btn) { btn.disabled = false; btn.textContent = '재시도'; }
+                }
+            } catch (e) {
+                log("요청 실패: " + e, "error");
+                saveStepResult(3, 'error', e.toString());
+                setBadgeError(3);
+                if (btn) { btn.disabled = false; btn.textContent = '재시도'; }
+            }
+        }
+
+        async function syncArgoCD() {
+            const btn = document.getElementById('btn-argocd');
+            if(btn) { btn.disabled = true; btn.textContent = "동기화 중..."; }
+            setBadgeRunning(4);
+            log("ArgoCD 앱 동기화 시작...", "info");
+
+            try {
+                const res = await fetch('/api/actions/sync-argocd', {method:'POST'});
+                const data = await res.json();
+
+                if(data.status === 'success') {
+                    log("ArgoCD 동기화 요청 완료.", "success");
+                    log(data.output, "info");
+                    saveStepResult(4, 'success', data.output);
+                    markComplete(4);
+                    if(btn) { btn.className = 'btn btn-success'; btn.textContent = "✓ 완료"; }
+                } else {
+                    log("동기화 실패.", "error");
+                    log(data.output || data.message, "error");
+                    saveStepResult(4, 'error', data.output || data.message);
+                    setBadgeError(4);
+                    if(btn) { btn.disabled = false; btn.textContent = "재시도"; }
+                }
+            } catch(e) {
+                log("요청 실패: " + e, "error");
+                saveStepResult(4, 'error', e.toString());
+                setBadgeError(4);
+                if(btn) { btn.disabled = false; btn.textContent = "재시도"; }
+            }
+        }
+
+        function manualComplete(stepId) {
+            const stepNames = { 5: 'Rancher', 6: 'Monitoring' };
+            const name = stepNames[stepId] || `Step ${stepId}`;
+            saveStepResult(stepId, 'success', `${name} 수동 확인 완료`);
+            markComplete(stepId);
+            log(`${stepId}단계 (${name}) 수동 완료 처리됨.`, "success");
+            const btnId = stepId === 5 ? 'btn-rancher' : (stepId === 6 ? 'btn-monitoring' : null);
+            if (btnId) {
+                const btn = document.getElementById(btnId);
+                if(btn) { btn.className = 'btn btn-success'; btn.textContent = "✓ 완료"; }
+            }
+        }
+
+        // ==================================================================
+        // 콘솔 (Console)
+        // ==================================================================
+        function log(msg, type = 'info') {
+            logCount++;
+            const now = new Date();
+            const ts = now.toTimeString().slice(0, 8);
+            const el = document.getElementById('console-logs');
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            line.innerHTML = `<span class="log-time">${ts}</span><span class="log-msg ${type}">${msg}</span>`;
+            el.appendChild(line);
+            el.scrollTop = el.scrollHeight;
+
+            // 카운트 업데이트
+            document.getElementById('console-count').textContent = logCount;
+
+            // 새 로그 시 콘솔 자동 열기
+            document.getElementById('console-section').classList.add('open');
+        }
+
+        function toggleConsole() {
+            document.getElementById('console-section').classList.toggle('open');
+        }
+
+        function clearConsole() {
+            document.getElementById('console-logs').innerHTML = '';
+            logCount = 0;
+            document.getElementById('console-count').textContent = '0';
+        }
+
+        // ==================================================================
+        // 가이드 드로어
+        // ==================================================================
+        let guideLoaded = false;
+
+        async function loadGuide() {
+            if (guideLoaded) return;
+            try {
+                const res = await fetch('/api/guide');
+                const data = await res.json();
+                if (data.status === 'success') {
+                    document.getElementById('guide-content').innerHTML = marked.parse(data.content);
+                    guideLoaded = true;
+                } else {
+                    document.getElementById('guide-content').textContent = "가이드 로딩 실패: " + data.message;
+                }
+            } catch (e) {
+                document.getElementById('guide-content').textContent = "가이드를 불러올 수 없습니다.";
+            }
+        }
+
+        function openGuide() {
+            loadGuide();
+            document.getElementById('guide-overlay').classList.add('visible');
+            // 약간의 딜레이 후 슬라이드 인
+            requestAnimationFrame(() => {
+                document.getElementById('guide-drawer').classList.add('visible');
+            });
+        }
+
+        function closeGuide() {
+            document.getElementById('guide-drawer').classList.remove('visible');
+            setTimeout(() => {
+                document.getElementById('guide-overlay').classList.remove('visible');
+            }, 350);
+        }
+
+        // ==================================================================
+        // 초기화 실행
+        // ==================================================================
+        init();
+    </script>
+</body>
+</html>

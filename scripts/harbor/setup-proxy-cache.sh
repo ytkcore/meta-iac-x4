@@ -26,7 +26,7 @@ header() { echo -e "\n${CYAN}[Proxy Cache]${NC} $*"; }
 
 create_proxy() {
   local NAME="$1" URL="$2" TYPE="${3:-docker-hub}"
-  info "Creating: $NAME -> $URL"
+  info "생성 중: $NAME -> $URL"
   
   # Check if project exists
   curl -fsSk -u "$AUTH" "$API/projects/$NAME" 2>/dev/null | grep -q "$NAME" && return 0
@@ -58,7 +58,7 @@ AUTH="admin:$HARBOR_ADMIN_PASSWORD"
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
-header "Setting up proxy cache projects"
+header "Proxy Cache 프로젝트 설정 중..."
 
 create_proxy "$HARBOR_PROXY_CACHE_PROJECT" "https://hub.docker.com" "docker-hub"
 create_proxy "k8s-proxy" "https://registry.k8s.io" "docker-registry"
@@ -67,4 +67,4 @@ create_proxy "quay-proxy" "https://quay.io" "docker-registry"
 create_proxy "gcr-proxy" "https://gcr.io" "docker-registry"
 create_proxy "rancher-proxy" "https://registry.rancher.com" "docker-registry"
 
-ok "Proxy cache setup completed"
+ok "Proxy Cache 설정 완료"

@@ -57,11 +57,13 @@ Thumbs.db
 # IDE files
 .idea/
 .vscode/
+.cursorrules
 *.swp
 *.swo
 *~
 
-*.pidscripts/keycloak/client-secrets.env
+*.pid
+scripts/keycloak/client-secrets.env
 scripts/keycloak/vault-keys.env
 .tunnel.pid
 .agent/

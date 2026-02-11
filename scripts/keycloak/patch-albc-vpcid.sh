@@ -19,16 +19,16 @@ source "${PROJECT_ROOT}/scripts/common/logging.sh"
 ENV="${ENV:-dev}"
 ALBC_YAML="${PROJECT_ROOT}/gitops-apps/bootstrap/aws-load-balancer-controller.yaml"
 
-header "ALBC VPC ID Patch"
+header "ALBC VPC ID 패치 (Load Balancer 설정)"
 
 # Get VPC ID from 50-rke2
-info "Fetching VPC ID from 50-rke2 stack..."
+info "50-rke2 스택에서 VPC ID 조회 중..."
 
 VPC_ID=$(cd "${PROJECT_ROOT}/stacks/${ENV}/50-rke2" && \
   terraform output -raw vpc_id 2>/dev/null || echo "")
 
 if [[ -z "$VPC_ID" ]]; then
-  err "VPC ID not found. Is 50-rke2 deployed?"
+  err "VPC ID를 찾을 수 없습니다. 50-rke2 스택이 배포되었는지 확인하세요."
   exit 1
 fi
 ok "VPC ID: ${VPC_ID}"
@@ -37,10 +37,10 @@ ok "VPC ID: ${VPC_ID}"
 CLUSTER_NAME=$(cd "${PROJECT_ROOT}/stacks/${ENV}/50-rke2" && \
   terraform output -raw cluster_name 2>/dev/null || echo "meta-${ENV}-k8s")
 
-ok "Cluster Name: ${CLUSTER_NAME}"
+ok "클러스터 이름: ${CLUSTER_NAME}"
 
 # Patch ALBC yaml
-info "Patching ALBC ArgoCD App..."
+info "ALBC ArgoCD App 설정 패치 중..."
 
 if [[ "$(uname)" == "Darwin" ]]; then
   sed -i '' "s|vpcId: \"\".*|vpcId: \"${VPC_ID}\"|g" "${ALBC_YAML}"
@@ -50,13 +50,13 @@ else
   sed -i "s|clusterName: .*|clusterName: ${CLUSTER_NAME}|g" "${ALBC_YAML}"
 fi
 
-ok "ALBC yaml patched"
-info "File: ${ALBC_YAML}"
+ok "ALBC 설정 파일 패치 완료"
+info "파일: ${ALBC_YAML}"
 
 # Verify
 echo ""
 grep -E "(vpcId|clusterName)" "${ALBC_YAML}" | head -5
 echo ""
 
-checkpoint "ALBC VPC ID Patch Complete"
-info "Git commit 후 ArgoCD가 자동 Sync합니다."
+checkpoint "ALBC 설정 완료"
+info "Git Commit 후 ArgoCD가 자동으로 설정을 동기화합니다."

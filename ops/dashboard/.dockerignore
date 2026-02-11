@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+dashboard.log
+*.log
+.DS_Store
