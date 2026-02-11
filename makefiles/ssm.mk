@@ -112,11 +112,11 @@ harbor-push:
 	CMD_ID=$$(aws ssm send-command \
 		--instance-ids "$$INSTANCE_ID" \
 		--document-name "AWS-RunShellScript" \
-		--timeout-seconds 300 \
-		--parameters "{\"commands\":[\"aws s3 cp s3://$$BUCKET/$(HARBOR_S3_PREFIX)/$$FILENAME /tmp/$$FILENAME --quiet && docker load -i /tmp/$$FILENAME && docker login localhost -u admin -p '$(HARBOR_PASS)' 2>/dev/null && docker tag $(IMAGE) localhost/$(TAG) && docker push localhost/$(TAG) && rm -f /tmp/$$FILENAME && echo DONE: localhost/$(TAG)\"]}" \
+		--timeout-seconds 900 \
+		--parameters "{\"commands\":[\"aws s3 cp s3://$$BUCKET/$(HARBOR_S3_PREFIX)/$$FILENAME /var/tmp/$$FILENAME --quiet && docker load -i /var/tmp/$$FILENAME && docker login localhost -u admin -p '$(HARBOR_PASS)' 2>/dev/null && docker tag $(IMAGE) localhost/$(TAG) && docker push localhost/$(TAG) && rm -f /var/tmp/$$FILENAME && echo DONE: localhost/$(TAG)\"]}" \
 		--query "Command.CommandId" --output text) && \
 	echo "  SSM Command: $$CMD_ID" && \
-	for i in $$(seq 1 36); do \
+	for i in $$(seq 1 120); do \
 		STATUS=$$(aws ssm get-command-invocation \
 			--command-id "$$CMD_ID" --instance-id "$$INSTANCE_ID" \
 			--query "Status" --output text 2>/dev/null || echo "Pending"); \
@@ -131,9 +131,9 @@ harbor-push:
 				--instance-id "$$INSTANCE_ID" --query "StandardErrorContent" --output text; \
 			exit 1; \
 		fi; \
-		printf "."; sleep 5; \
+		printf "."; sleep 10; \
 	done && \
-	echo "❌ Timeout (180s)" && exit 1
+	echo "❌ Timeout (20min)" && exit 1
 
 # -----------------------------------------------------------------------------
 # GPU Node Power Management (비용 절감)

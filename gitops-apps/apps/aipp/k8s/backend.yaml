@@ -1,0 +1,163 @@
+################################################################################
+# enai-backend — Spring Boot API Server
+#
+# DB: K8s pgvector StatefulSet (pgvector/pgvector:pg17)
+# 주요 환경변수: docker-compose.yml 기반
+################################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enai-backend
+  namespace: aipp
+  labels:
+    app.kubernetes.io/name: enai-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: enai-backend
+  template:
+    metadata:
+      labels:
+        app: enai-backend
+        app.kubernetes.io/name: enai-backend
+    spec:
+      initContainers:
+        # DB 준비 대기
+        - name: wait-for-db
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for PostgreSQL..."
+              until nc -z pgvector 5432; do
+                echo "  DB not ready, retrying in 3s..."
+                sleep 3
+              done
+              echo "DB is ready!"
+      containers:
+        - name: backend
+          image: harbor.unifiedmeta.net/aipp/backend:v1.0.0
+          ports:
+            - containerPort: 8080
+          env:
+            # Spring Boot
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: BASE_FILE_PATH
+              value: "/enai_backend_workspace/data"
+
+            # Database (K8s pgvector)
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://pgvector:5432/aihub?currentSchema=aihub"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "encore"
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aipp-secrets
+                  key: POSTGRES_PASSWORD
+
+            # Redis (K8s)
+            - name: SPRING_REDIS_HOST
+              value: "redis"
+            - name: SPRING_REDIS_PORT
+              value: "6379"
+            - name: SPRING_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aipp-secrets
+                  key: REDIS_PASSWORD
+            - name: SPRING_REDIS_CLUSTER_ENABLED
+              value: "false"
+            - name: SPRING_REDIS_CLUSTER_NODES
+              value: ""
+            - name: SPRING_REDIS_CLUSTER_MAX_REDIRECTS
+              value: "3"
+            - name: SPRING_REDIS_SSL_ENABLED
+              value: "false"
+
+            # RabbitMQ (K8s)
+            - name: SPRING_RABBITMQ_HOST
+              value: "rabbitmq"
+            - name: SPRING_RABBITMQ_PORT
+              value: "5672"
+            - name: SPRING_RABBITMQ_USERNAME
+              value: "encore"
+            - name: SPRING_RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aipp-secrets
+                  key: RABBITMQ_PASSWORD
+
+            # Internal services
+            - name: COLLECTOR_HOST
+              value: "enai-data-processor"
+            - name: COLLECTOR_PORT
+              value: "9090"
+            - name: LINKER_HOST
+              value: "enai-linker"
+            - name: LINKER_PORT
+              value: "9010"
+            - name: SCHEDULER_HOST
+              value: "enai-scheduler"
+            - name: SCHEDULER_PORT
+              value: "8181"
+
+            # App
+            - name: FILE_PATH
+              value: "/enai_backend_workspace/data"
+            - name: CORS_HOST
+              value: "https://aipp.dev.unifiedmeta.net"
+            - name: TZ
+              value: "Asia/Seoul"
+            - name: LIQUIBASE_LABEL
+              value: "none"
+            - name: LOGGING_CONSOLE_ENABLED
+              value: "true"
+            - name: LOGGING_FILE_ENABLED
+              value: "false"
+
+            # OTEL (disabled)
+            - name: OTEL_ENABLED
+              value: "false"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health-checks
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health-checks
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - name: data
+              mountPath: /enai_backend_workspace/data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enai-backend
+  namespace: aipp
+  labels:
+    app.kubernetes.io/name: enai-backend
+spec:
+  selector:
+    app: enai-backend
+  ports:
+    - port: 8080
+      targetPort: 8080

@@ -68,5 +68,7 @@ scripts/keycloak/vault-keys.env
 .tunnel.pid
 .agent/
 
-# AIPP (미사용)
+# AIPP (패키지 소스 제외, K8s 매니페스트만 포함)
 gitops-apps/apps/aipp/
+!gitops-apps/apps/aipp/k8s/
+!gitops-apps/apps/aipp/k8s/**

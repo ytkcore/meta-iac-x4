@@ -1,0 +1,36 @@
+################################################################################
+# AIPP — ArgoCD Application
+#
+# AIPP AI Hub Platform 전체 서비스 배포
+# 서비스: frontend, backend, data-processor, scheduler, linker(off),
+#         redis, rabbitmq
+# DB: 기존 EC2 PostgreSQL (postgres.dev.unifiedmeta.net) 사용
+################################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aipp
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: aipp
+    app.kubernetes.io/part-of: aipp
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:ytkcore/meta-iac-x4.git
+    targetRevision: HEAD
+    path: gitops-apps/apps/aipp/k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: aipp
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

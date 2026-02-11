@@ -1,0 +1,84 @@
+################################################################################
+# enai-scheduler — Scheduling Service
+################################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enai-scheduler
+  namespace: aipp
+  labels:
+    app.kubernetes.io/name: enai-scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: enai-scheduler
+  template:
+    metadata:
+      labels:
+        app: enai-scheduler
+        app.kubernetes.io/name: enai-scheduler
+    spec:
+      containers:
+        - name: scheduler
+          image: harbor.unifiedmeta.net/aipp/scheduler:v1.0.0
+          ports:
+            - containerPort: 8181
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+
+            # Database (K8s pgvector)
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://pgvector:5432/aihub?currentSchema=aihub"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "encore"
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aipp-secrets
+                  key: POSTGRES_PASSWORD
+
+            # Internal services
+            - name: BACKEND_HOST
+              value: "enai-backend"
+            - name: BACKEND_PORT
+              value: "8080"
+
+            - name: TZ
+              value: "Asia/Seoul"
+            - name: OTEL_ENABLED
+              value: "false"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /api/v1/scheduler/health-checks
+              port: 8181
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/scheduler/health-checks
+              port: 8181
+            initialDelaySeconds: 60
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enai-scheduler
+  namespace: aipp
+  labels:
+    app.kubernetes.io/name: enai-scheduler
+spec:
+  selector:
+    app: enai-scheduler
+  ports:
+    - port: 8181
+      targetPort: 8181

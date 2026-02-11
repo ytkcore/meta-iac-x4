@@ -1,0 +1,108 @@
+################################################################################
+# enai-front — Next.js Frontend + Ingress
+################################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enai-front
+  namespace: aipp
+  labels:
+    app.kubernetes.io/name: enai-front
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: enai-front
+  template:
+    metadata:
+      labels:
+        app: enai-front
+        app.kubernetes.io/name: enai-front
+    spec:
+      containers:
+        - name: frontend
+          image: harbor.unifiedmeta.net/aipp/front-next:v1.0.0
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: API_URL
+              value: "http://enai-backend:8080"
+            - name: NODE_ENV
+              value: "production"
+            - name: TZ
+              value: "Asia/Seoul"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enai-front
+  namespace: aipp
+  labels:
+    app.kubernetes.io/name: enai-front
+spec:
+  selector:
+    app: enai-front
+  ports:
+    - port: 80
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aipp
+  namespace: aipp
+  labels:
+    app.kubernetes.io/name: aipp
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    # Backend API proxy — /api 경로를 backend로 라우팅
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      # Frontend handles all routes via Next.js
+spec:
+  ingressClassName: nginx-internal
+  tls:
+    - hosts:
+        - aipp.dev.unifiedmeta.net
+      secretName: aipp-tls
+  rules:
+    - host: aipp.dev.unifiedmeta.net
+      http:
+        paths:
+          # Backend API
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: enai-backend
+                port:
+                  number: 8080
+          # Frontend (default)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: enai-front
+                port:
+                  number: 80

@@ -1,0 +1,135 @@
+################################################################################
+# enai-linker — AI Linker Service (GPU)
+#
+# ⚠️ replicas: 0 — GPU 노드 OFF 상태. LLM은 서드파티 API 연동.
+# GPU 노드 시작 후 scale up:
+#   kubectl -n aipp scale deploy enai-linker --replicas=1
+################################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enai-linker
+  namespace: aipp
+  labels:
+    app.kubernetes.io/name: enai-linker
+spec:
+  replicas: 0  # GPU off — 필요 시 scale up
+  selector:
+    matchLabels:
+      app: enai-linker
+  template:
+    metadata:
+      labels:
+        app: enai-linker
+        app.kubernetes.io/name: enai-linker
+    spec:
+      # GPU node scheduling
+      nodeSelector:
+        node.kubernetes.io/gpu: "true"
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Equal"
+          value: "present"
+          effect: "NoSchedule"
+      containers:
+        - name: linker
+          image: harbor.unifiedmeta.net/aipp/linker:v1.0.0
+          ports:
+            - containerPort: 9010
+              name: grpc
+            - containerPort: 9011
+              name: rest
+          env:
+            - name: ACTIVE_PROFILE
+              value: "prod"
+            - name: CONFIG_PATH
+              value: "/aihub_linker_workspace/config/config.yaml"
+            - name: IN_CONTAINER
+              value: "true"
+
+            # Redis
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aipp-secrets
+                  key: REDIS_PASSWORD
+
+            # RabbitMQ
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USER
+              value: "encore"
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aipp-secrets
+                  key: RABBITMQ_PASSWORD
+
+            # App
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: LOG_PATH
+              value: "/aihub_linker_workspace/log"
+            - name: GRPC_PORT
+              value: "9010"
+            - name: REST_API_PORT
+              value: "9011"
+            - name: SAVE_PATH
+              value: "/aihub_linker_workspace/data"
+            - name: WORKSPACE_PATH
+              value: "/aihub_linker_workspace"
+            - name: PYTHON_GRPC_PORT
+              value: "9001"
+            - name: PYTHON_GRPC_HOST
+              value: "localhost"
+            - name: PYTHON_USE_ENV
+              value: "true"
+            - name: PYTHON_ENV_NAME
+              value: "aihub_env"
+            - name: TZ
+              value: "Asia/Seoul"
+          resources:
+            requests:
+              cpu: "1"
+              memory: 4Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: 12Gi
+              nvidia.com/gpu: "1"
+          readinessProbe:
+            httpGet:
+              path: /api/v1/version
+              port: 9011
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/version
+              port: 9011
+            initialDelaySeconds: 120
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enai-linker
+  namespace: aipp
+  labels:
+    app.kubernetes.io/name: enai-linker
+spec:
+  selector:
+    app: enai-linker
+  ports:
+    - port: 9010
+      targetPort: 9010
+      name: grpc
+    - port: 9011
+      targetPort: 9011
+      name: rest

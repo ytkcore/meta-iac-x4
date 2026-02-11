@@ -1,0 +1,151 @@
+################################################################################
+# PostgreSQL + pgvector — AIPP Vector Database
+#
+# Image: pgvector/pgvector:pg17 (PostgreSQL 17 + vector extension)
+# 참고: EC2 Postgres는 outbound=0 환경이라 pgvector extension 설치 불가
+#       → K8s StatefulSet으로 별도 배포
+################################################################################
+
+# ── pg-init ConfigMap ──────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgvector-init
+  namespace: aipp
+  labels:
+    app.kubernetes.io/name: pgvector
+data:
+  01-init.sh: |
+    #!/bin/bash
+    psql -U postgres -c "CREATE ROLE encore WITH LOGIN PASSWORD '${POSTGRES_USER_PASSWORD}';"
+  02-init.sql: |
+    -- Create database and assign ownership
+    CREATE DATABASE aihub OWNER encore;
+
+    -- Connect to the new database as postgres explicitly
+    \connect aihub postgres
+
+    -- Create schemas with proper ownership
+    CREATE SCHEMA IF NOT EXISTS aihub AUTHORIZATION encore;
+    CREATE SCHEMA IF NOT EXISTS vectors AUTHORIZATION encore;
+
+    -- Install vector extension in vectors schema
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA vectors;
+    CREATE EXTENSION IF NOT EXISTS "vector" WITH SCHEMA vectors;
+
+    -- Grant comprehensive privileges to encore user
+    GRANT ALL PRIVILEGES ON DATABASE aihub TO encore;
+    GRANT ALL ON SCHEMA aihub TO encore;
+    GRANT ALL ON SCHEMA vectors TO encore;
+    GRANT USAGE ON SCHEMA public TO encore;
+
+    GRANT USAGE ON SCHEMA vectors TO encore;
+    GRANT ALL ON ALL TABLES IN SCHEMA vectors TO encore;
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA vectors TO encore;
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA vectors TO encore;
+
+    -- Set default search_path for encore user
+    ALTER ROLE encore SET search_path = aihub, vectors, public;
+
+    -- Set default privileges
+    ALTER DEFAULT PRIVILEGES IN SCHEMA aihub GRANT ALL ON TABLES TO encore;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA aihub GRANT ALL ON SEQUENCES TO encore;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA aihub GRANT ALL ON FUNCTIONS TO encore;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA vectors GRANT ALL ON TABLES TO encore;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA vectors GRANT ALL ON SEQUENCES TO encore;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA vectors GRANT ALL ON FUNCTIONS TO encore;
+
+---
+# ── StatefulSet ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pgvector
+  namespace: aipp
+  labels:
+    app.kubernetes.io/name: pgvector
+spec:
+  serviceName: pgvector
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgvector
+  template:
+    metadata:
+      labels:
+        app: pgvector
+        app.kubernetes.io/name: pgvector
+    spec:
+      containers:
+        - name: pgvector
+          image: pgvector/pgvector:pg17
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aipp-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "postgres"
+            - name: POSTGRES_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aipp-secrets
+                  key: POSTGRES_PASSWORD
+            - name: TZ
+              value: "Asia/Seoul"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: pgvector-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 10Gi
+---
+# ── Headless Service ───────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgvector
+  namespace: aipp
+  labels:
+    app.kubernetes.io/name: pgvector
+spec:
+  selector:
+    app: pgvector
+  ports:
+    - port: 5432
+      targetPort: 5432
+  clusterIP: None
