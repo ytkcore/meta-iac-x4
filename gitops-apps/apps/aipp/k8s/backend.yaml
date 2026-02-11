@@ -124,23 +124,20 @@ spec:
               cpu: "2"
               memory: 2Gi
           startupProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket:
               port: 8080
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 60
           readinessProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket:
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 3
           livenessProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket:
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 30
