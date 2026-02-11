@@ -144,10 +144,11 @@ spec:
             # --- Proxy & Hostname ---
             - name: KC_PROXY_HEADERS
               value: "xforwarded"
-            - name: KC_HOSTNAME
-              value: "https://keycloak.dev.unifiedmeta.net"
-            - name: KC_HOSTNAME_ADMIN
-              value: "https://keycloak-admin.teleport.unifiedmeta.net"
+            # --- Hostname: 동적 감지 모드 ---
+            # KC_HOSTNAME/KC_HOSTNAME_ADMIN 미설정 + KC_PROXY_HEADERS=xforwarded
+            # → Keycloak이 X-Forwarded-Host에서 hostname을 자동 감지
+            # → Teleport 경유: authServerUrl=keycloak-admin.teleport.unifiedmeta.net
+            # → Public 직접: issuer=keycloak.dev.unifiedmeta.net
             - name: KC_HOSTNAME_STRICT
               value: "false"
             - name: KC_HOSTNAME_STRICT_BACKCHANNEL
