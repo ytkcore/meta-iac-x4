@@ -178,6 +178,11 @@ module "rke2" {
   root_volume_size_gb = var.root_volume_size_gb
   root_volume_type    = var.root_volume_type
 
+  # GPU Worker Nodes (Optional)
+  gpu_worker_count        = var.enable_gpu_workers ? var.gpu_worker_count : 0
+  gpu_instance_type       = var.gpu_instance_type
+  gpu_root_volume_size_gb = var.gpu_root_volume_size_gb
+
   enable_internal_nlb = var.enable_internal_nlb
   rke2_version        = var.rke2_version
   rke2_token          = var.rke2_token
@@ -205,7 +210,7 @@ module "rke2" {
   harbor_registry_hostport          = local.harbor_registry_hostport
   harbor_hostname                   = local.harbor_hostname
   harbor_private_ip                 = local.harbor_private_ip
-  harbor_add_hosts_entry            = true
+  harbor_add_hosts_entry            = false  # DNS → ALB CNAME으로 정상 동작, /etc/hosts 불필요
   harbor_scheme                     = local.harbor_scheme
   harbor_proxy_project              = local.harbor_proxy_project
   disable_default_registry_fallback = local.effective_use_harbor ? var.disable_default_registry_fallback : false
