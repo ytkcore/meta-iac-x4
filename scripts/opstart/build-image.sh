@@ -25,15 +25,27 @@ cd "$PROJECT_ROOT"
 
 tar czf /tmp/opstart-build-context.tar.gz \
   ops/dashboard/Dockerfile \
+  ops/dashboard/.dockerignore \
   ops/dashboard/app.py \
   ops/dashboard/requirements.txt \
   ops/dashboard/templates/ \
-  ops/dashboard/static/ 2>/dev/null || \
+  ops/dashboard/static/ \
+  scripts/ \
+  gitops-apps/ 2>/dev/null || \
+tar czf /tmp/opstart-build-context.tar.gz \
+  ops/dashboard/Dockerfile \
+  ops/dashboard/.dockerignore \
+  ops/dashboard/app.py \
+  ops/dashboard/requirements.txt \
+  ops/dashboard/templates/ \
+  scripts/ \
+  gitops-apps/ 2>/dev/null || \
 tar czf /tmp/opstart-build-context.tar.gz \
   ops/dashboard/Dockerfile \
   ops/dashboard/app.py \
   ops/dashboard/requirements.txt \
-  ops/dashboard/templates/
+  ops/dashboard/templates/ \
+  scripts/
 
 aws s3 cp /tmp/opstart-build-context.tar.gz "s3://$S3_BUCKET/tmp/opstart-build-context.tar.gz" --quiet
 aws s3 cp scripts/opstart/build-remote.sh "s3://$S3_BUCKET/tmp/opstart-build.sh" --quiet
