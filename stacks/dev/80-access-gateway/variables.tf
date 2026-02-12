@@ -142,10 +142,11 @@ variable "kubernetes_services" {
       display_name = "Unified Meta Home"
     },
     {
-      name     = "dashboard"
-      uri      = "https://dashboard.unifiedmeta.net"
-      type     = "web"
-      internal = true
+      name         = "dashboard"
+      uri          = "https://dashboard.unifiedmeta.net"
+      type         = "web"
+      internal     = true
+      display_name = "Unified Meta Dashboard"
     }
   ]
 }
