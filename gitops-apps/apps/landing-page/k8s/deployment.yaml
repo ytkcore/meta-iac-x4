@@ -72,10 +72,10 @@ spec:
   ingressClassName: nginx-internal
   tls:
     - hosts:
-        - landing-page.unifiedmeta.net
+        - home.unifiedmeta.net
       secretName: landing-page-tls
   rules:
-    - host: landing-page.unifiedmeta.net
+    - host: home.unifiedmeta.net
       http:
         paths:
           - path: /
