@@ -66,6 +66,7 @@ variable "kubernetes_services" {
     uri              = string
     type             = optional(string, "web")
     internal         = optional(bool, true)
+    display_name     = optional(string, "")
     description      = optional(string, "")
     rewrite_redirect = optional(list(string), [])
   }))
@@ -120,24 +121,25 @@ variable "kubernetes_services" {
       internal = true
     },
     {
-      name        = "opstart"
-      uri         = "https://opstart.unifiedmeta.net"
-      type        = "web"
-      internal    = true
-      description = "Unified Meta Opstart"
+      name         = "opstart"
+      uri          = "https://opstart.unifiedmeta.net"
+      type         = "web"
+      internal     = true
+      display_name = "Unified Meta Opstart"
     },
     {
-      name     = "aipp"
-      uri      = "https://aipp.dev.unifiedmeta.net"
-      type     = "web"
-      internal = true
+      name         = "aipp"
+      uri          = "https://aipp.dev.unifiedmeta.net"
+      type         = "web"
+      internal     = true
+      display_name = "AIPP"
     },
     {
-      name        = "landing-page"
-      uri         = "https://landing-page.unifiedmeta.net"
-      type        = "web"
-      internal    = true
-      description = "Unified Meta Home"
+      name         = "landing-page"
+      uri          = "https://landing-page.unifiedmeta.net"
+      type         = "web"
+      internal     = true
+      display_name = "Unified Meta Home"
     },
     {
       name     = "dashboard"
