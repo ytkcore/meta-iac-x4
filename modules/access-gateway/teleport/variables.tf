@@ -9,6 +9,7 @@ variable "services" {
     uri               = string
     type              = string
     internal          = bool
+    description       = optional(string, "")
     rewrite_redirect  = optional(list(string), [])
   }))
   default = []

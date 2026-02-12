@@ -15,6 +15,7 @@ locals {
     for svc in local.internal_services : {
       name                 = svc.name
       uri                  = svc.uri
+      description          = svc.description
       public_addr          = "${svc.name}.teleport.${var.teleport_server.domain}"
       insecure_skip_verify = var.insecure_skip_verify
       rewrite_redirect     = svc.rewrite_redirect
@@ -36,6 +37,10 @@ locals {
           "      public_addr: ${app.public_addr}",
           "      insecure_skip_verify: ${app.insecure_skip_verify}",
         ],
+        # description 설정 (UI 표시 이름)
+        app.description != "" ? [
+          "      description: \"${app.description}\"",
+        ] : [],
         # rewrite redirect 설정 (내부 호스트명 → Teleport 프록시 호스트명 변환)
         length(app.rewrite_redirect) > 0 ? concat(
           ["      rewrite:", "        redirect:"],
