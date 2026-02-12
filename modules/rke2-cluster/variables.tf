@@ -134,6 +134,27 @@ variable "root_volume_size_gb" {
   default     = 30
 }
 
+##############################
+# GPU Worker Nodes (Optional)
+##############################
+variable "gpu_worker_count" {
+  description = "GPU Worker 노드 수 (0이면 GPU 노드 미생성)"
+  type        = number
+  default     = 0
+}
+
+variable "gpu_instance_type" {
+  description = "GPU 인스턴스 타입 (NVIDIA GPU 탑재)"
+  type        = string
+  default     = "g4dn.xlarge"
+}
+
+variable "gpu_root_volume_size_gb" {
+  description = "GPU 노드 Root EBS 크기(GB) — NVIDIA 드라이버 설치 공간 포함"
+  type        = number
+  default     = 50
+}
+
 variable "ami_id" {
   description = "원하는 AMI ID가 있다면 지정. 비워두면 Amazon Linux 2023 최신 AMI를 사용합니다."
   type        = string

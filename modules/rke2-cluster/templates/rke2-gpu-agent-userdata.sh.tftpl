@@ -1,0 +1,205 @@
+#!/usr/bin/env bash
+# GPU Worker Node — RKE2 Agent + NVIDIA Driver
+set -euo pipefail
+
+exec > >(tee -a /var/log/rke2-bootstrap.log | logger -t rke2-bootstrap -s 2>/dev/console) 2>&1
+
+# [CRITICAL] Disable Docker if present (Golden Image conflict prevention)
+if systemctl is-active --quiet docker || systemctl is-enabled --quiet docker; then
+  echo "[rke2] Disabling Docker service to prevent conflict with RKE2 containerd..."
+  systemctl stop docker || true
+  systemctl disable docker || true
+fi
+
+echo "[rke2-gpu] bootstrap start (GPU agent)"
+
+%{ if os_family == "ubuntu2204" }
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y || true
+apt-get install -y curl || true
+%{ else }
+dnf -y update || true
+dnf -y install curl || true
+%{ endif }
+
+# ==============================================================================
+# NVIDIA Driver & Container Toolkit Installation
+# ==============================================================================
+echo "[rke2-gpu] Installing NVIDIA drivers..."
+
+%{ if os_family == "ubuntu2204" }
+# Ubuntu: NVIDIA driver + container toolkit
+apt-get install -y linux-headers-$(uname -r) || true
+apt-get install -y --no-install-recommends nvidia-driver-535 nvidia-utils-535 || {
+  echo "[rke2-gpu] Adding NVIDIA repo for Ubuntu..."
+  distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
+  curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container.gpg
+  curl -s -L "https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list" | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container.gpg] https://#g' | \
+    tee /etc/apt/sources.list.d/nvidia-container.list
+  apt-get update -y
+  apt-get install -y nvidia-driver-535 nvidia-utils-535
+}
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container.gpg 2>/dev/null || true
+distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
+curl -s -L "https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list" | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container.gpg] https://#g' | \
+  tee /etc/apt/sources.list.d/nvidia-container.list
+apt-get update -y
+apt-get install -y nvidia-container-toolkit
+
+%{ else }
+# Amazon Linux 2023: NVIDIA driver via dnf
+dnf install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r) gcc make dkms || true
+
+# Install NVIDIA driver from EPEL/CUDA repo
+dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/amzn2023/x86_64/cuda-amzn2023.repo || true
+dnf install -y nvidia-driver nvidia-driver-libs nvidia-driver-cuda-libs || {
+  echo "[rke2-gpu] Trying NVIDIA runfile installer..."
+  NVIDIA_DRIVER_VERSION="535.183.01"
+  curl -fsSL "https://us.download.nvidia.com/tesla/$NVIDIA_DRIVER_VERSION/NVIDIA-Linux-x86_64-$NVIDIA_DRIVER_VERSION.run" -o /tmp/nvidia-installer.run
+  chmod +x /tmp/nvidia-installer.run
+  /tmp/nvidia-installer.run --silent --dkms || /tmp/nvidia-installer.run --silent --no-dkms
+  rm -f /tmp/nvidia-installer.run
+}
+
+# NVIDIA Container Toolkit
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo | \
+  tee /etc/yum.repos.d/nvidia-container-toolkit.repo
+dnf install -y nvidia-container-toolkit
+%{ endif }
+
+echo "[rke2-gpu] NVIDIA driver installation complete"
+nvidia-smi || echo "[rke2-gpu] WARNING: nvidia-smi failed (driver may need reboot)"
+
+# ==============================================================================
+# RKE2 Agent Installation
+# ==============================================================================
+echo "[rke2-gpu] installing rke2 ${rke2_version} (agent)"
+curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE="agent" INSTALL_RKE2_VERSION="${rke2_version}" sh -
+
+mkdir -p /etc/rancher/rke2
+
+cat >/etc/rancher/rke2/config.yaml <<'YAML'
+token: "${token}"
+server: "${server_url}"
+node-name-from-cloud-provider-metadata: true
+node-label:
+  - "node.kubernetes.io/gpu=true"
+node-taint:
+  - "nvidia.com/gpu=present:NoSchedule"
+%{ if enable_aws_ccm }
+cloud-provider-name: "external"
+%{ endif }
+cni: ${cni}
+%{ if cilium_kube_proxy_replacement && cni == "cilium" }
+disable-kube-proxy: true
+%{ endif }
+YAML
+
+# ==============================================================================
+# NVIDIA Container Runtime — RKE2 containerd config
+# ==============================================================================
+echo "[rke2-gpu] Configuring NVIDIA container runtime for RKE2 containerd..."
+mkdir -p /var/lib/rancher/rke2/agent/etc/containerd
+
+cat >/var/lib/rancher/rke2/agent/etc/containerd/config.toml.tmpl <<'TOML'
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes."nvidia"]
+  runtime_type = "io.containerd.runc.v2"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes."nvidia".options]
+  BinaryName = "/usr/bin/nvidia-container-runtime"
+TOML
+
+# Generate nvidia-container-runtime config
+nvidia-ctk runtime configure --runtime=containerd --config=/var/lib/rancher/rke2/agent/etc/containerd/config.toml.tmpl 2>/dev/null || true
+
+# ==============================================================================
+# Harbor registry mirror (optional)
+# ==============================================================================
+%{ if harbor_registry_hostport != "" }
+
+%{ if harbor_add_hosts_entry && harbor_hostname != "" && harbor_private_ip != "" }
+echo "[rke2-gpu] Ensuring internal DNS for Harbor: ${harbor_hostname} -> ${harbor_private_ip}"
+if ! grep -q "${harbor_hostname}" /etc/hosts; then
+  echo "${harbor_private_ip} ${harbor_hostname}" >> /etc/hosts
+fi
+%{ endif }
+
+echo "[rke2-gpu] Waiting for Harbor to be ready..."
+HARBOR_URL="${harbor_scheme}://${harbor_registry_hostport}"
+for i in {1..60}; do
+  if curl -fsSk --connect-timeout 5 "$HARBOR_URL/api/v2.0/health" 2>/dev/null | grep -q healthy; then
+    echo "[rke2-gpu] Harbor is ready!"
+    break
+  fi
+  echo "[rke2-gpu] Waiting for Harbor... ($i/60)"
+  sleep 10
+done
+
+%{ if disable_default_registry_fallback }
+if ! curl -fsSk --connect-timeout 5 "$HARBOR_URL/api/v2.0/health" 2>/dev/null | grep -q healthy; then
+  echo "[rke2-gpu] ERROR: Harbor not ready after timeout and disable_default_registry_fallback=true. Aborting."
+  exit 1
+fi
+%{ else }
+if ! curl -fsSk --connect-timeout 5 "$HARBOR_URL/api/v2.0/health" 2>/dev/null | grep -q healthy; then
+  echo "[rke2-gpu] WARNING: Harbor not ready after timeout. Continuing (fallback enabled)."
+fi
+%{ endif }
+
+cat >/etc/rancher/rke2/registries.yaml <<'YAML'
+mirrors:
+  "docker.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "${harbor_proxy_project}/$1"
+  "registry.k8s.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "k8s-proxy/$1"
+  "ghcr.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "ghcr-proxy/$1"
+  "quay.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "quay-proxy/$1"
+  "gcr.io":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "gcr-proxy/$1"
+  "registry.rancher.com":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+    rewrite:
+      "^(.*)$": "rancher-proxy/$1"
+  "${harbor_registry_hostport}":
+    endpoint:
+      - "${harbor_scheme}://${harbor_registry_hostport}"
+
+configs:
+  "${harbor_registry_hostport}":
+%{ if harbor_scheme == "https" }
+    tls:
+      insecure_skip_verify: ${harbor_tls_insecure_skip_verify}
+%{ else }
+    # HTTP registry - no TLS config needed
+%{ endif }
+%{ if harbor_auth_enabled }
+    auth:
+      username: "${harbor_username}"
+      password: "${harbor_password}"
+%{ endif }
+YAML
+%{ endif }
+
+systemctl enable rke2-agent.service
+systemctl start rke2-agent.service
+
+echo "[rke2-gpu] bootstrap done (GPU agent)"

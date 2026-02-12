@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIPP 심층 분석 — Docker Compose → K8s 아키텍처 전환</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #0a0e17;
+  --bg-card: #111827;
+  --bg-card-hover: #1a2332;
+  --border: #1e293b;
+  --border-accent: #334155;
+  --text-primary: #d0d6e0;
+  --text-secondary: #9aa5b4;
+  --text-muted: #6b7a8d;
+  --red: #dc6060; --red-light: #d09090;
+  --green: #4cad6a; --green-light: #8cc4a0;
+  --blue: #5b8fd4; --blue-light: #8bb0d8;
+  --cyan: #4a9eab; --cyan-light: #7dbcc5;
+  --amber: #c49040; --amber-light: #d4b070;
+  --purple: #9070c0; --purple-light: #b0a0d0;
+  --pink: #c06090;
+  --orange: #c07040;
+  --teal: #40a090;
+  --indigo: #7078c0; --indigo-light: #9098d0;
+  --emerald: #40a080; --emerald-light: #70c0a0;
+  --lime: #80b020; --lime-light: #a0c860;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg-deep); color:var(--text-primary); font-family:'Noto Sans KR',sans-serif; min-height:100vh; overflow-x:hidden; }
+.noise-overlay { position:fixed; top:0;left:0;right:0;bottom:0; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E"); pointer-events:none; z-index:1000; }
+
+.page-header { text-align:center; padding:48px 24px 20px; position:relative; }
+.page-header::after { content:''; position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:200px; height:1px; background:linear-gradient(90deg,transparent,var(--cyan),var(--purple),transparent); }
+.page-header h1 { font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700; color:var(--text-primary); margin-bottom:8px; }
+.page-header .subtitle { font-size:15px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; font-weight:300; }
+.page-header .meta-info { font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; margin-top:8px; opacity:0.6; }
+
+.version-labels { display:flex; justify-content:center; gap:48px; margin:32px 0 8px; }
+.version-label { display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:600; }
+.version-label .dot { width:10px; height:10px; border-radius:50%; }
+.version-label.before .dot { background:var(--red); box-shadow:0 0 8px rgba(220,96,96,0.3); }
+.version-label.after .dot { background:var(--green); box-shadow:0 0 8px rgba(76,173,106,0.3); }
+.version-label.before { color:var(--red-light); }
+.version-label.after { color:var(--green-light); }
+
+.container { max-width:1360px; margin:0 auto; padding:20px 24px 60px; }
+
+/* Section Intro (부연설명 박스) */
+.section-intro { background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:20px 24px; margin-bottom:24px; line-height:1.8; }
+.section-intro h3 { font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:600; color:var(--text-secondary); margin-bottom:10px; }
+.section-intro p { font-size:14px; color:var(--text-muted); line-height:1.8; margin-bottom:8px; }
+.section-intro p:last-child { margin-bottom:0; }
+.section-intro strong { color:var(--text-secondary); font-weight:600; }
+
+/* Stats */
+.stats-bar { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin:32px 0; }
+.stat-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center; position:relative; overflow:hidden; }
+.stat-card::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; }
+.stat-card:nth-child(1)::before { background:var(--cyan); }
+.stat-card:nth-child(2)::before { background:var(--green); }
+.stat-card:nth-child(3)::before { background:var(--purple); }
+.stat-card:nth-child(4)::before { background:var(--amber); }
+.stat-number { font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700; margin-bottom:4px; }
+.stat-card:nth-child(1) .stat-number { color:var(--cyan-light); }
+.stat-card:nth-child(2) .stat-number { color:var(--green-light); }
+.stat-card:nth-child(3) .stat-number { color:var(--purple-light); }
+.stat-card:nth-child(4) .stat-number { color:var(--amber-light); }
+.stat-label { font-size:13px; color:var(--text-muted); font-family:'JetBrains Mono',monospace; font-weight:500; }
+.stat-comment { font-size:11px; color:var(--text-muted); margin-top:6px; line-height:1.4; opacity:0.75; }
+
+/* Arch Panels */
+.arch-wrapper { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:40px; }
+.arch-panel { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:28px 24px; position:relative; overflow:hidden; transition:border-color 0.3s; }
+.arch-panel:hover { border-color:var(--border-accent); }
+.arch-panel.before::before { content:''; position:absolute; top:0;left:0;right:0; height:3px; background:linear-gradient(90deg,var(--red),transparent); }
+.arch-panel.after::before { content:''; position:absolute; top:0;left:0;right:0; height:3px; background:linear-gradient(90deg,var(--green),var(--cyan),transparent); }
+.panel-title { font-family:'JetBrains Mono',monospace; font-size:17px; font-weight:700; margin-bottom:4px; }
+.panel-title.before-title { color:var(--red-light); }
+.panel-title.after-title { color:var(--green-light); }
+.panel-desc { font-size:13px; color:var(--text-muted); margin-bottom:20px; font-family:'JetBrains Mono',monospace; }
+
+/* Layers */
+.layer { border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:12px; background:rgba(255,255,255,0.01); }
+.layer-label { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+.layer-label .icon { font-size:14px; }
+.layer-num { display:inline-flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:800; min-width:22px; height:16px; padding:0 4px; border-radius:4px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:var(--text-secondary); }
+.layer-note { font-family:'Noto Sans KR',sans-serif; font-size:12px; color:var(--text-muted); margin-top:8px; line-height:1.6; padding-left:2px; }
+.components { display:flex; flex-wrap:wrap; gap:6px; }
+.comp { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:500; padding:5px 10px; border-radius:6px; border:1px solid; white-space:nowrap; position:relative; transition:transform 0.15s,box-shadow 0.15s; }
+.comp:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+
+/* Component Colors — toned down */
+.comp.fe { background:rgba(74,158,171,0.1); border-color:rgba(74,158,171,0.25); color:var(--cyan-light); }
+.comp.be { background:rgba(91,143,212,0.1); border-color:rgba(91,143,212,0.25); color:var(--blue-light); }
+.comp.worker { background:rgba(144,112,192,0.1); border-color:rgba(144,112,192,0.25); color:var(--purple-light); }
+.comp.ai { background:rgba(196,144,64,0.1); border-color:rgba(196,144,64,0.25); color:var(--amber-light); }
+.comp.sched { background:rgba(64,160,144,0.1); border-color:rgba(64,160,144,0.25); color:#78b8a8; }
+.comp.infra { background:rgba(192,112,64,0.1); border-color:rgba(192,112,64,0.25); color:#c8a080; }
+.comp.db { background:rgba(112,120,192,0.1); border-color:rgba(112,120,192,0.25); color:var(--indigo-light); }
+.comp.obs { background:rgba(192,96,144,0.1); border-color:rgba(192,96,144,0.25); color:#c898b0; }
+.comp.k8s { background:rgba(76,173,106,0.1); border-color:rgba(76,173,106,0.25); color:var(--green-light); }
+.comp.absent { opacity:0.35; border-style:dashed; }
+.comp.new { position:relative; }
+.comp.new::after { content:'NEW'; font-size:8px; font-weight:700; background:var(--green); color:#000; padding:1px 4px; border-radius:3px; position:absolute; top:-6px; right:-4px; }
+.comp.evolved::after { content:'↑'; font-size:10px; font-weight:700; background:var(--cyan); color:#000; width:14px; height:14px; display:flex; align-items:center; justify-content:center; border-radius:50%; position:absolute; top:-5px; right:-5px; }
+.comp.evolved { position:relative; }
+
+/* Callouts */
+.callout { margin-top:10px; padding:10px 12px; border-radius:8px; font-size:12px; line-height:1.6; font-family:'JetBrains Mono',monospace; }
+.callout.issue { background:rgba(220,96,96,0.06); border:1px solid rgba(220,96,96,0.15); color:var(--red-light); }
+.callout.benefit { background:rgba(76,173,106,0.06); border:1px solid rgba(76,173,106,0.15); color:var(--green-light); }
+.callout-title { font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+.callout li { margin-left:14px; margin-bottom:2px; }
+
+/* Section Titles */
+.comparison-section { margin-top:40px; }
+.comparison-section h2, .section-title { font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; text-align:center; margin-bottom:20px; color:var(--text-secondary); }
+
+/* Tables */
+.comp-table { width:100%; border-collapse:separate; border-spacing:0; background:var(--bg-card); border:1px solid var(--border); border-radius:12px; overflow:hidden; font-size:14px; }
+.comp-table thead th { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1px; padding:14px 16px; text-align:left; border-bottom:2px solid var(--border); color:var(--text-muted); background:rgba(255,255,255,0.02); }
+.comp-table thead th:nth-child(2) { color:var(--red-light); }
+.comp-table thead th:nth-child(3) { color:var(--green-light); }
+.comp-table thead th:nth-child(4) { color:var(--cyan-light); }
+.comp-table tbody td { padding:11px 16px; border-bottom:1px solid var(--border); vertical-align:top; line-height:1.5; }
+.comp-table tbody tr:last-child td { border-bottom:none; }
+.comp-table tbody tr:hover { background:rgba(255,255,255,0.02); }
+.comp-table td:first-child { font-family:'JetBrains Mono',monospace; font-weight:600; font-size:13px; color:var(--text-secondary); white-space:nowrap; width:140px; }
+.val-bad { color:var(--red-light); }
+.val-good { color:var(--green-light); }
+.val-change { color:var(--cyan-light); font-weight:500; }
+
+/* Flow */
+.flow-section { margin-top:40px; }
+.flow-section h2 { font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; text-align:center; margin-bottom:24px; color:var(--text-secondary); }
+.traffic-flow { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.flow-panel { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:24px; }
+.flow-panel h3 { font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; margin-bottom:16px; }
+.flow-panel.before h3 { color:var(--red-light); }
+.flow-panel.after h3 { color:var(--green-light); }
+.flow-steps { display:flex; flex-direction:column; gap:0; }
+.flow-step { display:flex; align-items:center; gap:12px; padding:8px 0; }
+.flow-node { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:500; padding:6px 12px; border-radius:6px; border:1px solid; min-width:90px; text-align:center; }
+.flow-arrow { color:var(--text-muted); font-size:18px; flex-shrink:0; }
+.flow-arrow.down { display:flex; justify-content:center; padding:2px 0; margin-left:44px; }
+.flow-annotation { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-muted); flex:1; }
+.flow-annotation.bad { color:rgba(220,96,96,0.7); }
+.flow-annotation.good { color:rgba(76,173,106,0.7); }
+.flow-insight { font-size:12px; padding:8px 12px; border-radius:8px; margin-bottom:12px; line-height:1.5; }
+.flow-insight.bad { background:rgba(220,96,96,0.08); border-left:3px solid var(--red); color:var(--red-light); }
+.flow-insight.good { background:rgba(76,173,106,0.08); border-left:3px solid var(--green); color:var(--green-light); }
+
+/* Tech Stack Grid */
+.stack-section { margin-top:40px; }
+.stack-section h2 { font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; text-align:center; margin-bottom:24px; color:var(--text-secondary); }
+.stack-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+.stack-item { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:14px 12px; text-align:center; transition:border-color 0.3s,transform 0.15s; position:relative; overflow:hidden; }
+.stack-item:hover { border-color:var(--border-accent); transform:translateY(-2px); }
+.stack-item::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; }
+.stack-item .stack-role { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; color:var(--text-muted); margin-bottom:4px; letter-spacing:1px; text-transform:uppercase; }
+.stack-item .stack-name { font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; color:var(--text-primary); }
+.stack-item .stack-desc { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-muted); margin-top:4px; }
+.stack-item .stack-port { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--cyan-light); margin-top:3px; opacity:0.7; }
+.stack-item .stack-explain { font-family:'Noto Sans KR',sans-serif; font-size:10px; color:var(--text-muted); margin-top:6px; line-height:1.4; opacity:0.8; }
+.stack-item.s-fe::before { background:var(--cyan); }
+.stack-item.s-be::before { background:var(--blue); }
+.stack-item.s-worker::before { background:var(--purple); }
+.stack-item.s-ai::before { background:var(--amber); }
+.stack-item.s-sched::before { background:var(--teal); }
+.stack-item.s-db::before { background:var(--indigo); }
+.stack-item.s-cache::before { background:var(--orange); }
+.stack-item.s-mq::before { background:var(--emerald); }
+.stack-item.s-obs::before { background:var(--pink); }
+
+/* Resource Table */
+.res-table { width:100%; border-collapse:separate; border-spacing:0; background:var(--bg-card); border:1px solid var(--border); border-radius:12px; overflow:hidden; font-size:13px; margin-top:8px; }
+.res-table thead th { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; padding:12px 12px; text-align:center; border-bottom:2px solid var(--border); color:var(--text-muted); background:rgba(255,255,255,0.02); }
+.res-table thead th:first-child { text-align:left; padding-left:16px; }
+.res-table tbody td { padding:9px 12px; border-bottom:1px solid var(--border); text-align:center; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-secondary); }
+.res-table tbody td:first-child { text-align:left; font-weight:600; padding-left:16px; }
+.res-table tbody tr:last-child td { border-bottom:none; }
+.res-table tbody tr:hover td { background:rgba(255,255,255,0.02); }
+.res-table tbody tr.total-row td { border-top:2px solid var(--border); font-weight:700; color:var(--cyan-light); background:rgba(74,158,171,0.04); }
+.res-table .k8s-type { font-size:10px; color:var(--text-muted); }
+
+/* Layer Role Descriptions */
+.layer-roles { margin-top:10px; padding:8px 12px; background:rgba(255,255,255,0.03); border-radius:6px; border-left:3px solid var(--border-accent); }
+.layer-roles ul { list-style:none; padding:0; margin:0; }
+.layer-roles li { font-family:'Noto Sans KR',sans-serif; font-size:12.5px; color:var(--text-secondary); line-height:1.6; padding:2px 0; padding-left:16px; position:relative; }
+.layer-roles li::before { content:'•'; position:absolute; left:4px; color:var(--text-muted); }
+.layer-roles .role-name { font-weight:600; color:var(--text-primary); }
+.comp[title] { cursor:help; }
+
+/* Expandable Detail Rows */
+.comp-table tbody tr.matrix-row { cursor:pointer; transition:background 0.2s; }
+.comp-table tbody tr.matrix-row:hover { background:rgba(255,255,255,0.04) !important; }
+.matrix-row td:first-child { position:relative; padding-left:30px !important; }
+.matrix-row td:first-child::before { content:'\25b8'; position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:12px; color:var(--text-muted); transition:transform 0.25s ease; }
+.matrix-row.expanded td:first-child::before { transform:translateY(-50%) rotate(90deg); color:var(--cyan); }
+.detail-row { display:none; }
+.detail-row.visible { display:table-row; }
+.detail-row td { padding:0 !important; border-bottom:1px solid var(--border); background:rgba(74,158,171,0.03) !important; }
+.detail-content { max-height:0; overflow:hidden; transition:max-height 0.35s ease, padding 0.35s ease; padding:0 20px; font-size:13px; line-height:1.8; color:var(--text-secondary); word-break:keep-all; overflow-wrap:break-word; white-space:normal; }
+.detail-row.visible .detail-content { max-height:300px; padding:14px 20px; }
+.detail-content .dl { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; letter-spacing:0.5px; color:var(--cyan); text-transform:uppercase; margin-bottom:4px; }
+.detail-content .dt { color:var(--text-primary); font-size:13.5px; }
+
+.footer { text-align:center; padding:32px 24px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-muted); border-top:1px solid var(--border); margin-top:40px; }
+
+@keyframes fadeInUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+.arch-panel { animation:fadeInUp 0.6s ease both; }
+.arch-panel:nth-child(2) { animation-delay:0.15s; }
+.stat-card { animation:fadeInUp 0.5s ease both; }
+.stat-card:nth-child(1) { animation-delay:0.3s; }
+.stat-card:nth-child(2) { animation-delay:0.4s; }
+.stat-card:nth-child(3) { animation-delay:0.5s; }
+.stat-card:nth-child(4) { animation-delay:0.6s; }
+.stack-item { animation:fadeInUp 0.4s ease both; }
+</style>
+</head>
+<body>
+<div class="noise-overlay"></div>
+
+<!-- Header -->
+<div class="page-header">
+  <h1>AIPP Architecture Deep Analysis</h1>
+  <div class="subtitle">Docker Compose (원본 패키지) → K8s Unified Meta (현재) 전환 비교</div>
+  <div class="meta-info">AI Hub (en-core) · Kustomize GitOps · 9 Components · 2026-02-12</div>
+</div>
+
+<div class="version-labels">
+  <div class="version-label before">
+    <div class="dot"></div>
+    Docker Compose — "외부 벤더 패키지 원본"
+  </div>
+  <div class="version-label after">
+    <div class="dot"></div>
+    K8s Unified Meta — "클라우드 네이티브 전환"
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ═══ 개요 설명 ═══ -->
+  <div class="section-intro">
+    <h3>📋 이 문서는 무엇인가요?</h3>
+    <p><strong>AI Hub</strong>(벤더: en-core) — 사내 코드명 AIPP</p>
+    <p>• 벡터 DB(pgvector) · AI 모델 서비스(Linker) · 데이터 처리 등 9개 컴포넌트로 구성<br>
+    • 벤더 제공 <strong>Docker Compose</strong> 패키지를 <strong>Kubernetes 클러스터</strong>로 전환<br>
+    • 자동 복구 · 자동 배포 · 보안 강화 적용 후 변경 사항 비교</p>
+  </div>
+
+  <!-- ═══ Stats ═══ -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-number">9</div>
+      <div class="stat-label">전체 서비스 컴포넌트</div>
+      <div class="stat-comment">웹 UI 1 + 백엔드 API 4 + 인프라(DB·캐시·큐) 3 + 모니터링 1</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">17.5 Gi</div>
+      <div class="stat-label">총 메모리 상한</div>
+      <div class="stat-comment">AI 모델 서비스(Linker)가 12Gi로 가장 많이 차지</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">14 Gi</div>
+      <div class="stat-label">영구 저장소 합계</div>
+      <div class="stat-comment">데이터베이스 10Gi + 캐시 2Gi + 메시지큐 2Gi</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">11</div>
+      <div class="stat-label">K8s 설정 파일</div>
+      <div class="stat-comment">서비스별 설정을 개별 YAML 파일로 분리하여 관리</div>
+    </div>
+  </div>
+
+  <!-- ═══ Architecture Panels ═══ -->
+  <div class="section-intro">
+    <h3>🏗️ 아키텍처 비교 — 왜 바꿨나요?</h3>
+    <p><strong>왼쪽(빨간색) — 이전</strong></p>
+    <p>• 단일 서버에서 전체 서비스 실행 → 서버 1대 장애 시 전체 중단<br>
+    • 비밀번호 .env 평문 저장, HTTPS 미적용</p>
+    <p><strong>오른쪽(초록색) — 현재</strong></p>
+    <p>• K8s 클러스터에서 각 서비스 독립 실행 → 장애 시 자동 재시작<br>
+    • HTTPS 보안 접속, 비밀번호 암호화 관리, Git push → 자동 반영(GitOps)</p>
+  </div>
+
+  <!-- ═══ Architecture Diagram Images ═══ -->
+  <div style="display:flex;gap:24px;margin:32px auto;max-width:1200px;justify-content:center;flex-wrap:wrap;">
+    <div style="flex:1;min-width:380px;max-width:560px;">
+      <img src="aipp-vendor-architecture.png" alt="AI Hub — 벤더 원본 패키지 (Docker Compose)" style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.08);">
+      <div style="text-align:center;color:#8892b0;font-size:13px;margin-top:8px;">벤더 원본 패키지 — Docker Compose 컴포넌트 연동</div>
+    </div>
+    <div style="flex:1;min-width:380px;max-width:560px;">
+      <img src="aipp-k8s-architecture.png" alt="AI Hub — K8s 클러스터 위 실제 배포 형상" style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.08);">
+      <div style="text-align:center;color:#8892b0;font-size:13px;margin-top:8px;">K8s 클러스터 위 실제 배포 형상 — AWS → RKE2 → Platform → AIPP</div>
+    </div>
+  </div>
+
+  <div class="arch-wrapper">
+    <!-- BEFORE -->
+    <div class="arch-panel before">
+      <div class="panel-title before-title">Docker Compose — 원본 패키지</div>
+      <div class="panel-desc">"단일 서버, 포트 직접 노출, .env 시크릿"</div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L1</span> <span class="icon">🖥️</span> 사용자 화면</div>
+        <div class="components">
+          <div class="comp fe">enai-front (React+PM2) :3000</div>
+        </div>
+        <div class="layer-note">• 사용자 접속 웹 화면 · React 기반 · PM2 프로세스 관리</div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L2</span> <span class="icon">⚙️</span> 백엔드 서비스</div>
+        <div class="components">
+          <div class="comp be">enai-backend :8080</div>
+          <div class="comp worker">enai-data-processor :9090</div>
+          <div class="comp ai">enai-linker (GPU) :9010</div>
+          <div class="comp sched">enai-scheduler :8181</div>
+        </div>
+        <div class="layer-note">• <strong>backend</strong> — 핵심 API 서버<br>• <strong>data-processor</strong> — 문서 수집 + AI 벡터 변환<br>• <strong>linker</strong> — GPU 기반 AI 모델 실행<br>• <strong>scheduler</strong> — 예약 작업 자동 실행</div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L3</span> <span class="icon">🗄️</span> 데이터 저장소</div>
+        <div class="components">
+          <div class="comp db">pgvector (PG17) :5432</div>
+          <div class="comp infra">Redis :6379</div>
+          <div class="comp infra">RabbitMQ :5672</div>
+        </div>
+        <div class="layer-note">• <strong>pgvector</strong> — 일반 데이터 + AI 벡터 통합 DB<br>• <strong>Redis</strong> — 고속 캐시 (세션·상태)<br>• <strong>RabbitMQ</strong> — 서비스 간 비동기 메시지 큐</div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L4</span> <span class="icon">🔍</span> 모니터링 (선택 설치)</div>
+        <div class="components">
+          <div class="comp obs">Prometheus</div>
+          <div class="comp obs">Grafana</div>
+          <div class="comp obs">Loki</div>
+          <div class="comp obs">Tempo</div>
+          <div class="comp obs">OTEL Collector</div>
+        </div>
+        <div class="layer-note">• 별도 docker-compose 추가 실행 필요</div>
+      </div>
+
+      <div class="callout issue">
+        <div class="callout-title">⚠ 주요 한계점</div>
+        <ul>
+          <li>서버 1대 의존 — 장애 시 전체 서비스 중단</li>
+          <li>DB 포트(5432) 등이 외부에 직접 노출됨</li>
+          <li>비밀번호를 .env 텍스트 파일에 평문 저장</li>
+          <li>HTTPS(보안 접속) 미적용, 도메인 없음</li>
+          <li>이미지 버전이 :latest (어떤 버전인지 추적 불가)</li>
+          <li>모니터링을 쓰려면 별도 설치 필요</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="arch-panel after">
+      <div class="panel-title after-title">K8s Unified Meta — 현재 아키텍처</div>
+      <div class="panel-desc">"자동 복구, Ingress TLS, 영구 저장소, GitOps"</div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L0</span> <span class="icon">🚀</span> 플랫폼 통합</div>
+        <div class="components">
+          <div class="comp k8s new" title="Git 기반 자동 배포 도구">ArgoCD (자동 배포)</div>
+          <div class="comp k8s new" title="사내 컨테이너 이미지 저장소">Harbor (이미지 저장소)</div>
+          <div class="comp k8s new" title="K8s 설정 파일 관리 도구">Kustomize (설정 관리)</div>
+          <div class="comp k8s new" title="비밀번호 암호화 저장">K8s Secret (암호 관리)</div>
+        </div>
+        <div class="layer-roles">
+          <ul>
+            <li><span class="role-name">ArgoCD</span> — Git push 시 자동 배포. AIPP 전체 K8s 매니페스트 선언적 관리</li>
+            <li><span class="role-name">Harbor</span> — 컨테이너 이미지 :v1.0.0 태그 고정 저장. 외부 GitLab 의존 제거</li>
+            <li><span class="role-name">Kustomize</span> — 환경별(dev/prod) 설정 분리 관리. Helm 없이 순수 YAML 오버레이</li>
+            <li><span class="role-name">K8s Secret</span> — .env 평문 저장 → K8s 암호화 저장 + 권한 제어 전환</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L1</span> <span class="icon">🌐</span> 외부 접속 관문 (Ingress)</div>
+        <div class="components">
+          <div class="comp fe evolved" title="외부 트래픽 → 내부 서비스 라우팅">Nginx Ingress (트래픽 라우터)</div>
+          <div class="comp fe new" title="HTTPS 인증서 자동 발급·갱신">TLS 인증서 (자동 발급)</div>
+          <div class="comp fe new" title="외부 접속 도메인">aipp.dev.unifiedmeta.net</div>
+        </div>
+        <div class="layer-roles">
+          <ul>
+            <li><span class="role-name">Nginx Ingress</span> — URL 경로에 따라 /api → backend, / → frontend 자동 분배</li>
+            <li><span class="role-name">TLS 인증서</span> — cert-manager가 HTTPS 인증서 자동 발급·갱신. 수동 작업 제거</li>
+            <li><span class="role-name">도메인</span> — 단일 도메인으로 외부 접속. 포트 직접 노출 제거</li>
+          </ul>
+        </div>
+        <div class="callout benefit" style="margin-top:8px;">
+          <div class="callout-title">✓ 경로 기반 라우팅</div>
+          <ul>
+            <li>/api → enai-backend (API 서버)</li>
+            <li>/ → enai-front (웹 화면)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L2</span> <span class="icon">⚙️</span> 애플리케이션 (Deployment)</div>
+        <div class="components">
+          <div class="comp fe evolved" title="사용자 웹 화면 UI">enai-front (Next.js)</div>
+          <div class="comp be evolved" title="핵심 API 서버 + DB 대기 로직">enai-backend + 대기 로직</div>
+          <div class="comp worker" title="문서 수집 + AI 벡터 변환">enai-data-processor</div>
+          <div class="comp ai" title="GPU AI 모델 실행 (비활성)">enai-linker (GPU, 비활성)</div>
+          <div class="comp sched" title="예약 작업 자동 실행">enai-scheduler</div>
+        </div>
+        <div class="layer-roles">
+          <ul>
+            <li><span class="role-name">enai-front</span> — 사용자 웹 UI. 독립 Pod로 실행, 비정상 시 자동 재시작</li>
+            <li><span class="role-name">enai-backend</span> — 핵심 API 서버. initContainer로 DB 준비 완료까지 자동 대기 후 기동</li>
+            <li><span class="role-name">data-processor</span> — 문서 수집 + AI용 벡터 변환 워커</li>
+            <li><span class="role-name">linker</span> — GPU 기반 AI 모델 직접 실행. 현재 GPU 서버 확보 전 replicas=0</li>
+            <li><span class="role-name">scheduler</span> — 예약 작업(데이터 갱신, 정기 수집) 자동 실행</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L3</span> <span class="icon">🗄️</span> 데이터 저장소 (StatefulSet + 영구 볼륨)</div>
+        <div class="components">
+          <div class="comp db evolved" title="AI 벡터 + 일반 데이터 통합 DB">pgvector (10Gi 영구 디스크)</div>
+          <div class="comp infra evolved" title="빈번한 데이터 빠른 조회 캐시">Redis (2Gi 영구 디스크)</div>
+          <div class="comp infra evolved" title="서비스 간 비동기 메시지 큐">RabbitMQ (2Gi 영구 디스크)</div>
+        </div>
+        <div class="layer-roles">
+          <ul>
+            <li><span class="role-name">pgvector</span> — AI 벡터 + 일반 데이터 통합 저장. StatefulSet + Longhorn 10Gi 영구 볼륨</li>
+            <li><span class="role-name">Redis</span> — 세션·AI 상태 캐시. 메모리 기반 고속 조회, 2Gi 영구 저장</li>
+            <li><span class="role-name">RabbitMQ</span> — 서비스 간 비동기 메시지 전달. 작업 순서 보장 + 2Gi 영구 저장</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="layer-label"><span class="layer-num">L4</span> <span class="icon">🔍</span> 모니터링 (기존 클러스터 활용)</div>
+        <div class="components">
+          <div class="comp obs evolved" title="기존 클러스터 모니터링 연동">기존 Prometheus / Grafana / Loki / Tempo</div>
+        </div>
+        <div class="layer-roles">
+          <ul>
+            <li><span class="role-name">모니터링</span> — 별도 설치 불필요. 클러스터 기존 모니터링 시스템 그대로 연동</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Tech Stack Grid ═══ -->
+  <div class="stack-section">
+    <h2>서비스별 기술 스택</h2>
+    <div class="section-intro" style="margin-bottom:16px;">
+      <p>• 총 <strong>9개 서비스</strong> 구성 · 각 서비스 독립 실행 · K8s 네트워크로 상호 연동</p>
+    </div>
+    <div class="stack-grid">
+      <div class="stack-item s-fe">
+        <div class="stack-role">Frontend</div>
+        <div class="stack-name">enai-front</div>
+        <div class="stack-desc">Next.js · PM2</div>
+        <div class="stack-port">:3000 → svc :80</div>
+
+      </div>
+      <div class="stack-item s-be">
+        <div class="stack-role">Backend API</div>
+        <div class="stack-name">enai-backend</div>
+        <div class="stack-desc">Spring Boot · Liquibase</div>
+        <div class="stack-port">:8080</div>
+
+      </div>
+      <div class="stack-item s-worker">
+        <div class="stack-role">Data Worker</div>
+        <div class="stack-name">data-processor</div>
+        <div class="stack-desc">Spring Boot · 벡터화</div>
+        <div class="stack-port">:9090</div>
+
+      </div>
+      <div class="stack-item s-ai">
+        <div class="stack-role">AI Linker (GPU)</div>
+        <div class="stack-name">enai-linker</div>
+        <div class="stack-desc">Python + gRPC/REST</div>
+        <div class="stack-port">:9010 gRPC · :9011 REST</div>
+        <div class="stack-explain">GPU 기반 AI 모델 직접 실행 (LLM, 임베딩)</div>
+      </div>
+      <div class="stack-item s-sched">
+        <div class="stack-role">Scheduler</div>
+        <div class="stack-name">enai-scheduler</div>
+        <div class="stack-desc">Spring Boot · Cron</div>
+        <div class="stack-port">:8181</div>
+
+      </div>
+      <div class="stack-item s-db">
+        <div class="stack-role">Vector DB</div>
+        <div class="stack-name">pgvector</div>
+        <div class="stack-desc">PostgreSQL 17</div>
+        <div class="stack-port">:5432 · 10Gi</div>
+        <div class="stack-explain">일반 데이터 + AI 벡터 통합 저장</div>
+      </div>
+      <div class="stack-item s-cache">
+        <div class="stack-role">Cache</div>
+        <div class="stack-name">Redis 7</div>
+        <div class="stack-desc">세션 · AI 상태</div>
+        <div class="stack-port">:6379 · 2Gi</div>
+        <div class="stack-explain">세션 · AI 상태 고속 캐시</div>
+      </div>
+      <div class="stack-item s-mq">
+        <div class="stack-role">Message Queue</div>
+        <div class="stack-name">RabbitMQ 3</div>
+        <div class="stack-desc">AMQP 프로토콜</div>
+        <div class="stack-port">:5672 · 2Gi</div>
+        <div class="stack-explain">비동기 메시지 전달 · 작업 순서 보장</div>
+      </div>
+      <div class="stack-item s-obs">
+        <div class="stack-role">모니터링</div>
+        <div class="stack-name">OTEL Stack</div>
+        <div class="stack-desc">Prometheus · Grafana</div>
+        <div class="stack-port">클러스터 통합</div>
+        <div class="stack-explain">클러스터 기존 모니터링 통합 연동</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ DFD: Data Flow ═══ -->
+  <div class="flow-section">
+    <h2>데이터 흐름 비교 (DFD)</h2>
+    <div class="section-intro" style="margin-bottom:16px;">
+      <p>• <strong>이전</strong> — 포트 번호 직접 입력으로 접속, 암호화 없는 HTTP 통신<br>
+      • <strong>현재</strong> — 단일 도메인(HTTPS)으로 진입 → Ingress가 경로별 자동 분배</p>
+    </div>
+    <div class="traffic-flow">
+      <div class="flow-panel before">
+        <h3>이전 — 포트 직접 접근</h3>
+        <div class="flow-insight bad">각 서비스에 포트 번호로 직접 접속. 보안 계층(TLS) 없이 HTTP로 통신.</div>
+        <div class="flow-steps">
+          <div class="flow-step"><div class="flow-node fe">사용자 브라우저</div></div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step"><div class="flow-node fe">enai-front (:3000)</div><div class="flow-annotation bad">HTTP — 암호화 없음</div></div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step"><div class="flow-node be">enai-backend (:8080)</div><div class="flow-annotation bad">환경변수로 주소 지정</div></div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step">
+            <div class="flow-node db">pgvector (:5432)</div>
+            <div class="flow-annotation">+ Redis (:6379) + MQ (:5672)</div>
+          </div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step">
+            <div class="flow-node worker">data-proc (:9090)</div>
+            <div class="flow-annotation">+ linker (:9010, gRPC)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-panel after">
+        <h3>현재 — 도메인 단일 진입점 + HTTPS</h3>
+        <div class="flow-insight good">하나의 도메인(HTTPS)으로 접속하면 Ingress가 경로에 따라 자동 분배.</div>
+        <div class="flow-steps">
+          <div class="flow-step"><div class="flow-node fe" style="border-color:rgba(76,173,106,0.4);">사용자 브라우저</div></div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step"><div class="flow-node k8s" style="border-color:rgba(76,173,106,0.4);">Ingress (HTTPS + TLS 인증서)</div><div class="flow-annotation good">aipp.dev.unifiedmeta.net</div></div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step"><div class="flow-node be" style="border-color:rgba(76,173,106,0.4);">/api → backend / → frontend</div><div class="flow-annotation good">경로에 따라 자동 분배</div></div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step">
+            <div class="flow-node db" style="border-color:rgba(76,173,106,0.4);">pgvector · Redis · RabbitMQ</div>
+            <div class="flow-annotation good">K8s 내부 DNS로 서로 찾기</div>
+          </div>
+          <div class="flow-arrow down">↓</div>
+          <div class="flow-step">
+            <div class="flow-node worker" style="border-color:rgba(76,173,106,0.4);">data-proc · linker · scheduler</div>
+            <div class="flow-annotation good">K8s Service Discovery</div>
+          </div>
+        </div>
+        <div class="callout benefit" style="margin-top:16px;">
+          <div class="callout-title">✓ 핵심 개선 사항</div>
+          <ul>
+            <li>HTTPS 암호화 통신 (인증서 자동 갱신)</li>
+            <li>내부 서비스끼리는 K8s DNS로 자동 탐색</li>
+            <li>비밀번호는 K8s Secret으로 암호화 관리</li>
+            <li>서비스 상태를 자동 점검 (Health Probe)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Comparison Table ═══ -->
+  <div class="comparison-section">
+    <h2>전환 비교 매트릭스</h2>
+    <div class="section-intro" style="margin-bottom:16px;">
+      <p>• Docker Compose → K8s 전환 항목별 비교 · <span style="color:var(--red-light)">빨간색</span> 이전 한계 · <span style="color:var(--green-light)">초록색</span> 개선 현황</p>
+    </div>
+    <table class="comp-table">
+      <thead><tr><th>항목</th><th>이전 (Docker Compose)</th><th>현재 (K8s)</th></tr></thead>
+      <tbody>
+        <tr class="matrix-row"><td>배포 방식</td><td class="val-bad">docker-compose up (수동 실행)</td><td class="val-good">ArgoCD — Git push만 하면 자동 반영</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• 이전: SSH 접속 → docker-compose up 수동 실행<br>• 현재: Git push → ArgoCD 자동 감지 → 클러스터 반영<br>• 서버 직접 접속 불필요, 배포 이력 자동 기록</div></div></td></tr>
+        <tr class="matrix-row"><td>이미지 버전</td><td class="val-bad">:latest (어떤 버전인지 불명확)</td><td class="val-good">:v1.0.0 (명확한 버전 고정)</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• :latest — 어떤 버전인지 불명확, 롤백 불가<br>• :v1.0.0 — 버전 고정, 문제 시 정확한 이전 상태로 복원 가능</div></div></td></tr>
+        <tr class="matrix-row"><td>이미지 저장소</td><td class="val-bad">외부 GitLab Registry</td><td class="val-good">내부 Harbor Registry</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• 외부 GitLab 의존 → 네트워크 장애 시 이미지 Pull 불가<br>• 사내 Harbor 전환 → 외부 의존 제거 + 이미지 보안 스캔 가능</div></div></td></tr>
+        <tr class="matrix-row"><td>외부 접속</td><td class="val-bad">포트 직접 노출, HTTP</td><td class="val-good">Ingress + HTTPS (TLS 자동)</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• 이전: :3000, :8080 포트 직접 노출, 암호화 없는 HTTP 통신<br>• 현재: Nginx Ingress → 단일 도메인 HTTPS 접속 → 경로별 자동 분배</div></div></td></tr>
+        <tr class="matrix-row"><td>도메인</td><td class="val-bad">localhost (외부 접근 불가)</td><td class="val-good">aipp.dev.unifiedmeta.net</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• localhost 전용 → 서버 앞에서만 접속 가능<br>• 고유 도메인 발급 → 어디서든 브라우저 접속, external-dns 자동 등록</div></div></td></tr>
+        <tr class="matrix-row"><td>데이터 저장</td><td class="val-bad">서버 로컬 폴더 (서버 교체 시 유실)</td><td class="val-good">Longhorn 영구 볼륨 (분산 복제)</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• 서버 로컬 저장 → 서버 고장 시 데이터 유실 위험<br>• Longhorn 분산 복제 → 노드 장애 시에도 복제본으로 데이터 보존</div></div></td></tr>
+        <tr class="matrix-row"><td>비밀번호 관리</td><td class="val-bad">.env 텍스트 파일에 평문 저장</td><td class="val-good">K8s Secret (암호화 + 권한 제어)</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• .env 평문 저장 → 서버 접근 시 누구나 열람 가능<br>• K8s Secret 암호화 저장 + RBAC 권한 제어 → 해당 서비스만 접근 가능</div></div></td></tr>
+        <tr class="matrix-row"><td>서비스 상태 점검</td><td class="val-bad">Docker healthcheck (기본)</td><td class="val-good">readiness + liveness + startup Probe</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• Docker healthcheck — "살아있는가?"만 확인<br>• K8s 3단계 점검:<br>&nbsp;&nbsp;→ startupProbe: 시작 완료 확인<br>&nbsp;&nbsp;→ readinessProbe: 요청 수신 준비 완료<br>&nbsp;&nbsp;→ livenessProbe: 무응답 시 자동 재시작</div></div></td></tr>
+        <tr class="matrix-row"><td>리소스 제한</td><td class="val-bad">없음 (서비스가 서버 자원 무제한 사용)</td><td class="val-good">CPU·메모리 상한 설정 (과점유 방지)</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• 이전: 자원 제한 없음 → 한 서비스가 메모리 전부 점유 시 전체 다운<br>• 현재: 서비스별 CPU·메모리 최소/최대 설정 → 자원 격리, 과점유 방지</div></div></td></tr>
+        <tr class="matrix-row"><td>모니터링</td><td class="val-bad">별도 docker-compose로 추가 설치</td><td class="val-good">기존 클러스터 모니터링 바로 연동</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• 이전: 별도 docker-compose로 Prometheus/Grafana 추가 설치 필요<br>• 현재: 클러스터 기존 모니터링이 AIPP Pod 자동 감지 → 설치 없이 즉시 연동</div></div></td></tr>
+        <tr class="matrix-row"><td>GPU 서비스</td><td class="val-bad">nvidia-docker 수동 설정</td><td class="val-good">K8s GPU 스케줄링 (자동 배치)</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• 이전: nvidia-docker 런타임 수동 설치·설정<br>• 현재: nvidia.com/gpu 리소스 선언 → K8s 스케줄러가 GPU 노드에 자동 배치<br>• 현재 GPU 노드 미확보 → replicas=0</div></div></td></tr>
+        <tr class="matrix-row"><td>시작 순서 보장</td><td class="val-bad">depends_on (불완전)</td><td class="val-good">initContainer (DB 준비까지 대기)</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• depends_on — 컨테이너 시작만 보장, DB 준비 여부 미확인<br>• initContainer — DB 실제 사용 가능 시점까지 대기 후 앱 기동 → 연결 실패 방지</div></div></td></tr>
+        <tr class="matrix-row"><td>장애 복구</td><td class="val-bad">수동 docker restart</td><td class="val-good">K8s 자동 재시작 (무인 복구)</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• 이전: 관리자가 장애 인지 → 수동 docker restart<br>• 현재: livenessProbe 자동 감지 → Pod 즉시 재시작 (야간·휴일 무인 복구)</div></div></td></tr>
+        <tr class="matrix-row"><td>인프라 서비스</td><td class="val-bad">일반 Container (데이터 불안정)</td><td class="val-good">StatefulSet (고정 ID + 영구 저장소)</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• 일반 Container — 재시작 시 저장 데이터 소실 가능<br>• StatefulSet — 고정 네트워크 ID + 영구 디스크(PVC) → 재시작해도 데이터 보존</div></div></td></tr>
+        <tr class="matrix-row"><td>DB 초기화 스크립트</td><td class="val-bad">서버 로컬 파일 참조</td><td class="val-good">ConfigMap (설정 파일도 K8s 내 관리)</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• 서버 로컬 경로 저장 → 서버 교체 시 수동 복사 필요<br>• ConfigMap 저장 → Git 버전 관리, 어떤 노드에서든 동일 스크립트 자동 적용</div></div></td></tr>
+        <tr class="matrix-row"><td>URL 라우팅</td><td class="val-bad">프론트/백엔드 각각 다른 포트</td><td class="val-good">하나의 도메인, 경로로 분기</td></tr>
+        <tr class="detail-row"><td colspan="3"><div class="detail-content"><div class="dl">부연 설명</div><div class="dt">• 이전: 프론트(:3000)·백엔드(:8080) 각각 다른 포트 → Mixed Content 위험<br>• 현재: Ingress가 /api → 백엔드, / → 프론트엔드로 단일 도메인 내 자동 분배</div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ K8s Resource Spec Table ═══ -->
+  <div class="comparison-section" style="margin-top:40px;">
+    <h2>K8s 리소스 사양</h2>
+    <div class="section-intro" style="margin-bottom:16px;">
+      <p>• 서비스별 <strong>CPU·메모리 최소(Request)·최대(Limit)</strong> 사전 지정 → 자원 독점 방지<br>
+      • <strong>Replicas</strong> — 실행 복제본 수 · enai-linker = 0 (GPU 미확보)</p>
+    </div>
+    <table class="res-table">
+      <thead><tr><th>컴포넌트</th><th>타입</th><th>CPU 최소</th><th>CPU 최대</th><th>메모리 최소</th><th>메모리 최대</th><th>디스크</th><th>복제본</th></tr></thead>
+      <tbody>
+        <tr><td>pgvector</td><td class="k8s-type">StatefulSet</td><td>200m</td><td>1 core</td><td>256Mi</td><td>1Gi</td><td style="color:var(--amber-light)">10Gi</td><td>1</td></tr>
+        <tr><td>redis</td><td class="k8s-type">StatefulSet</td><td>100m</td><td>500m</td><td>128Mi</td><td>512Mi</td><td style="color:var(--amber-light)">2Gi</td><td>1</td></tr>
+        <tr><td>rabbitmq</td><td class="k8s-type">StatefulSet</td><td>100m</td><td>500m</td><td>256Mi</td><td>512Mi</td><td style="color:var(--amber-light)">2Gi</td><td>1</td></tr>
+        <tr><td>enai-backend</td><td class="k8s-type">Deployment</td><td>200m</td><td>1 core</td><td>512Mi</td><td>1Gi</td><td>임시</td><td>1</td></tr>
+        <tr><td>enai-data-processor</td><td class="k8s-type">Deployment</td><td>200m</td><td>1 core</td><td>512Mi</td><td>1Gi</td><td>—</td><td>1</td></tr>
+        <tr><td>enai-scheduler</td><td class="k8s-type">Deployment</td><td>100m</td><td>500m</td><td>256Mi</td><td>512Mi</td><td>—</td><td>1</td></tr>
+        <tr><td style="color:var(--amber-light)">enai-linker ⚡</td><td class="k8s-type">Deployment</td><td>1 core</td><td>4 cores</td><td>4Gi</td><td>12Gi</td><td>—</td><td style="color:var(--red-light)">0 (GPU 대기)</td></tr>
+        <tr><td>enai-front</td><td class="k8s-type">Deployment</td><td>100m</td><td>500m</td><td>128Mi</td><td>512Mi</td><td>—</td><td>1</td></tr>
+        <tr class="total-row"><td>합계</td><td></td><td>2 cores</td><td>9 cores</td><td>6 Gi</td><td>17.5 Gi</td><td>14 Gi</td><td>7 (+1)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    AIPP Architecture Deep Analysis · Docker Compose → K8s Unified Meta · 2026-02-12
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.matrix-row').forEach(row => {
+  row.addEventListener('click', () => {
+    const detail = row.nextElementSibling;
+    if (!detail || !detail.classList.contains('detail-row')) return;
+    const isOpen = detail.classList.contains('visible');
+    document.querySelectorAll('.detail-row.visible').forEach(r => {
+      r.classList.remove('visible');
+      r.previousElementSibling.classList.remove('expanded');
+    });
+    if (!isOpen) {
+      detail.classList.add('visible');
+      row.classList.add('expanded');
+    }
+  });
+});
+</script>
+</body>
+</html>

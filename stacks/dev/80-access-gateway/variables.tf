@@ -123,6 +123,12 @@ variable "kubernetes_services" {
       uri      = "https://opstart.unifiedmeta.net"
       type     = "web"
       internal = true
+    },
+    {
+      name     = "aipp"
+      uri      = "https://aipp.dev.unifiedmeta.net"
+      type     = "web"
+      internal = true
     }
   ]
 }

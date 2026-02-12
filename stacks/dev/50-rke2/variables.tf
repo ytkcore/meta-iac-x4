@@ -60,6 +60,33 @@ variable "instance_type" {
   default     = "t3.large"
 }
 
+##############################
+# GPU Worker Nodes (Optional)
+##############################
+variable "enable_gpu_workers" {
+  description = "GPU 워커 노드 활성화 여부 (false면 GPU 노드 미생성)"
+  type        = bool
+  default     = false
+}
+
+variable "gpu_worker_count" {
+  description = "GPU Worker 노드 수 (enable_gpu_workers=true 시 적용)"
+  type        = number
+  default     = 1
+}
+
+variable "gpu_instance_type" {
+  description = "GPU 인스턴스 타입"
+  type        = string
+  default     = "g4dn.xlarge"
+}
+
+variable "gpu_root_volume_size_gb" {
+  description = "GPU 노드 Root EBS 크기(GB)"
+  type        = number
+  default     = 50
+}
+
 variable "root_volume_type" {
   description = "Root EBS 타입"
   type        = string

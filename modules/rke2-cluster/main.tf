@@ -55,6 +55,13 @@ locals {
     }
   }
 
+  gpu_workers = {
+    for i in range(var.gpu_worker_count) :
+    format("gpu-%02d", i + 1) => {
+      subnet_id = local.dp_subnets[i % length(local.dp_subnets)]
+    }
+  }
+
   # Ingress backend (ACM TLS termination support)
   ingress_backend_port     = var.enable_acm_tls_termination ? var.ingress_http_nodeport : var.ingress_https_nodeport
   ingress_backend_protocol = var.enable_acm_tls_termination ? "TCP" : "TCP"
@@ -437,6 +444,63 @@ module "worker" {
   allow_ami_fallback = var.allow_ami_fallback
 
   user_data_base64 = base64gzip(templatefile("${path.module}/templates/rke2-agent-userdata.sh.tftpl", {
+    rke2_version                      = var.rke2_version
+    token                             = local.token
+    server_url                        = local.server_url
+    node_name                         = each.key
+    os_family                         = var.os_family
+    harbor_registry_hostport          = var.harbor_registry_hostport != null ? var.harbor_registry_hostport : ""
+    harbor_hostname                   = var.harbor_hostname != null ? var.harbor_hostname : ""
+    harbor_private_ip                 = var.harbor_private_ip != null ? var.harbor_private_ip : ""
+    harbor_add_hosts_entry            = var.harbor_add_hosts_entry
+    harbor_scheme                     = var.harbor_scheme
+    harbor_proxy_project              = var.harbor_proxy_project
+    enable_image_prepull              = var.enable_image_prepull
+    image_prepull_source              = var.image_prepull_source
+    disable_default_registry_fallback = var.disable_default_registry_fallback
+    harbor_tls_insecure_skip_verify   = var.harbor_tls_insecure_skip_verify
+    harbor_auth_enabled               = var.harbor_auth_enabled
+    harbor_username                   = var.harbor_username
+    harbor_password                   = var.harbor_password
+    cni                               = var.cni
+    cilium_kube_proxy_replacement     = var.cilium_kube_proxy_replacement
+    enable_aws_ccm                    = var.enable_aws_ccm
+  }))
+
+  depends_on = [module.control_plane]
+}
+
+# GPU Worker Nodes (Optional)
+module "gpu_worker" {
+  source   = "../ec2-instance"
+  for_each = local.gpu_workers
+
+  name    = "${var.name}-${each.key}"
+  env     = var.env
+  project = var.project
+  region  = var.region
+
+  subnet_id              = each.value.subnet_id
+  vpc_security_group_ids = [aws_security_group.nodes.id]
+  instance_type          = var.gpu_instance_type
+  root_volume_size       = var.gpu_root_volume_size_gb
+
+  # Use shared IAM instance profile (external)
+  iam_instance_profile = aws_iam_instance_profile.nodes.name
+
+  # Kubernetes cluster tags for AWS CCM
+  tags = merge(local.common_tags, {
+    "node.kubernetes.io/gpu" = "true"
+  })
+
+  # Golden Image Configuration
+  state_bucket       = var.state_bucket
+  state_region       = var.state_region
+  state_key_prefix   = var.state_key_prefix
+  ami_id             = var.ami_id
+  allow_ami_fallback = var.allow_ami_fallback
+
+  user_data_base64 = base64gzip(templatefile("${path.module}/templates/rke2-gpu-agent-userdata.sh.tftpl", {
     rke2_version                      = var.rke2_version
     token                             = local.token
     server_url                        = local.server_url
