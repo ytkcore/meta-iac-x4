@@ -76,7 +76,6 @@ variable "kubernetes_services" {
       uri          = "https://argocd.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "unified-meta-argocd"
       description  = "ArgoCD — GitOps 배포"
     },
     {
@@ -84,7 +83,6 @@ variable "kubernetes_services" {
       uri          = "https://grafana.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "unified-meta-grafana"
       description  = "Grafana — 모니터링 대시보드"
     },
     {
@@ -92,7 +90,6 @@ variable "kubernetes_services" {
       uri          = "https://longhorn.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "unified-meta-longhorn"
       description  = "Longhorn — 분산 스토리지"
     },
     {
@@ -100,7 +97,6 @@ variable "kubernetes_services" {
       uri          = "https://rancher.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "unified-meta-rancher"
       description  = "Rancher — 클러스터 관리"
     },
     {
@@ -108,7 +104,6 @@ variable "kubernetes_services" {
       uri          = "https://vault.dev.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "unified-meta-vault"
       description  = "Vault — 시크릿 관리"
     },
     {
@@ -116,7 +111,6 @@ variable "kubernetes_services" {
       uri               = "https://keycloak.dev.unifiedmeta.net"
       type              = "web"
       internal          = true
-      display_name      = "unified-meta-keycloak"
       description       = "Keycloak — SSO 관리 콘솔"
       rewrite_redirect  = ["keycloak.dev.unifiedmeta.net"]
     },
@@ -125,7 +119,6 @@ variable "kubernetes_services" {
       uri          = "https://alertmanager.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "unified-meta-alertmanager"
       description  = "Alertmanager — 알림 관리"
     },
     {
@@ -133,7 +126,6 @@ variable "kubernetes_services" {
       uri          = "https://prometheus.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "unified-meta-prometheus"
       description  = "Prometheus — 메트릭 수집"
     },
     {
@@ -149,7 +141,6 @@ variable "kubernetes_services" {
       uri          = "https://aipp.dev.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "unified-meta-aipp"
       description  = "AIPP — AI 플랫폼 포탈"
     },
     {
