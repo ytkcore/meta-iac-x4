@@ -138,7 +138,7 @@ variable "kubernetes_services" {
       uri          = "https://landing-page.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "unified-meta-home"
+      display_name = "home"
     },
     {
       name         = "dashboard"
