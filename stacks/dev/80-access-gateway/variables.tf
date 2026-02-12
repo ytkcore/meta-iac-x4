@@ -129,6 +129,18 @@ variable "kubernetes_services" {
       uri      = "https://aipp.dev.unifiedmeta.net"
       type     = "web"
       internal = true
+    },
+    {
+      name     = "landing-page"
+      uri      = "https://landing-page.unifiedmeta.net"
+      type     = "web"
+      internal = true
+    },
+    {
+      name     = "dashboard"
+      uri      = "https://dashboard.unifiedmeta.net"
+      type     = "web"
+      internal = true
     }
   ]
 }

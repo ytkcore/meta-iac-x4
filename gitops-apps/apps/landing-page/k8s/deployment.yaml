@@ -66,16 +66,16 @@ metadata:
   name: landing-page
   namespace: apps
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: letsencrypt-dns
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
-  ingressClassName: nginx
+  ingressClassName: nginx-internal
   tls:
     - hosts:
-        - www.unifiedmeta.net
+        - landing-page.unifiedmeta.net
       secretName: landing-page-tls
   rules:
-    - host: www.unifiedmeta.net
+    - host: landing-page.unifiedmeta.net
       http:
         paths:
           - path: /
@@ -85,3 +85,4 @@ spec:
                 name: landing-page
                 port:
                   number: 80
+
