@@ -23,7 +23,7 @@ spec:
   source:
     repoURL: git@github.com:ytkcore/meta-iac-x4.git
     targetRevision: HEAD
-    path: gitops-apps/apps/landing-page/k8s
+    path: gitops-apps/apps/landing-page
   destination:
     server: https://kubernetes.default.svc
     namespace: apps
