@@ -13,7 +13,7 @@ locals {
   # Teleport 앱 설정 생성
   teleport_apps_config = [
     for svc in local.internal_services : {
-      name                 = svc.name
+      name                 = svc.display_name != "" ? svc.display_name : svc.name
       uri                  = svc.uri
       description          = svc.description
       public_addr          = "${svc.name}.teleport.${var.teleport_server.domain}"

@@ -125,28 +125,27 @@ variable "kubernetes_services" {
       uri          = "https://opstart.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "Unified Meta Opstart"
+      display_name = "unified-meta-opstart"
     },
     {
       name         = "aipp"
       uri          = "https://aipp.dev.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "AIPP"
     },
     {
       name         = "landing-page"
       uri          = "https://landing-page.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "Unified Meta Home"
+      display_name = "unified-meta-home"
     },
     {
       name         = "dashboard"
       uri          = "https://dashboard.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "Unified Meta Dashboard"
+      display_name = "unified-meta-dashboard"
     }
   ]
 }
