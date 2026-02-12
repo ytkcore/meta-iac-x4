@@ -11,13 +11,13 @@ locals {
   internal_services = [for s in var.services : s if s != null && s.internal == true]
 
   # Teleport 앱 설정 생성
-  # name = DNS-safe 식별자 (svc.name)
-  # description = 사람이 읽을 수 있는 표시 이름 (display_name → Teleport UI)
+  # name = display_name (unified-meta-* 패턴) 또는 svc.name (fallback)
+  # description = 한국어 설명 (Teleport UI에 표시)
   teleport_apps_config = [
     for svc in local.internal_services : {
-      name                 = svc.name
+      name                 = svc.display_name != "" ? svc.display_name : svc.name
       uri                  = svc.uri
-      description          = svc.display_name != "" ? svc.display_name : svc.description
+      description          = svc.description
       public_addr          = "${svc.name}.teleport.${var.teleport_server.domain}"
       insecure_skip_verify = var.insecure_skip_verify
       rewrite_redirect     = svc.rewrite_redirect
