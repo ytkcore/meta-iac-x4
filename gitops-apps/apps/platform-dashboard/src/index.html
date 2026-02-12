@@ -25,6 +25,13 @@
         </div>
     </header>
 
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+        <a class="nav-tab active" href="index.html">Overview</a>
+        <a class="nav-tab" href="architecture-evolution.html">Architecture Evolution</a>
+        <a class="nav-tab" href="aipp-deepdive.html">AIPP Deep Dive</a>
+    </nav>
+
     <!-- Hero Stats -->
     <section class="stats-bar">
         <div class="stat-card">
@@ -32,8 +39,8 @@
             <div class="stat-label">Terraform Stacks</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number" id="stat-apps">13</div>
-            <div class="stat-label">ArgoCD Apps</div>
+            <div class="stat-number" id="stat-apps">15</div>
+            <div class="stat-label">Teleport Apps</div>
         </div>
         <div class="stat-card">
             <div class="stat-number" id="stat-identity">3</div>
@@ -51,21 +58,28 @@
         <p class="section-desc">Click any component to view details</p>
 
         <div class="architecture-grid">
-            <!-- Row 1: External Access -->
+            <!-- Col 1: Users -->
             <div class="arch-layer" data-layer="access">
-                <div class="layer-label">External Access</div>
+                <div class="layer-label">Users</div>
                 <div class="layer-nodes">
                     <div class="node node-external" data-id="users" onclick="showDetail(this)">
                         <div class="node-icon">👤</div>
                         <div class="node-name">Users</div>
                     </div>
-                    <div class="node-connector">→</div>
+                </div>
+            </div>
+
+            <div class="arch-connector">→</div>
+
+            <!-- Col 2: Edge Security -->
+            <div class="arch-layer" data-layer="access">
+                <div class="layer-label">Edge Security</div>
+                <div class="layer-nodes">
                     <div class="node node-security" data-id="waf" onclick="showDetail(this)">
                         <div class="node-icon">🛡️</div>
                         <div class="node-name">AWS WAF</div>
                         <div class="node-tag">L7 Protection</div>
                     </div>
-                    <div class="node-connector">→</div>
                     <div class="node node-network" data-id="nlb" onclick="showDetail(this)">
                         <div class="node-icon">⚖️</div>
                         <div class="node-name">Dual NLB</div>
@@ -74,9 +88,11 @@
                 </div>
             </div>
 
-            <!-- Row 2: Identity Layer -->
+            <div class="arch-connector">→</div>
+
+            <!-- Col 3: Identity -->
             <div class="arch-layer" data-layer="identity">
-                <div class="layer-label">Identity & Zero-Trust</div>
+                <div class="layer-label">Identity</div>
                 <div class="layer-nodes">
                     <div class="node node-identity" data-id="keycloak" onclick="showDetail(this)">
                         <div class="node-icon">🔑</div>
@@ -87,21 +103,23 @@
                     <div class="node node-identity" data-id="vault" onclick="showDetail(this)">
                         <div class="node-icon">🔐</div>
                         <div class="node-name">Vault</div>
-                        <div class="node-tag">Secrets / WorkloadID</div>
+                        <div class="node-tag">Secrets</div>
                         <div class="node-status status-healthy">KMS</div>
                     </div>
                     <div class="node node-identity" data-id="teleport" onclick="showDetail(this)">
                         <div class="node-icon">🚪</div>
                         <div class="node-name">Teleport</div>
-                        <div class="node-tag">Zero-Trust Access</div>
+                        <div class="node-tag">Zero-Trust</div>
                         <div class="node-status status-healthy">v18</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Row 3: Platform Layer -->
+            <div class="arch-connector">→</div>
+
+            <!-- Col 4: Platform -->
             <div class="arch-layer" data-layer="platform">
-                <div class="layer-label">Platform Services</div>
+                <div class="layer-label">Platform</div>
                 <div class="layer-nodes">
                     <div class="node node-platform" data-id="argocd" onclick="showDetail(this)">
                         <div class="node-icon">🔄</div>
@@ -110,7 +128,7 @@
                     </div>
                     <div class="node node-platform" data-id="ingress" onclick="showDetail(this)">
                         <div class="node-icon">🌐</div>
-                        <div class="node-name">Nginx Ingress</div>
+                        <div class="node-name">Ingress</div>
                         <div class="node-tag">Dual Controller</div>
                     </div>
                     <div class="node node-platform" data-id="certmanager" onclick="showDetail(this)">
@@ -121,7 +139,7 @@
                     <div class="node node-platform" data-id="harbor" onclick="showDetail(this)">
                         <div class="node-icon">🐳</div>
                         <div class="node-name">Harbor</div>
-                        <div class="node-tag">OCI Registry</div>
+                        <div class="node-tag">Registry</div>
                     </div>
                     <div class="node node-platform" data-id="rancher" onclick="showDetail(this)">
                         <div class="node-icon">🐂</div>
@@ -131,9 +149,11 @@
                 </div>
             </div>
 
-            <!-- Row 4: Observability -->
+            <div class="arch-connector">→</div>
+
+            <!-- Col 5: Observability -->
             <div class="arch-layer" data-layer="observability">
-                <div class="layer-label">Observability (3 Pillars)</div>
+                <div class="layer-label">Observability</div>
                 <div class="layer-nodes">
                     <div class="node node-obs" data-id="prometheus" onclick="showDetail(this)">
                         <div class="node-icon">📊</div>
@@ -153,13 +173,15 @@
                     <div class="node node-obs" data-id="grafana" onclick="showDetail(this)">
                         <div class="node-icon">📈</div>
                         <div class="node-name">Grafana</div>
-                        <div class="node-tag">Visualization</div>
+                        <div class="node-tag">Dashboard</div>
                         <div class="node-status status-healthy">SSO</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Row 5: Infrastructure -->
+            <div class="arch-connector">→</div>
+
+            <!-- Col 6: Infrastructure -->
             <div class="arch-layer" data-layer="infrastructure">
                 <div class="layer-label">Infrastructure</div>
                 <div class="layer-nodes">
@@ -171,7 +193,7 @@
                     <div class="node node-infra" data-id="longhorn" onclick="showDetail(this)">
                         <div class="node-icon">💾</div>
                         <div class="node-name">Longhorn</div>
-                        <div class="node-tag">Distributed Storage</div>
+                        <div class="node-tag">Storage</div>
                     </div>
                     <div class="node node-infra" data-id="terraform" onclick="showDetail(this)">
                         <div class="node-icon">🏗️</div>
@@ -186,7 +208,9 @@
                 </div>
             </div>
 
-            <!-- Row 6: Cloud -->
+            <div class="arch-connector">→</div>
+
+            <!-- Col 7: Cloud -->
             <div class="arch-layer" data-layer="cloud">
                 <div class="layer-label">AWS Cloud</div>
                 <div class="layer-nodes">

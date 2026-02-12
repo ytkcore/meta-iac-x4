@@ -14,3 +14,7 @@ configMapGenerator:
       - src/index.html
       - src/style.css
       - src/app.js
+      - src/architecture-evolution.html
+      - src/aipp-deepdive.html
+      - src/aipp-k8s-architecture.png
+      - src/aipp-vendor-architecture.png

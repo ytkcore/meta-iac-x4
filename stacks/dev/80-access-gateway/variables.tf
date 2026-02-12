@@ -72,80 +72,89 @@ variable "kubernetes_services" {
   }))
   default = [
     {
-      name     = "argocd"
-      uri      = "https://argocd.unifiedmeta.net"
-      type     = "web"
-      internal = true
+      name         = "argocd"
+      uri          = "https://argocd.unifiedmeta.net"
+      type         = "web"
+      internal     = true
+      display_name = "ArgoCD — GitOps 배포"
     },
     {
-      name     = "grafana"
-      uri      = "https://grafana.unifiedmeta.net"
-      type     = "web"
-      internal = true
+      name         = "grafana"
+      uri          = "https://grafana.unifiedmeta.net"
+      type         = "web"
+      internal     = true
+      display_name = "Grafana — 모니터링 대시보드"
     },
     {
-      name     = "longhorn"
-      uri      = "https://longhorn.unifiedmeta.net"
-      type     = "web"
-      internal = true
+      name         = "longhorn"
+      uri          = "https://longhorn.unifiedmeta.net"
+      type         = "web"
+      internal     = true
+      display_name = "Longhorn — 분산 스토리지"
     },
     {
-      name     = "rancher"
-      uri      = "https://rancher.unifiedmeta.net"
-      type     = "web"
-      internal = true
+      name         = "rancher"
+      uri          = "https://rancher.unifiedmeta.net"
+      type         = "web"
+      internal     = true
+      display_name = "Rancher — 클러스터 관리"
     },
     {
-      name     = "vault"
-      uri      = "https://vault.dev.unifiedmeta.net"
-      type     = "web"
-      internal = true
+      name         = "vault"
+      uri          = "https://vault.dev.unifiedmeta.net"
+      type         = "web"
+      internal     = true
+      display_name = "Vault — 시크릿 관리"
     },
     {
       name              = "keycloak-admin"
       uri               = "https://keycloak.dev.unifiedmeta.net"
       type              = "web"
       internal          = true
+      display_name      = "Keycloak — SSO 관리 콘솔"
       rewrite_redirect  = ["keycloak.dev.unifiedmeta.net"]
     },
     {
-      name     = "alertmanager"
-      uri      = "https://alertmanager.unifiedmeta.net"
-      type     = "web"
-      internal = true
+      name         = "alertmanager"
+      uri          = "https://alertmanager.unifiedmeta.net"
+      type         = "web"
+      internal     = true
+      display_name = "Alertmanager — 알림 관리"
     },
     {
-      name     = "prometheus"
-      uri      = "https://prometheus.unifiedmeta.net"
-      type     = "web"
-      internal = true
+      name         = "prometheus"
+      uri          = "https://prometheus.unifiedmeta.net"
+      type         = "web"
+      internal     = true
+      display_name = "Prometheus — 메트릭 수집"
     },
     {
       name         = "opstart"
       uri          = "https://opstart.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "unified-meta-opstart"
+      display_name = "OpStart — 운영 온보딩"
     },
     {
       name         = "aipp"
       uri          = "https://aipp.dev.unifiedmeta.net"
       type         = "web"
       internal     = true
+      display_name = "AIPP — AI 플랫폼 포탈"
     },
     {
       name         = "home"
       uri          = "https://home.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "unified-meta-home"
+      display_name = "Home — 랜딩 페이지"
     },
     {
       name         = "dashboard"
       uri          = "https://dashboard.unifiedmeta.net"
       type         = "web"
       internal     = true
-      display_name = "unified-meta-dashboard"
+      display_name = "Dashboard — 플랫폼 현황"
     }
   ]
 }
