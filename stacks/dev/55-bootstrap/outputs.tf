@@ -60,6 +60,26 @@ output "gitops_ssh_key_path" {
 }
 
 # -----------------------------------------------------------------------------
+# Platform Credentials (90-credential-init Phase 1)
+# - 배포 직후 관리자가 kubectl 없이 초기 비밀번호를 확인할 수 있도록 통합 output
+# - ArgoCD-managed Secret은 최초 apply 시 비어있을 수 있음 (ArgoCD sync 완료 후 재조회)
+# - Vault Root Token은 K8s Secret이 아님 → vault operator init 결과에서 확인
+# - 사용법: terraform output -json platform_credentials
+# -----------------------------------------------------------------------------
+output "platform_credentials" {
+  description = "플랫폼 초기 크리덴셜 (배포 후 관리자 콘솔 접근용)"
+  sensitive   = true
+  value = {
+    argocd_admin_password   = try(data.kubernetes_secret.argocd_initial_admin.data["password"], "(not yet available)")
+    grafana_admin_password  = try(data.kubernetes_secret.grafana_admin[0].data["admin-password"], "(not yet available)")
+    keycloak_admin_password = try(data.kubernetes_secret.keycloak_admin[0].data["KEYCLOAK_ADMIN_PASSWORD"], "(not yet available)")
+    vault_root_token        = "(vault operator init 결과에서 확인)"
+    rancher_bootstrap       = "admin"
+    harbor_default          = "Harbor12345"
+  }
+}
+
+# -----------------------------------------------------------------------------
 # Connection Info
 # -----------------------------------------------------------------------------
 output "helm_repository_source" {
@@ -87,8 +107,8 @@ output "connection_info" {
 [Helm Chart Source]
 ${local.harbor_oci_available ? "Harbor OCI: ${local.harbor_oci_url}" : "External Repositories (Internet)"}
 
-[Get Initial Admin Password]
-kubectl -n ${var.argocd_namespace} get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+[Get Platform Credentials]
+terraform output -json platform_credentials
 
 [ArgoCD CLI Login (from Bastion)]
 NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')

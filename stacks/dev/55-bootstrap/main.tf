@@ -265,6 +265,36 @@ data "kubernetes_secret" "argocd_initial_admin" {
   depends_on = [helm_release.argocd]
 }
 
+# ------------------------------------------------------------------------------
+# 3-1. Platform Credentials (ArgoCD-managed services)
+# - 이 Secret들은 ArgoCD/GitOps가 비동기로 생성하므로, 최초 apply 시 없을 수 있음
+# - try()로 graceful failure 처리
+# ------------------------------------------------------------------------------
+
+# Grafana Admin Password (monitoring namespace)
+data "kubernetes_secret" "grafana_admin" {
+  count = var.enable_gitops_apps ? 1 : 0
+
+  metadata {
+    name      = "monitoring-grafana-secret"
+    namespace = "monitoring"
+  }
+
+  depends_on = [kubectl_manifest.argocd_root_app]
+}
+
+# Keycloak Admin Password (keycloak namespace, 수동 생성)
+data "kubernetes_secret" "keycloak_admin" {
+  count = var.enable_gitops_apps ? 1 : 0
+
+  metadata {
+    name      = "keycloak-admin-secret"
+    namespace = "keycloak"
+  }
+
+  depends_on = [kubectl_manifest.argocd_root_app]
+}
+
 
 # ------------------------------------------------------------------------------
 # ArgoCD Repository: Harbor OCI Helm Charts

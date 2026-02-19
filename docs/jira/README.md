@@ -1,6 +1,6 @@
 # Jira 티켓 인덱스
 
-> **최종 업데이트**: 2026-02-12  
+> **최종 업데이트**: 2026-02-19  
 > **근거**: [16-architecture-evolution-decision.md](../architecture/16-architecture-evolution-decision.md)
 
 ---
@@ -118,11 +118,26 @@
 | [harbor-image-push-debug](2026-02-11-harbor-image-push-debug.md) | Harbor 대용량 이미지 Push 디버깅 (/tmp tmpfs) | ✅ 완료 |
 | [keycloak-admin-teleport-proxy-fix](2026-02-11-keycloak-admin-teleport-proxy-fix.md) | Keycloak Admin Console Teleport 프록시 접근 수정 | ✅ 완료 |
 
-### 2026-02-12 — AIPP 서비스 안정화
+### 2026-02-12 — AIPP 서비스 안정화 + Teleport/Dashboard 수정 + 접근 스택 전략
 
 | 파일 | 제목 | 상태 |
 |:-----|:-----|:-----|
 | [aipp-k8s-stabilization](2026-02-12-aipp-k8s-stabilization.md) | AIPP K8s 서비스 안정화 — 프로브/리소스/API 경로 튜닝 (6건) | ✅ 완료 |
+| [postdeploy-global-standard](2026-02-12-postdeploy-global-standard.md) | Post-Deployment 운영 가이드 글로벌 표준 개선 (6건) | ✅ 완료 |
+| [teleport-dashboard-configmap-fix](2026-02-12-teleport-dashboard-configmap-fix.md) | Teleport 앱 이름 정리 + Dashboard ConfigMap ServerSideApply 수정 | ✅ 완료 |
+| [access-stack-strategy](2026-02-12-access-stack-strategy.md) | Teleport 대체 — Zero-Trust 접근 스택 전략 (Pomerium/ShellHub/Rancher) | 📋 전략 확정 |
+
+### 2026-02-13 — 크리덴셜 부트스트랩 전략 수립
+
+| 파일 | 제목 | 상태 |
+|:-----|:-----|:-----|
+| [credential-bootstrap-strategy](2026-02-13-credential-bootstrap-strategy.md) | 90-credential-init — Vault + ESO + 전 서비스 SSO 전략 | 📋 전략 확정 |
+
+### 2026-02-19 — 90-credential-init 구현
+
+| 파일 | 제목 | 상태 |
+|:-----|:-----|:-----|
+| [credential-init-implementation](2026-02-19-credential-init-implementation.md) | 90-credential-init ESO + SSO 인프라 구현 (10개 파일) | ✅ 코드 완료 |
 
 ---
 
@@ -141,6 +156,9 @@
 | **2/9** | 일 | **Keycloak K8s 전환 + 보안 강화 + Loki 수정** | K8s Deployment, SG/CNP/Teleport Fix, Secret 보안, Loki DNS, **OIDC HTTPS** | 8 |
 | **2/10** | 월 | **🏷️ v0.5 Source Freeze + Keycloak 디버깅** | Customer Services, Velero DR, Keycloak CSP 9-commit 디버깅, 문서 대규모 갱신 | 6 |
 | **2/11** | 화 | **AIPP + OpStart 배포 + Harbor/Keycloak 수정** | AIPP 9-component K8s, OpStart Pod, Harbor DNS/S3/Push 디버그, Keycloak Dynamic Hostname | 5 |
+| **2/12** | 수 | **AIPP 안정화 + 접근 스택 전략 수립** | Teleport 대체 전략 (Pomerium/ShellHub/Rancher), Post-Deploy 글로벌 표준 | 4 |
+| **2/13** | 목 | **크리덴셜 부트스트랩 전략 수립** | 90-credential-init 확정 (Vault + ESO + 전 서비스 SSO) | 1 |
+| **2/19** | 수 | **90-credential-init 구현** | ESO + ExternalSecret 4개 + vault-seed.sh + terraform output + SSO 연동 | 1 |
 
 ### 🔑 주간 핵심 흐름
 
@@ -165,7 +183,11 @@
  ↓
 2/11 ★ OpStart 배포 + Harbor 수정 + Keycloak Teleport Dynamic Hostname
  ↓
-2/12 ★ AIPP 서비스 안정화 — 6개 근본 원인 수정 (프로브/Redis/Frontend)
+2/12 ★ AIPP 안정화 + 접근 스택 전략 (Teleport → Pomerium/ShellHub)
+ ↓
+2/13 ★ 크리덴셜 부트스트랩 전략 확정 (Vault + ESO + 전 서비스 SSO)
+ ↓
+2/19 ★ 90-credential-init 구현 — ESO + ExternalSecret + vault-seed + SSO 연동
 ```
 
 ### 📈 성과 지표
@@ -178,4 +200,4 @@
 | 삭제 스택 | 1개 (`15-vpn`) |
 | ArgoCD 앱 | 17 앱 자동 배포 (AIPP, OpStart 추가) |
 | 문서 | 25+ 문서 (architecture, security, troubleshooting, guides, operations) |
-| Jira 티켓 | **46건** (이 디렉토리) |
+| Jira 티켓 | **50건** (이 디렉토리) |
